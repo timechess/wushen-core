@@ -1,0 +1,71 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+mod commands;
+mod core_commands;
+
+fn main() {
+    tauri::Builder::default()
+        .manage(core_commands::CoreState::default())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![
+            commands::list_packs,
+            commands::create_pack,
+            commands::delete_pack,
+            commands::get_pack_order,
+            commands::set_pack_order,
+            commands::export_pack_zip,
+            commands::import_pack_zip,
+            commands::list_traits,
+            commands::get_trait,
+            commands::save_trait,
+            commands::delete_trait,
+            commands::list_internals,
+            commands::get_internal,
+            commands::save_internal,
+            commands::delete_internal,
+            commands::list_attack_skills,
+            commands::get_attack_skill,
+            commands::save_attack_skill,
+            commands::delete_attack_skill,
+            commands::list_defense_skills,
+            commands::get_defense_skill,
+            commands::save_defense_skill,
+            commands::delete_defense_skill,
+            commands::list_adventure_events,
+            commands::get_adventure_event,
+            commands::save_adventure_event,
+            commands::delete_adventure_event,
+            commands::list_storylines,
+            commands::get_storyline,
+            commands::save_storyline,
+            commands::delete_storyline,
+            commands::list_saves,
+            commands::load_save,
+            commands::save_character,
+            commands::delete_save,
+            core_commands::core_reset,
+            core_commands::core_load_traits,
+            core_commands::core_load_internals,
+            core_commands::core_load_attack_skills,
+            core_commands::core_load_defense_skills,
+            core_commands::core_load_storylines,
+            core_commands::core_load_adventure_events,
+            core_commands::core_get_trait,
+            core_commands::core_list_traits,
+            core_commands::core_get_internal,
+            core_commands::core_list_internals,
+            core_commands::core_get_attack_skill,
+            core_commands::core_list_attack_skills,
+            core_commands::core_get_defense_skill,
+            core_commands::core_list_defense_skills,
+            core_commands::core_list_storylines,
+            core_commands::core_get_storyline,
+            core_commands::core_list_adventure_events,
+            core_commands::core_get_adventure_event,
+            core_commands::core_calculate_cultivation_exp,
+            core_commands::core_calculate_battle,
+            core_commands::core_execute_cultivation,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

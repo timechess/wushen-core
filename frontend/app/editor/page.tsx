@@ -1,0 +1,83 @@
+'use client';
+
+import Link from 'next/link';
+import { useActivePack } from '@/lib/mods/active-pack';
+import Button from '@/components/ui/Button';
+
+const EDITOR_LINKS = [
+  { href: '/editor/traits', label: '特性' },
+  { href: '/editor/internals', label: '内功' },
+  { href: '/editor/attack-skills', label: '攻击武技' },
+  { href: '/editor/defense-skills', label: '防御武技' },
+  { href: '/editor/events', label: '奇遇事件' },
+  { href: '/editor/storylines', label: '剧情线' },
+];
+
+export default function EditorHubPage() {
+  const { activePack, ready } = useActivePack();
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="container mx-auto px-4 py-8 max-w-5xl">
+        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">内容编辑中心</h1>
+          <p className="text-gray-600">选择一个模组包后，开始编辑特性、功法与事件。</p>
+          {ready && (
+            <div className="mt-4 flex items-center gap-3">
+              {activePack ? (
+                <div className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-2 text-sm text-blue-700">
+                  <span className="h-2 w-2 rounded-full bg-blue-500"></span>
+                  <span>当前包：{activePack.name} · {activePack.version}</span>
+                </div>
+              ) : (
+                <div className="inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-sm text-amber-700">
+                  <span className="h-2 w-2 rounded-full bg-amber-500"></span>
+                  <span>尚未选择模组包</span>
+                </div>
+              )}
+              <Link href="/mods" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+                前往选择
+              </Link>
+            </div>
+          )}
+        </div>
+
+        <div className="bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">编辑模块</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {EDITOR_LINKS.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`flex items-center justify-between rounded-lg border px-5 py-4 transition-colors ${
+                  activePack ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50' : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                }`}
+                onClick={(event) => {
+                  if (!activePack) {
+                    event.preventDefault();
+                  }
+                }}
+              >
+                <span className="text-base font-medium">{item.label}</span>
+                <span className="text-sm">→</span>
+              </Link>
+            ))}
+          </div>
+          {!activePack && (
+            <div className="mt-6 rounded-lg border border-dashed border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              需要先选择模组包才能进入编辑器。请前往模组包管理页面。
+            </div>
+          )}
+        </div>
+
+        <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">数据工具</h2>
+          <p className="text-sm text-gray-600 mb-4">导入/导出功能暂时保留，用于整体数据备份。</p>
+          <Button>
+            <Link href="/editor/data">打开导入/导出</Link>
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
