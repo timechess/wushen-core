@@ -183,8 +183,6 @@ export default function GamePage() {
   const [comprehension, setComprehension] = useState(0);
   const [boneStructure, setBoneStructure] = useState(0);
   const [physique, setPhysique] = useState(0);
-  const [manualType, setManualType] = useState<ManualType>('internal');
-  const [manualId, setManualId] = useState('');
   const [equipInternalId, setEquipInternalId] = useState('');
   const [equipAttackSkillId, setEquipAttackSkillId] = useState('');
   const [equipDefenseSkillId, setEquipDefenseSkillId] = useState('');
@@ -199,6 +197,8 @@ export default function GamePage() {
   const lastOutcomeRef = useRef<GameOutcome | null>(null);
   const deferredViewRef = useRef<GameView | null>(null);
   const lastCultivationRef = useRef<{ id: string; type: ManualType } | null>(null);
+  const [manualDetail, setManualDetail] = useState<{ type: ManualType; id: string } | null>(null);
+  const [traitDetailId, setTraitDetailId] = useState<string | null>(null);
   const prevViewRef = useRef<GameView | null>(null);
   const pendingBattleViewRef = useRef(false);
   const pendingBattleEnemyRef = useRef<EnemyTemplate | null>(null);
@@ -331,6 +331,20 @@ export default function GamePage() {
     [nameLookup]
   );
 
+  const getOwnedManual = useCallback(
+    (type: ManualType, id: string) => {
+      if (!view || !id) return null;
+      const owned =
+        type === 'internal'
+          ? view.save.current_character.internals.owned
+          : type === 'attack_skill'
+          ? view.save.current_character.attack_skills.owned
+          : view.save.current_character.defense_skills.owned;
+      return owned.find((item) => item.id === id) ?? null;
+    },
+    [view]
+  );
+
   const getOwnedManualLevel = useCallback(
     (type: ManualType, id: string) => {
       if (!view || !id) return undefined;
@@ -400,6 +414,22 @@ export default function GamePage() {
     for (const manual of gameData.defenseSkills) lookup.defense_skill.set(manual.id, manual);
     return lookup;
   }, [gameData]);
+
+  const openManualDetail = useCallback((type: ManualType, id: string) => {
+    if (!id) return;
+    setManualDetail({ type, id });
+  }, []);
+
+  const manualDetailData = useMemo(() => {
+    if (!manualDetail) return null;
+    const manual =
+      manualDetail.type === 'internal'
+        ? manualDataLookup.internal.get(manualDetail.id)
+        : manualDetail.type === 'attack_skill'
+        ? manualDataLookup.attack_skill.get(manualDetail.id)
+        : manualDataLookup.defense_skill.get(manualDetail.id);
+    return manual ?? null;
+  }, [manualDetail, manualDataLookup]);
 
   const manualMaps = useMemo<ManualMaps>(() => {
     const internals: ManualMaps['internals'] = {};
@@ -505,6 +535,40 @@ export default function GamePage() {
           >
             {describeEntry(entry)}
           </pre>
+        ))}
+      </div>
+    );
+  };
+
+  const renderManualRealmDetails = (type: ManualType, manual: GameData['internals'][number] | GameData['attackSkills'][number] | GameData['defenseSkills'][number]) => {
+    const realms = manual?.realms ?? [];
+    if (realms.length === 0) {
+      return <div className="text-sm text-gray-500">暂无境界数据</div>;
+    }
+    return (
+      <div className="space-y-3">
+        {realms.map((realm) => (
+          <div
+            key={`${manual.id}-realm-${realm.level}`}
+            className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2"
+          >
+            <div className="flex items-center justify-between">
+              <div className="font-medium text-gray-900">境界 {realm.level}</div>
+              <span className="text-xs text-gray-500">经验需求 {realm.exp_required}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+              <div>武学素养 {realm.martial_arts_attainment}</div>
+              <div>内息获取 {'qi_gain' in realm ? realm.qi_gain : '-'}</div>
+              {'qi_quality' in realm && <div>内息质量 {realm.qi_quality}</div>}
+              {'attack_speed' in realm && <div>出手速度 {realm.attack_speed}</div>}
+              {'qi_recovery_rate' in realm && <div>回气率 {realm.qi_recovery_rate}</div>}
+              {'power' in realm && <div>威能 {realm.power}</div>}
+              {'charge_time' in realm && <div>蓄力时间 {realm.charge_time}</div>}
+              {'defense_power' in realm && <div>守御 {realm.defense_power}</div>}
+            </div>
+            <div className="text-xs text-gray-500">词条特效</div>
+            {renderEntryBlocks(realm.entries ?? [])}
+          </div>
         ))}
       </div>
     );
@@ -774,17 +838,6 @@ export default function GamePage() {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(PACK_SELECTION_KEY, JSON.stringify(selectedPacks));
   }, [selectedPacks]);
-
-  useEffect(() => {
-    if (!view) return;
-    const owned =
-      manualType === 'internal'
-        ? view.save.current_character.internals.owned
-        : manualType === 'attack_skill'
-        ? view.save.current_character.attack_skills.owned
-        : view.save.current_character.defense_skills.owned;
-    setManualId(owned[0]?.id ?? '');
-  }, [view, manualType]);
 
   useEffect(() => {
     if (!view) return;
@@ -1204,13 +1257,17 @@ export default function GamePage() {
     });
   };
 
-  const handleCultivation = async () => {
-    if (!manualId) {
+  const handleCultivation = async (type: ManualType, id: string) => {
+    if (!id) {
       alert('当前没有可修行的功法');
       return;
     }
-    lastCultivationRef.current = { id: manualId, type: manualType };
-    await runGameAction(() => gameCultivate(manualId, manualType));
+    if (type === 'internal' && view?.save.current_character.internals.equipped !== id) {
+      alert('内功修行仅限当前主修，请先转修内功');
+      return;
+    }
+    lastCultivationRef.current = { id, type };
+    await runGameAction(() => gameCultivate(id, type));
   };
 
   const handleEquipManual = async (id: string, type: ManualType) => {
@@ -1342,13 +1399,26 @@ export default function GamePage() {
     [openBattleDialog]
   );
 
+  const isInGame = Boolean(view);
+  const isActionPhase = view?.phase === 'action';
+  const equippedInternalId = view?.save.current_character.internals.equipped ?? '';
+  const canCultivateInternal = Boolean(equippedInternalId) && equipInternalId === equippedInternalId;
+  const canCultivateAttack = Boolean(equipAttackSkillId);
+  const canCultivateDefense = Boolean(equipDefenseSkillId);
+
   return (
-    <div className="page-shell">
-      <div className="container mx-auto w-full max-w-[110rem] px-4 py-8 lg:px-6">
-        <div className="surface-card p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2 reveal-text">武神 · 正式游戏</h1>
-          <p className="text-gray-600 reveal-text reveal-delay-1">选择模组包 → 创建角色 → 进入剧情线。</p>
-        </div>
+    <div className={`page-shell${isInGame ? ' game-shell' : ''}`}>
+      <div
+        className={`container mx-auto w-full max-w-[110rem] px-4 ${
+          isInGame ? 'game-shell__container pb-[clamp(8px,1.2vh,16px)]' : 'py-8'
+        } lg:px-6`}
+      >
+        {!isInGame && (
+          <div className="surface-card p-6 mb-6">
+            <h1 className="font-bold text-gray-900 reveal-text text-3xl mb-2">武神 · 正式游戏</h1>
+            <p className="reveal-text reveal-delay-1 text-gray-600">选择模组包 → 创建角色 → 进入剧情线。</p>
+          </div>
+        )}
 
         {!view && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
@@ -1485,176 +1555,282 @@ export default function GamePage() {
 
         {view && (
           <>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <section className="surface-panel p-6 lg:col-span-4">
-                <div className="flex items-center justify-between mb-4">
+          <div className="grid grid-cols-1 grid-rows-2 lg:grid-cols-12 lg:grid-rows-1 gap-2 flex-1 min-h-0">
+            <section className="surface-panel p-2 lg:col-span-4 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between mb-2 shrink-0">
                   <h2 className="text-xl font-semibold text-gray-900">角色面板</h2>
                   <span className="text-xs text-gray-500">{view.save.name}</span>
                 </div>
-                <div className="space-y-3 text-sm text-gray-700">
-                  <div>
-                    <div className="text-xs text-gray-500">姓名</div>
-                    <div className="font-medium">{view.save.current_character.name}</div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2">
+                <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-2">
+                  <div className="space-y-2 text-sm text-gray-700">
                     <div>
-                      <div className="text-xs text-gray-500">悟性</div>
-                      <div className="font-medium">{view.save.current_character.three_d.comprehension}</div>
+                      <div className="text-xs text-gray-500">姓名</div>
+                      <div className="font-medium">{view.save.current_character.name}</div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-500">根骨</div>
-                      <div className="font-medium">{view.save.current_character.three_d.bone_structure}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">体魄</div>
-                      <div className="font-medium">{view.save.current_character.three_d.physique}</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <div className="text-xs text-gray-500">武学素养</div>
-                      <div className="font-medium">{(view.save.current_character.martial_arts_attainment ?? 0).toFixed(1)}</div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">行动点</div>
-                      <div className="font-medium">{view.save.current_character.action_points}</div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="text-sm font-semibold text-gray-900">战斗功法配置</div>
-                    <div className="text-xs text-gray-500">主修 / 出战设置</div>
-                  </div>
-                  <div className="space-y-3 text-sm text-gray-700">
-                    <div>
-                      <div className="text-xs text-gray-500">当前主修内功</div>
-                      <div className="font-medium">
-                        {resolveManualLabel(
-                          'internal',
-                          view.save.current_character.internals.equipped ?? '',
-                          getOwnedManualLevel('internal', view.save.current_character.internals.equipped ?? '')
-                        )}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <div className="text-xs text-gray-500">悟性</div>
+                        <div className="font-medium">{view.save.current_character.three_d.comprehension}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">根骨</div>
+                        <div className="font-medium">{view.save.current_character.three_d.bone_structure}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">体魄</div>
+                        <div className="font-medium">{view.save.current_character.three_d.physique}</div>
                       </div>
                     </div>
-                    <div>
-                      <div className="text-xs text-gray-500">当前攻击武技</div>
-                      <div className="font-medium">
-                        {resolveManualLabel(
-                          'attack_skill',
-                          view.save.current_character.attack_skills.equipped ?? '',
-                          getOwnedManualLevel('attack_skill', view.save.current_character.attack_skills.equipped ?? '')
-                        )}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-xs text-gray-500">武学素养</div>
+                        <div className="font-medium">{(view.save.current_character.martial_arts_attainment ?? 0).toFixed(1)}</div>
                       </div>
-                    </div>
-                    <div>
-                      <div className="text-xs text-gray-500">当前防御武技</div>
-                      <div className="font-medium">
-                        {resolveManualLabel(
-                          'defense_skill',
-                          view.save.current_character.defense_skills.equipped ?? '',
-                          getOwnedManualLevel('defense_skill', view.save.current_character.defense_skills.equipped ?? '')
-                        )}
+                      <div>
+                        <div className="text-xs text-gray-500">行动点</div>
+                        <div className="font-medium">{view.save.current_character.action_points}</div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 space-y-3">
-                    <SearchableSelect
-                      label="转修内功"
-                      value={equipInternalId}
-                      onChange={(value) => setEquipInternalId(value)}
-                      options={(() => {
-                        const owned = view.save.current_character.internals.owned;
-                        if (owned.length === 0) {
-                          return [{ value: '', label: '暂无内功' }];
-                        }
-                        return owned.map((item) => ({
-                          value: item.id,
-                          label: resolveManualLabel('internal', item.id, item.level),
-                        }));
-                      })()}
-                      placeholder="搜索内功..."
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleEquipManual(equipInternalId, 'internal')}
-                      disabled={!equipInternalId || equipInternalId === view.save.current_character.internals.equipped}
-                    >
-                      {equipInternalId === view.save.current_character.internals.equipped ? '已主修' : '切换主修'}
-                    </Button>
-
-                    <SearchableSelect
-                      label="战斗攻击武技"
-                      value={equipAttackSkillId}
-                      onChange={(value) => setEquipAttackSkillId(value)}
-                      options={(() => {
-                        const owned = view.save.current_character.attack_skills.owned;
-                        if (owned.length === 0) {
-                          return [{ value: '', label: '暂无攻击武技' }];
-                        }
-                        return owned.map((item) => ({
-                          value: item.id,
-                          label: resolveManualLabel('attack_skill', item.id, item.level),
-                        }));
-                      })()}
-                      placeholder="搜索攻击武技..."
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleEquipManual(equipAttackSkillId, 'attack_skill')}
-                      disabled={!equipAttackSkillId || equipAttackSkillId === view.save.current_character.attack_skills.equipped}
-                    >
-                      {equipAttackSkillId === view.save.current_character.attack_skills.equipped ? '已装备' : '切换攻击武技'}
-                    </Button>
-
-                    <SearchableSelect
-                      label="战斗防御武技"
-                      value={equipDefenseSkillId}
-                      onChange={(value) => setEquipDefenseSkillId(value)}
-                      options={(() => {
-                        const owned = view.save.current_character.defense_skills.owned;
-                        if (owned.length === 0) {
-                          return [{ value: '', label: '暂无防御武技' }];
-                        }
-                        return owned.map((item) => ({
-                          value: item.id,
-                          label: resolveManualLabel('defense_skill', item.id, item.level),
-                        }));
-                      })()}
-                      placeholder="搜索防御武技..."
-                    />
-                    <Button
-                      variant="secondary"
-                      onClick={() => handleEquipManual(equipDefenseSkillId, 'defense_skill')}
-                      disabled={!equipDefenseSkillId || equipDefenseSkillId === view.save.current_character.defense_skills.equipped}
-                    >
-                      {equipDefenseSkillId === view.save.current_character.defense_skills.equipped ? '已装备' : '切换防御武技'}
-                    </Button>
+                  <div className="mt-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-gray-900">角色特性</div>
+                      <span className="text-xs text-gray-500">
+                        {(view.save.current_character.traits ?? []).length} 条
+                      </span>
+                    </div>
+                    {view.save.current_character.traits.length === 0 ? (
+                      <div className="text-xs text-gray-500">暂无特性</div>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {view.save.current_character.traits.map((traitId) => (
+                          <Button
+                            key={`trait-${traitId}`}
+                            size="sm"
+                            variant="secondary"
+                            onClick={() => setTraitDetailId(traitId)}
+                          >
+                            {resolveTraitName(traitId)}
+                          </Button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  <div className="mt-4 border-t border-[var(--app-border)] pt-4">
-                    <div className="text-sm font-semibold text-gray-900 mb-2">战斗设置</div>
-                    <Input
-                      label="进攻方内息输出 (%)"
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.1}
-                      placeholder="留空使用最大值"
-                      value={formatQiOutputRate(attackerQiOutputRate)}
-                      onChange={(e) => setAttackerQiOutputRate(parseQiOutputRate(e.target.value))}
-                    />
-                    <p className="text-xs text-gray-500 mt-2">
-                      留空表示使用角色的最大内息输出，敌人默认使用最大内息输出。
-                    </p>
+                  <div className="mt-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm font-semibold text-gray-900">战斗功法配置</div>
+                      <div className="text-xs text-gray-500">主修 / 出战设置</div>
+                    </div>
+                    <div className="space-y-2 text-sm text-gray-700">
+                      <div>
+                        <div className="text-xs text-gray-500">当前主修内功</div>
+                        <div className="font-medium">
+                          {resolveManualLabel(
+                            'internal',
+                            view.save.current_character.internals.equipped ?? '',
+                            getOwnedManualLevel('internal', view.save.current_character.internals.equipped ?? '')
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">当前攻击武技</div>
+                        <div className="font-medium">
+                          {resolveManualLabel(
+                            'attack_skill',
+                            view.save.current_character.attack_skills.equipped ?? '',
+                            getOwnedManualLevel('attack_skill', view.save.current_character.attack_skills.equipped ?? '')
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500">当前防御武技</div>
+                        <div className="font-medium">
+                          {resolveManualLabel(
+                            'defense_skill',
+                            view.save.current_character.defense_skills.equipped ?? '',
+                            getOwnedManualLevel('defense_skill', view.save.current_character.defense_skills.equipped ?? '')
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-2 space-y-2">
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <SearchableSelect
+                            label="转修内功"
+                            value={equipInternalId}
+                            onChange={(value) => setEquipInternalId(value)}
+                            options={(() => {
+                              const owned = view.save.current_character.internals.owned;
+                              if (owned.length === 0) {
+                                return [{ value: '', label: '暂无内功' }];
+                              }
+                              return owned.map((item) => ({
+                                value: item.id,
+                                label: resolveManualLabel('internal', item.id, item.level),
+                              }));
+                            })()}
+                            placeholder="搜索内功..."
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openManualDetail('internal', equipInternalId)}
+                          disabled={!equipInternalId}
+                        >
+                          查看详情
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                        onClick={() => handleEquipManual(equipInternalId, 'internal')}
+                        disabled={!equipInternalId || equipInternalId === view.save.current_character.internals.equipped}
+                      >
+                        {equipInternalId === view.save.current_character.internals.equipped ? '已主修' : '切换主修'}
+                      </Button>
+                      <Button
+                        onClick={() => handleCultivation('internal', equippedInternalId)}
+                        disabled={!isActionPhase || !canCultivateInternal}
+                      >
+                        修行
+                      </Button>
+                    </div>
+                      <p className="text-xs text-gray-500">
+                        内功修行仅限当前主修，转修后才可修行其他内功。
+                      </p>
+
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <SearchableSelect
+                            label="战斗攻击武技"
+                            value={equipAttackSkillId}
+                            onChange={(value) => setEquipAttackSkillId(value)}
+                            options={(() => {
+                              const owned = view.save.current_character.attack_skills.owned;
+                              if (owned.length === 0) {
+                                return [{ value: '', label: '暂无攻击武技' }];
+                              }
+                              return owned.map((item) => ({
+                                value: item.id,
+                                label: resolveManualLabel('attack_skill', item.id, item.level),
+                              }));
+                            })()}
+                            placeholder="搜索攻击武技..."
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openManualDetail('attack_skill', equipAttackSkillId)}
+                          disabled={!equipAttackSkillId}
+                        >
+                          查看详情
+                        </Button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                        onClick={() => handleEquipManual(equipAttackSkillId, 'attack_skill')}
+                        disabled={!equipAttackSkillId || equipAttackSkillId === view.save.current_character.attack_skills.equipped}
+                      >
+                        {equipAttackSkillId === view.save.current_character.attack_skills.equipped ? '已装备' : '切换攻击武技'}
+                      </Button>
+                      <Button
+                        onClick={() => handleCultivation('attack_skill', equipAttackSkillId)}
+                        disabled={!isActionPhase || !canCultivateAttack}
+                      >
+                        修行
+                      </Button>
+                    </div>
+
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <SearchableSelect
+                            label="战斗防御武技"
+                            value={equipDefenseSkillId}
+                            onChange={(value) => setEquipDefenseSkillId(value)}
+                            options={(() => {
+                              const owned = view.save.current_character.defense_skills.owned;
+                              if (owned.length === 0) {
+                                return [{ value: '', label: '暂无防御武技' }];
+                              }
+                              return owned.map((item) => ({
+                                value: item.id,
+                                label: resolveManualLabel('defense_skill', item.id, item.level),
+                              }));
+                            })()}
+                            placeholder="搜索防御武技..."
+                          />
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          onClick={() => openManualDetail('defense_skill', equipDefenseSkillId)}
+                          disabled={!equipDefenseSkillId}
+                        >
+                          查看详情
+                        </Button>
+                      </div>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        onClick={() => handleEquipManual(equipDefenseSkillId, 'defense_skill')}
+                        disabled={!equipDefenseSkillId || equipDefenseSkillId === view.save.current_character.defense_skills.equipped}
+                      >
+                        {equipDefenseSkillId === view.save.current_character.defense_skills.equipped ? '已装备' : '切换防御武技'}
+                      </Button>
+                      <Button
+                        onClick={() => handleCultivation('defense_skill', equipDefenseSkillId)}
+                        disabled={!isActionPhase || !canCultivateDefense}
+                      >
+                        修行
+                      </Button>
+                    </div>
+                    </div>
+
+                    <div className="mt-2 border-t border-[var(--app-border)] pt-2">
+                      <div className="text-sm font-semibold text-gray-900 mb-2">战斗设置</div>
+                      <Input
+                        label="进攻方内息输出 (%)"
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.1}
+                        placeholder="留空使用最大值"
+                        value={formatQiOutputRate(attackerQiOutputRate)}
+                        onChange={(e) => setAttackerQiOutputRate(parseQiOutputRate(e.target.value))}
+                      />
+                      <p className="text-xs text-gray-500 mt-2">
+                        留空表示使用角色的最大内息输出，敌人默认使用最大内息输出。
+                      </p>
+                    </div>
+
+                    {view.phase === 'action' && (
+                      <div className="mt-2 border-t border-[var(--app-border)] pt-2 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-semibold text-gray-900">行动点操作</div>
+                          <span className="text-xs text-gray-500">可用行动点：{view.save.current_character.action_points}</span>
+                        </div>
+                        <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2">
+                          <div className="font-medium text-gray-900">游历</div>
+                          <p className="text-xs text-gray-500">消耗 1 点行动点，随机触发奇遇。</p>
+                          <Button variant="secondary" onClick={handleTravel}>
+                            立即游历
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
 
-              <section className="surface-panel p-6 lg:col-span-8 flex flex-col">
-                <div className="flex items-start justify-between">
+              <section className="surface-panel p-2 lg:col-span-8 flex flex-col min-h-0">
+                <div className="flex items-start justify-between mb-2">
                   <div>
                     <h2 className="text-xl font-semibold text-gray-900">{view.storyline?.name ?? '剧情线'}</h2>
                   </div>
@@ -1665,9 +1841,9 @@ export default function GamePage() {
 
                 <div
                   ref={logRef}
-                  className="min-h-[50vh] max-h-[78vh] lg:min-h-[58vh] lg:max-h-[82vh] overflow-y-auto rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-5 text-base leading-7 text-gray-700 md:text-lg md:leading-8 xl:text-xl xl:leading-9 flex flex-col"
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 text-sm leading-6 text-gray-700 md:text-base md:leading-7 flex flex-col"
                 >
-                  <div className="space-y-3 flex-1 min-h-0">
+                  <div className="space-y-2 flex-1 min-h-0">
                     {logEntries.length === 0 && !typingEntry && (
                       <div className="text-gray-500">剧情文本将在这里出现。</div>
                     )}
@@ -1955,78 +2131,6 @@ export default function GamePage() {
               </section>
             </div>
 
-            {view.phase === 'action' && (
-              <section className="surface-panel p-6 mt-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">行动点阶段</h3>
-                    <p className="text-sm text-gray-500">可用行动点：{view.save.current_character.action_points}</p>
-                  </div>
-                  <span className="text-xs text-gray-500">行动点归零后进入剧情</span>
-                </div>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                  <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div className="font-medium text-gray-900">修行</div>
-                      <span className="text-xs text-gray-500">修行功法选择</span>
-                    </div>
-                    <div className="text-xs text-gray-500">
-                      当前修行：{resolveManualName(manualType, (
-                        manualType === 'internal'
-                          ? view.save.current_character.internals.equipped
-                          : manualType === 'attack_skill'
-                          ? view.save.current_character.attack_skills.equipped
-                          : view.save.current_character.defense_skills.equipped
-                      ) ?? '')}
-                    </div>
-                    <SearchableSelect
-                      label="功法类型"
-                      value={manualType}
-                      onChange={(value) => setManualType(value as ManualType)}
-                      options={[
-                        { value: 'internal', label: '内功' },
-                        { value: 'attack_skill', label: '攻击武技' },
-                        { value: 'defense_skill', label: '防御武技' },
-                      ]}
-                      searchable={false}
-                      placeholder="选择功法类型"
-                    />
-                    <SearchableSelect
-                      label="功法"
-                      value={manualId}
-                      onChange={(value) => setManualId(value)}
-                      options={(() => {
-                        const owned =
-                          manualType === 'internal'
-                            ? view.save.current_character.internals.owned
-                            : manualType === 'attack_skill'
-                            ? view.save.current_character.attack_skills.owned
-                            : view.save.current_character.defense_skills.owned;
-                        if (owned.length === 0) {
-                          return [{ value: '', label: '暂无可修行功法' }];
-                        }
-                        return owned.map((item) => ({
-                          value: item.id,
-                          label: resolveManualName(manualType, item.id),
-                        }));
-                      })()}
-                      placeholder="搜索功法..."
-                    />
-                    <Button onClick={handleCultivation} disabled={!manualId}>
-                      消耗 1 点修行
-                    </Button>
-                  </div>
-                  <div className="border border-gray-200 rounded-lg p-4 space-y-3">
-                    <div className="font-medium text-gray-900">游历</div>
-                    <p className="text-sm text-gray-500">消耗 1 点行动点，随机触发奇遇。</p>
-                    <Button variant="secondary" onClick={handleTravel}>
-                      立即游历
-                    </Button>
-                  </div>
-                </div>
-              </section>
-            )}
-
             {battleData && (
               <Modal
                 isOpen={battleDialogOpen}
@@ -2170,6 +2274,82 @@ export default function GamePage() {
                 ) : (
                   <p className="text-sm text-gray-500">敌人面板加载中...</p>
                 )}
+              </Modal>
+            )}
+            {manualDetail && (
+              <Modal
+                isOpen={!!manualDetail}
+                onClose={() => setManualDetail(null)}
+                title={`功法详情 · ${resolveManualName(manualDetail.type, manualDetail.id)}`}
+                contentClassName="!max-w-5xl"
+              >
+                {manualDetailData ? (
+                  <div className="space-y-4 text-sm text-gray-700">
+                    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <div className="text-base font-semibold text-gray-900">
+                          {resolveManualName(manualDetail.type, manualDetail.id)}
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {MANUAL_KIND_LABELS[manualDetail.type]}
+                        </span>
+                      </div>
+                      {manualDetailData.description && (
+                        <p className="text-sm text-gray-600">{manualDetailData.description}</p>
+                      )}
+                      <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
+                        <div>
+                          当前境界{' '}
+                          {getOwnedManual(manualDetail.type, manualDetail.id)?.level ?? '未修炼'}
+                        </div>
+                        <div>
+                          当前经验 {getOwnedManual(manualDetail.type, manualDetail.id)?.exp ?? 0}
+                        </div>
+                        <div>稀有度 {manualDetailData.rarity}</div>
+                        <div>功法类型 {manualDetailData.manual_type || MANUAL_KIND_LABELS[manualDetail.type]}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">修行公式</div>
+                        <pre className="whitespace-pre-wrap rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-3 text-xs text-gray-700">
+                          {manualDetailData.cultivation_formula || '暂无修行公式'}
+                        </pre>
+                      </div>
+                    </div>
+                    <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                      <div className="text-sm font-semibold text-gray-900 mb-3">境界需求与效果</div>
+                      {renderManualRealmDetails(manualDetail.type, manualDetailData)}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">功法数据加载中...</p>
+                )}
+              </Modal>
+            )}
+            {traitDetailId && (
+              <Modal
+                isOpen={!!traitDetailId}
+                onClose={() => setTraitDetailId(null)}
+                title={`特性详情 · ${resolveTraitName(traitDetailId)}`}
+                contentClassName="!max-w-4xl"
+              >
+                {(() => {
+                  const trait = traitLookup.get(traitDetailId);
+                  if (!trait) {
+                    return <p className="text-sm text-gray-500">特性数据加载中...</p>;
+                  }
+                  return (
+                    <div className="space-y-4 text-sm text-gray-700">
+                      <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                        <div className="text-base font-semibold text-gray-900 mb-2">{trait.name}</div>
+                        {trait.description && <p className="text-sm text-gray-600">{trait.description}</p>}
+                      </div>
+                      <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
+                        <div className="text-sm font-semibold text-gray-900 mb-3">词条特效</div>
+                        {renderEntryBlocks(trait.entries ?? [])}
+                      </div>
+                    </div>
+                  );
+                })()}
               </Modal>
             )}
           </>

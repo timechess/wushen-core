@@ -1,5 +1,4 @@
 import { invoke } from '@tauri-apps/api/core';
-import { open, save } from '@tauri-apps/plugin-dialog';
 import type { ModPackMetadata } from '@/types/mod';
 import type { Trait } from '@/types/trait';
 import type { Internal, AttackSkill, DefenseSkill } from '@/types/manual';
@@ -35,24 +34,13 @@ export async function setPackOrder(order: string[]): Promise<string[]> {
   return invoke('set_pack_order', { order });
 }
 
-export async function exportPackZip(packId: string, suggestedName: string): Promise<string | null> {
-  const path = await save({
-    defaultPath: `${suggestedName}.zip`,
-    filters: [{ name: 'Mod Pack', extensions: ['zip'] }],
-  });
-  if (!path) return null;
-  await invoke('export_pack_zip', { packId, destPath: path });
-  return path;
+export async function exportPackZip(packId: string, destPath: string): Promise<string> {
+  await invoke('export_pack_zip', { packId, destPath });
+  return destPath;
 }
 
-export async function importPackZip(): Promise<ModPackMetadata | null> {
-  const selection = await open({
-    multiple: false,
-    filters: [{ name: 'Mod Pack', extensions: ['zip'] }],
-  });
-  if (!selection || Array.isArray(selection)) return null;
-  const pack = await invoke<ModPackMetadata>('import_pack_zip', { zipPath: selection });
-  return pack;
+export async function importPackZip(zipPath: string): Promise<ModPackMetadata> {
+  return invoke('import_pack_zip', { zipPath });
 }
 
 export async function listTraits(packId: string): Promise<NamedItem[]> {

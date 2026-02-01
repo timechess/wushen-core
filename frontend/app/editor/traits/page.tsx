@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { Trait, TraitListItem, Entry } from '@/types/trait';
 import Button from '@/components/ui/Button';
@@ -18,8 +18,15 @@ export default function TraitsEditorPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const { activePack } = useActivePack();
   const canEdit = Boolean(activePack);
+
+  const visibleTraits = useMemo(() => {
+    const normalized = searchQuery.trim().toLowerCase();
+    if (!normalized) return traits;
+    return traits.filter((trait) => trait.name.toLowerCase().startsWith(normalized));
+  }, [searchQuery, traits]);
 
   useEffect(() => {
     if (activePack) {
@@ -180,59 +187,78 @@ export default function TraitsEditorPage() {
                 </Button>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        名称
-                      </th>
-                      <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                        操作
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {traits.map((trait) => (
-                      <tr key={trait.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm font-medium text-gray-900">
-                            {trait.name}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => handleEdit(trait.id)}
-                              disabled={loading || !canEdit}
-                              className="hover:scale-105 transition-transform"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              编辑
-                            </Button>
-                            <Button
-                              variant="danger"
-                              size="sm"
-                              onClick={() => handleDelete(trait.id)}
-                              disabled={loading || !canEdit}
-                              className="hover:scale-105 transition-transform"
-                            >
-                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              删除
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <>
+                <div className="px-6 py-4 border-b border-gray-200 bg-gray-50/80">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                    <div className="text-sm text-gray-600">共 {visibleTraits.length} 条</div>
+                    <div className="w-full md:max-w-xs">
+                      <Input
+                        label="前缀搜索"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        placeholder="按名称前缀搜索"
+                      />
+                    </div>
+                  </div>
+                </div>
+                {visibleTraits.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">没有匹配的特性</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                            名称
+                          </th>
+                          <th className="px-6 py-4 text-right text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                            操作
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {visibleTraits.map((trait) => (
+                          <tr key={trait.id} className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <span className="text-sm font-medium text-gray-900">
+                                {trait.name}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={() => handleEdit(trait.id)}
+                                  disabled={loading || !canEdit}
+                                  className="hover:scale-105 transition-transform"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  编辑
+                                </Button>
+                                <Button
+                                  variant="danger"
+                                  size="sm"
+                                  onClick={() => handleDelete(trait.id)}
+                                  disabled={loading || !canEdit}
+                                  className="hover:scale-105 transition-transform"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  删除
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

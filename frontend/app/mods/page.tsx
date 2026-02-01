@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import Modal from '@/components/ui/Modal';
 import type { ModPackMetadata } from '@/types/mod';
 import { useActivePack } from '@/lib/mods/active-pack';
 import { createPack, deletePack, listPacks } from '@/lib/tauri/commands';
@@ -25,6 +26,8 @@ export default function ModPacksPage() {
   const [packs, setPacks] = useState<ModPackMetadata[]>([]);
   const [form, setForm] = useState<PackFormState>(EMPTY_FORM);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
+  const [pendingDeletePack, setPendingDeletePack] = useState<ModPackMetadata | null>(null);
   const { activePack, setActivePack, ready } = useActivePack();
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export default function ModPacksPage() {
       setPacks(data);
     } catch (error) {
       console.error('加载模组包失败:', error);
-      alert('加载模组包失败');
+      setNotice({ title: '加载失败', message: '加载模组包失败，请稍后重试。' });
     } finally {
       setLoading(false);
     }
@@ -46,7 +49,7 @@ export default function ModPacksPage() {
 
   const handleCreatePack = async () => {
     if (!form.name.trim()) {
-      alert('请填写模组包名称');
+      setNotice({ title: '信息不完整', message: '请填写模组包名称。' });
       return;
     }
     try {
@@ -62,7 +65,10 @@ export default function ModPacksPage() {
       setActivePack({ id: created.id, name: created.name, version: created.version, author: created.author });
     } catch (error) {
       console.error('创建模组包失败:', error);
-      alert(`创建失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      setNotice({
+        title: '创建失败',
+        message: `创建失败：${error instanceof Error ? error.message : '未知错误'}`,
+      });
     } finally {
       setLoading(false);
     }
@@ -72,22 +78,25 @@ export default function ModPacksPage() {
     setActivePack({ id: pack.id, name: pack.name, version: pack.version, author: pack.author });
   };
 
-  const handleDeletePack = async (packId: string) => {
-    if (!confirm('确定要删除这个模组包吗？此操作不会删除本地编译数据，但会移除该包记录。')) {
-      return;
-    }
+  const requestDeletePack = (pack: ModPackMetadata) => {
+    setPendingDeletePack(pack);
+  };
+
+  const handleDeletePack = async () => {
+    if (!pendingDeletePack) return;
     try {
       setLoading(true);
-      await deletePack(packId);
-      if (activePack?.id === packId) {
+      await deletePack(pendingDeletePack.id);
+      if (activePack?.id === pendingDeletePack.id) {
         setActivePack(null);
       }
       await loadPacks();
     } catch (error) {
       console.error('删除模组包失败:', error);
-      alert('删除失败');
+      setNotice({ title: '删除失败', message: '删除模组包失败，请稍后重试。' });
     } finally {
       setLoading(false);
+      setPendingDeletePack(null);
     }
   };
 
@@ -213,7 +222,7 @@ export default function ModPacksPage() {
                           <Button
                             variant="danger"
                             size="sm"
-                            onClick={() => handleDeletePack(pack.id)}
+                            onClick={() => requestDeletePack(pack)}
                             disabled={loading}
                           >
                             删除
@@ -228,6 +237,39 @@ export default function ModPacksPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={Boolean(pendingDeletePack)}
+        onClose={() => setPendingDeletePack(null)}
+        title="确认删除"
+        footer={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => setPendingDeletePack(null)} disabled={loading}>
+              取消
+            </Button>
+            <Button variant="danger" onClick={handleDeletePack} disabled={loading}>
+              {loading ? '删除中...' : '确认删除'}
+            </Button>
+          </div>
+        }
+      >
+        <div className="text-sm text-gray-600">
+          确定要删除模组包「{pendingDeletePack?.name ?? ''}」吗？此操作不会删除本地编译数据，但会移除该包记录。
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={Boolean(notice)}
+        onClose={() => setNotice(null)}
+        title={notice?.title ?? '提示'}
+        footer={
+          <div className="flex gap-2">
+            <Button onClick={() => setNotice(null)}>知道了</Button>
+          </div>
+        }
+      >
+        <div className="text-sm text-gray-600">{notice?.message}</div>
+      </Modal>
     </div>
   );
 }

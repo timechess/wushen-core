@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Button from '@/components/ui/Button';
+import Modal from '@/components/ui/Modal';
 import type { ModPackMetadata } from '@/types/mod';
 import { getPackOrder, listPacks, setPackOrder } from '@/lib/tauri/commands';
 
@@ -9,6 +10,7 @@ export default function ModOrderPage() {
   const [packs, setPacks] = useState<ModPackMetadata[]>([]);
   const [order, setOrder] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -25,7 +27,7 @@ export default function ModOrderPage() {
       setOrder(orderData ?? []);
     } catch (error) {
       console.error('加载模组排序失败:', error);
-      alert('加载模组排序失败');
+      setNotice({ title: '加载失败', message: '加载模组排序失败，请稍后重试。' });
     } finally {
       setLoading(false);
     }
@@ -58,10 +60,10 @@ export default function ModOrderPage() {
     try {
       setLoading(true);
       await setPackOrder(order);
-      alert('排序已保存');
+      setNotice({ title: '保存成功', message: '模组排序已保存。' });
     } catch (error) {
       console.error('保存排序失败:', error);
-      alert('保存排序失败');
+      setNotice({ title: '保存失败', message: '保存排序失败，请稍后重试。' });
     } finally {
       setLoading(false);
     }
@@ -120,6 +122,19 @@ export default function ModOrderPage() {
           </div>
         </div>
       </div>
+
+      <Modal
+        isOpen={Boolean(notice)}
+        onClose={() => setNotice(null)}
+        title={notice?.title ?? '提示'}
+        footer={
+          <div className="flex gap-2">
+            <Button onClick={() => setNotice(null)}>知道了</Button>
+          </div>
+        }
+      >
+        <div className="text-sm text-gray-600">{notice?.message}</div>
+      </Modal>
     </div>
   );
 }
