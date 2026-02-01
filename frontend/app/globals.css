@@ -118,6 +118,7 @@ html {
 
 .page-shell.game-shell {
   --game-shell-gap: clamp(6px, 1vh, 14px);
+  --game-shell-bottom: clamp(8px, 1.2vh, 16px);
   height: 100dvh;
   min-height: 100dvh;
   padding: var(--game-shell-gap) 0;
@@ -132,6 +133,14 @@ html {
   min-height: 0;
   display: flex;
   flex-direction: column;
+  padding-bottom: var(--game-shell-bottom);
+}
+
+@media (max-height: 820px) {
+  .page-shell.game-shell {
+    --game-shell-gap: clamp(4px, 0.8vh, 10px);
+    --game-shell-bottom: clamp(4px, 0.8vh, 10px);
+  }
 }
 
 .surface-card {

@@ -1410,7 +1410,7 @@ export default function GamePage() {
     <div className={`page-shell${isInGame ? ' game-shell' : ''}`}>
       <div
         className={`container mx-auto w-full max-w-[110rem] px-4 ${
-          isInGame ? 'game-shell__container pb-[clamp(8px,1.2vh,16px)]' : 'py-8'
+          isInGame ? 'game-shell__container' : 'py-8'
         } lg:px-6`}
       >
         {!isInGame && (
@@ -1555,14 +1555,14 @@ export default function GamePage() {
 
         {view && (
           <>
-          <div className="grid grid-cols-1 grid-rows-2 lg:grid-cols-12 lg:grid-rows-1 gap-2 flex-1 min-h-0">
-            <section className="surface-panel p-2 lg:col-span-4 flex flex-col min-h-0 overflow-hidden">
-                <div className="flex items-center justify-between mb-2 shrink-0">
-                  <h2 className="text-xl font-semibold text-gray-900">角色面板</h2>
+          <div className="grid grid-cols-1 grid-rows-2 lg:grid-cols-12 lg:grid-rows-1 gap-2 [@media(max-height:720px)]:gap-1.5 flex-1 min-h-0">
+            <section className="surface-panel p-2 [@media(max-height:820px)]:p-1.5 lg:col-span-4 flex flex-col min-h-0 overflow-hidden">
+                <div className="flex items-center justify-between mb-2 [@media(max-height:820px)]:mb-1.5 shrink-0">
+                  <h2 className="text-xl [@media(max-height:820px)]:text-lg font-semibold text-gray-900">角色面板</h2>
                   <span className="text-xs text-gray-500">{view.save.name}</span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-2">
-                  <div className="space-y-2 text-sm text-gray-700">
+                  <div className="space-y-2 [@media(max-height:820px)]:space-y-1.5 text-sm [@media(max-height:820px)]:text-xs text-gray-700">
                     <div>
                       <div className="text-xs text-gray-500">姓名</div>
                       <div className="font-medium">{view.save.current_character.name}</div>
@@ -1593,8 +1593,8 @@ export default function GamePage() {
                     </div>
                   </div>
 
-                  <div className="mt-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="mt-2 [@media(max-height:820px)]:mt-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 [@media(max-height:820px)]:p-1.5">
+                    <div className="flex items-center justify-between mb-2 [@media(max-height:820px)]:mb-1.5">
                       <div className="text-sm font-semibold text-gray-900">角色特性</div>
                       <span className="text-xs text-gray-500">
                         {(view.save.current_character.traits ?? []).length} 条
@@ -1618,12 +1618,12 @@ export default function GamePage() {
                     )}
                   </div>
 
-                  <div className="mt-2 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2">
-                    <div className="flex items-center justify-between mb-2">
+                  <div className="mt-2 [@media(max-height:820px)]:mt-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 [@media(max-height:820px)]:p-1.5">
+                    <div className="flex items-center justify-between mb-2 [@media(max-height:820px)]:mb-1.5">
                       <div className="text-sm font-semibold text-gray-900">战斗功法配置</div>
                       <div className="text-xs text-gray-500">主修 / 出战设置</div>
                     </div>
-                    <div className="space-y-2 text-sm text-gray-700">
+                    <div className="space-y-2 [@media(max-height:820px)]:space-y-1.5 text-sm [@media(max-height:820px)]:text-xs text-gray-700">
                       <div>
                         <div className="text-xs text-gray-500">当前主修内功</div>
                         <div className="font-medium">
@@ -1656,7 +1656,7 @@ export default function GamePage() {
                       </div>
                     </div>
 
-                    <div className="mt-2 space-y-2">
+                    <div className="mt-2 [@media(max-height:820px)]:mt-1.5 space-y-2 [@media(max-height:820px)]:space-y-1.5">
                       <div className="flex items-end gap-2">
                         <div className="flex-1">
                           <SearchableSelect
@@ -1793,7 +1793,7 @@ export default function GamePage() {
                     </div>
                     </div>
 
-                    <div className="mt-2 border-t border-[var(--app-border)] pt-2">
+                    <div className="mt-2 [@media(max-height:820px)]:mt-1.5 border-t border-[var(--app-border)] pt-2 [@media(max-height:820px)]:pt-1.5">
                       <div className="text-sm font-semibold text-gray-900 mb-2">战斗设置</div>
                       <Input
                         label="进攻方内息输出 (%)"
@@ -1811,7 +1811,7 @@ export default function GamePage() {
                     </div>
 
                     {view.phase === 'action' && (
-                      <div className="mt-2 border-t border-[var(--app-border)] pt-2 space-y-2">
+                      <div className="mt-2 [@media(max-height:820px)]:mt-1.5 border-t border-[var(--app-border)] pt-2 [@media(max-height:820px)]:pt-1.5 space-y-2 [@media(max-height:820px)]:space-y-1.5">
                         <div className="flex items-center justify-between">
                           <div className="text-sm font-semibold text-gray-900">行动点操作</div>
                           <span className="text-xs text-gray-500">可用行动点：{view.save.current_character.action_points}</span>
@@ -1829,10 +1829,10 @@ export default function GamePage() {
                 </div>
               </section>
 
-              <section className="surface-panel p-2 lg:col-span-8 flex flex-col min-h-0">
-                <div className="flex items-start justify-between mb-2">
+              <section className="surface-panel p-2 [@media(max-height:820px)]:p-1.5 lg:col-span-8 flex flex-col min-h-0">
+                <div className="flex items-start justify-between mb-2 [@media(max-height:820px)]:mb-1.5">
                   <div>
-                    <h2 className="text-xl font-semibold text-gray-900">{view.storyline?.name ?? '剧情线'}</h2>
+                    <h2 className="text-xl [@media(max-height:820px)]:text-lg font-semibold text-gray-900">{view.storyline?.name ?? '剧情线'}</h2>
                   </div>
                   {view.phase === 'action' && (
                     <div className="text-xs text-gray-500">行动点阶段</div>
@@ -1841,9 +1841,9 @@ export default function GamePage() {
 
                 <div
                   ref={logRef}
-                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 text-sm leading-6 text-gray-700 md:text-base md:leading-7 flex flex-col"
+                  className="flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 [@media(max-height:820px)]:p-1.5 text-sm [@media(max-height:820px)]:text-xs leading-6 [@media(max-height:820px)]:leading-5 text-gray-700 md:text-base md:leading-7 flex flex-col"
                 >
-                  <div className="space-y-2 flex-1 min-h-0">
+                  <div className="space-y-2 [@media(max-height:820px)]:space-y-1.5 flex-1 min-h-0">
                     {logEntries.length === 0 && !typingEntry && (
                       <div className="text-gray-500">剧情文本将在这里出现。</div>
                     )}
