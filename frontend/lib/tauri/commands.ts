@@ -6,6 +6,7 @@ import type { Internal, AttackSkill, DefenseSkill } from '@/types/manual';
 import type { AdventureEvent, Storyline } from '@/types/event';
 import type { Character } from '@/types/character';
 import type { Enemy } from '@/types/enemy';
+import type { SaveGame } from '@/types/save';
 
 export type NamedItem = { id: string; name: string };
 
@@ -170,12 +171,23 @@ export async function listSaves(): Promise<NamedItem[]> {
   return invoke('list_saves');
 }
 
-export async function loadSave(id: string): Promise<Character | null> {
+export async function loadSave(id: string): Promise<SaveGame | null> {
   return invoke('load_save', { id });
 }
 
+export async function saveGame(payload: SaveGame): Promise<string> {
+  return invoke('save_game', { payload });
+}
+
 export async function saveCharacter(payload: Character): Promise<string> {
-  return invoke('save_character', { payload });
+  const save: SaveGame = {
+    id: payload.id,
+    name: payload.name,
+    current_character: payload,
+    storyline_progress: null,
+    completed_characters: [],
+  };
+  return saveGame(save);
 }
 
 export async function deleteSave(id: string): Promise<void> {

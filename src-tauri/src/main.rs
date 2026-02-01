@@ -45,6 +45,7 @@ fn main() {
             commands::delete_storyline,
             commands::list_saves,
             commands::load_save,
+            commands::save_game,
             commands::save_character,
             commands::delete_save,
             core_commands::core_reset,

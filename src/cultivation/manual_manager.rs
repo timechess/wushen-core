@@ -371,8 +371,8 @@ impl ManualManager {
                         
                         // 应用操作到经验增益
                         match operation {
-                            Operation::Add => exp_gain *= (1.0 + calculated_value),
-                            Operation::Subtract => exp_gain *= (1.0 - calculated_value),
+                            Operation::Add => exp_gain *= 1.0 + calculated_value,
+                            Operation::Subtract => exp_gain *= 1.0 - calculated_value,
                             Operation::Set => exp_gain = calculated_value,
                             Operation::Multiply => exp_gain *= calculated_value,
                         }
@@ -522,8 +522,8 @@ impl ManualManager {
                         
                         // 应用操作到经验增益
                         match operation {
-                            Operation::Add => exp_gain *= (1.0 + calculated_value),
-                            Operation::Subtract => exp_gain *= (1.0 - calculated_value),
+                            Operation::Add => exp_gain *= 1.0 + calculated_value,
+                            Operation::Subtract => exp_gain *= 1.0 - calculated_value,
                             Operation::Set => exp_gain = calculated_value,
                             Operation::Multiply => exp_gain *= calculated_value,
                         }
@@ -686,12 +686,12 @@ impl ManualManager {
                             Operation::Add => {
                                 // Add 表示增加损失率，例如：Add 0.1 表示损失率增加 10%
                                 // 如果基础损失率是 15%，Add 0.1 后变成 15% * (1 + 0.1) = 16.5%
-                                qi_loss_rate_modifier *= (1.0 + calculated_value);
+                                qi_loss_rate_modifier *= 1.0 + calculated_value;
                             }
                             Operation::Subtract => {
                                 // Subtract 表示减少损失率，例如：Subtract 0.1 表示损失率减少 10%
                                 // 如果基础损失率是 15%，Subtract 0.1 后变成 15% * (1 - 0.1) = 13.5%
-                                qi_loss_rate_modifier *= (1.0 - calculated_value);
+                                qi_loss_rate_modifier *= 1.0 - calculated_value;
                             }
                             Operation::Set => {
                                 // Set 表示直接设置损失率修改器（倍数形式）

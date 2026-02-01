@@ -322,26 +322,21 @@ AdventureEvent：
 
 完整事件结构与奖励定义详见 `src/event/types.rs`。
 
-### 8.5 角色存档结构
+### 8.5 存档结构
 
-存档 JSON 由前端保存，结构对齐 `frontend/types/character.ts`：
+存档 JSON 由前端保存，结构对齐 `frontend/types/save.ts`：
 
 ```
 {
-  "id": "char_id",
-  "name": "角色名",
-  "three_d": { "comprehension": 0, "bone_structure": 0, "physique": 0 },
-  "traits": ["trait_id", ...],
-  "internals": { "owned": [{ "id": "...", "level": 1, "exp": 0 }], "equipped": "..." },
-  "attack_skills": { "owned": [...], "equipped": "..." },
-  "defense_skills": { "owned": [...], "equipped": "..." },
-  "action_points": 0,
-  "cultivation_history": [ { "manual_id": "...", "manual_type": "internal|attack_skill|defense_skill", "points_spent": 1 } ],
-  "max_qi": 0?,
-  "qi": 0?,
-  "martial_arts_attainment": 0?
+  "id": "save_id",
+  "name": "存档名",
+  "current_character": { ... },
+  "storyline_progress": { "storyline_id": "...", "event_id": "..." } | null,
+  "completed_characters": [ { ... }, ... ]
 }
 ```
+
+`current_character` 与 `completed_characters` 的角色结构对齐 `frontend/types/character.ts`。
 
 ## 9. 核心接口契约（Tauri commands）
 
@@ -433,7 +428,8 @@ save_storyline({ packId, payload }) -> id
 delete_storyline({ packId, id })
 
 list_saves() -> [{id,name}]
-load_save({ id }) -> Character | null
-save_character({ payload }) -> id
+load_save({ id }) -> SaveGame | null
+save_game({ payload }) -> id
+save_character({ payload }) -> id   # legacy，payload 为 Character 时自动包装为存档
 delete_save({ id })
 ```

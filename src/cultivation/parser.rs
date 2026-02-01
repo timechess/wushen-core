@@ -91,19 +91,19 @@ struct DefenseSkillRealmJson {
 /// 内功数据文件结构
 #[derive(Debug, Deserialize)]
 pub struct InternalsData {
-    pub internals: Vec<InternalJson>,
+    internals: Vec<InternalJson>,
 }
 
 /// 攻击武技数据文件结构
 #[derive(Debug, Deserialize)]
 pub struct AttackSkillsData {
-    pub attack_skills: Vec<AttackSkillJson>,
+    attack_skills: Vec<AttackSkillJson>,
 }
 
 /// 防御武技数据文件结构
 #[derive(Debug, Deserialize)]
 pub struct DefenseSkillsData {
-    pub defense_skills: Vec<DefenseSkillJson>,
+    defense_skills: Vec<DefenseSkillJson>,
 }
 
 /// 解析内功数据

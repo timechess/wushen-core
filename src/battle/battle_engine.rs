@@ -29,9 +29,9 @@ pub struct BattleEngine {
     // ========== 基础面板快照（用于重算永久效果） ==========
     
     /// Side A 基础面板（战斗开始时的状态）
-    side_a_base: BattlePanel,
+    // side_a_base: BattlePanel,
     /// Side B 基础面板（战斗开始时的状态）
-    side_b_base: BattlePanel,
+    // side_b_base: BattlePanel,
     
     // ========== 上次记录的面板状态（用于计算变化量） ==========
     
@@ -103,16 +103,16 @@ impl BattleEngine {
         );
         
         // 保存基础面板和上一次面板状态
-        let side_a_base = side_a_panel.clone();
-        let side_b_base = side_b_panel.clone();
+        // let side_a_base = side_a_panel.clone();
+        // let side_b_base = side_b_panel.clone();
         let last_side_a_panel = side_a_panel.clone();
         let last_side_b_panel = side_b_panel.clone();
         
         Self {
             side_a_panel,
             side_b_panel,
-            side_a_base,
-            side_b_base,
+            // side_a_base,
+            // side_b_base,
             last_side_a_panel,
             last_side_b_panel,
             attacker_temp: None,
@@ -509,8 +509,8 @@ impl BattleEngine {
         battle_result: Option<&BattleCalculationResult>,
     ) {
         match effect {
-            Effect::ModifyAttribute { target, value, operation, target_panel, can_exceed_limit, is_temporary, battle_record_template } |
-            Effect::ModifyPercentage { target, value, operation, target_panel, can_exceed_limit, is_temporary, battle_record_template } => {
+            Effect::ModifyAttribute { target, value, operation, target_panel, can_exceed_limit, is_temporary, battle_record_template: _ } |
+            Effect::ModifyPercentage { target, value, operation, target_panel, can_exceed_limit, is_temporary, battle_record_template: _ } => {
                 // 计算效果值
                 let calculated_value = self.calculate_effect_value(value, source_side, battle_result);
                 
@@ -545,7 +545,7 @@ impl BattleEngine {
                     });
                 }
             }
-            Effect::ExtraAttack { output, battle_record_template } => {
+            Effect::ExtraAttack { output, battle_record_template: _ } => {
                 // 额外攻击
                 self.handle_extra_attack(output, source_side, source_id, battle_result);
             }
@@ -739,13 +739,13 @@ impl BattleEngine {
     fn check_battle_end(&mut self) -> bool {
         // 检查临时面板（如果存在）或战斗面板
         let side_a_hp = self.attacker_temp.as_ref()
-            .filter(|t| self.current_attacker == Some(Side::A))
+            .filter(|_t| self.current_attacker == Some(Side::A))
             .or(self.defender_temp.as_ref().filter(|_| self.current_attacker == Some(Side::B)))
             .map(|t| t.hp)
             .unwrap_or(self.side_a_panel.hp);
         
         let side_b_hp = self.attacker_temp.as_ref()
-            .filter(|t| self.current_attacker == Some(Side::B))
+            .filter(|_t| self.current_attacker == Some(Side::B))
             .or(self.defender_temp.as_ref().filter(|_| self.current_attacker == Some(Side::A)))
             .map(|t| t.hp)
             .unwrap_or(self.side_b_panel.hp);
