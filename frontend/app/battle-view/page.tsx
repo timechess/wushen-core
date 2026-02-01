@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import type { BattleResult } from '@/types/game';
@@ -15,7 +15,7 @@ function resultText(result: BattleResult['result']): string {
   return '平局';
 }
 
-export default function BattleViewPage() {
+function BattleViewContent() {
   const params = useSearchParams();
   const sessionId = params.get('session');
   const [session, setSession] = useState<BattleSession | null>(null);
@@ -96,5 +96,19 @@ export default function BattleViewPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function BattleViewPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="text-gray-500">加载中...</div>
+        </div>
+      }
+    >
+      <BattleViewContent />
+    </Suspense>
   );
 }

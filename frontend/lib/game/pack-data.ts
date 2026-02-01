@@ -29,10 +29,10 @@ async function loadPackItems<T>(
   packId: string,
   listFn: (packId: string) => Promise<Array<{ id: string }>>,
   getFn: (packId: string, id: string) => Promise<T | null>
-): Promise<T[]> {
+): Promise<Array<NonNullable<Awaited<T>>>> {
   const list = await listFn(packId);
   const items = await Promise.all(list.map((item) => getFn(packId, item.id)));
-  return items.filter((item): item is T => item !== null);
+  return items.filter((item): item is NonNullable<Awaited<T>> => item !== null);
 }
 
 function mergeById<T extends { id: string }>(packs: T[][]): T[] {
