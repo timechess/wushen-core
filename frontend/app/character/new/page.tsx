@@ -52,7 +52,7 @@ export default function NewEnemyPage() {
 
   return (
     <RequireActivePack title="创建敌人前需要先选择一个模组包。">
-      <div className="min-h-screen bg-gray-50">
+      <div className="page-shell">
         <div className="container mx-auto px-4 py-8 max-w-5xl">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold">新建敌人</h1>

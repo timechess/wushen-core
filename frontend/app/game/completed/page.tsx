@@ -44,13 +44,13 @@ export default function CompletedCharactersPage() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="surface-card p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">已完成角色</h1>
-              <p className="text-gray-600">查看所有完成剧情线的角色记录。</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 reveal-text">已完成角色</h1>
+              <p className="text-gray-600 reveal-text reveal-delay-1">查看所有完成剧情线的角色记录。</p>
             </div>
             <Button variant="secondary" onClick={loadCompleted} disabled={loading}>
               {loading ? '刷新中...' : '刷新列表'}
@@ -58,7 +58,7 @@ export default function CompletedCharactersPage() {
           </div>
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="surface-panel p-6">
           {entries.length === 0 ? (
             <div className="text-gray-500 text-center py-12">暂无完成角色记录</div>
           ) : (

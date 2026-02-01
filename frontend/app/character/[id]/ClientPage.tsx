@@ -79,7 +79,7 @@ export default function EditEnemyPage() {
           <p>敌人不存在</p>
         </div>
       ) : (
-        <div className="min-h-screen bg-gray-50">
+        <div className="page-shell">
           <div className="container mx-auto px-4 py-8 max-w-5xl">
             <div className="flex justify-between items-center mb-6">
               <h1 className="text-3xl font-bold">编辑敌人</h1>

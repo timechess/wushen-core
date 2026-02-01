@@ -18,11 +18,11 @@ export default function EditorHubPage() {
   const { activePack, ready } = useActivePack();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-5xl">
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">内容编辑中心</h1>
-          <p className="text-gray-600">选择一个模组包后，开始编辑特性、功法与事件。</p>
+        <div className="surface-card p-6 mb-6">
+          <h1 className="text-3xl font-bold text-gray-900 mb-2 reveal-text">内容编辑中心</h1>
+          <p className="text-gray-600 reveal-text reveal-delay-1">选择一个模组包后，开始编辑特性、功法与事件。</p>
           {ready && (
             <div className="mt-4 flex items-center gap-3">
               {activePack ? (
@@ -43,7 +43,7 @@ export default function EditorHubPage() {
           )}
         </div>
 
-        <div className="bg-white rounded-xl shadow-lg p-6">
+        <div className="surface-panel p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">编辑模块</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {EDITOR_LINKS.map((item) => (
@@ -51,7 +51,7 @@ export default function EditorHubPage() {
                 key={item.href}
                 href={item.href}
                 className={`flex items-center justify-between rounded-lg border px-5 py-4 transition-colors ${
-                  activePack ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50' : 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                  activePack ? 'border-[var(--app-border)] hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)]' : 'border-[var(--app-border)] bg-[var(--app-surface-muted)] text-gray-400 cursor-not-allowed'
                 }`}
                 onClick={(event) => {
                   if (!activePack) {
@@ -71,7 +71,7 @@ export default function EditorHubPage() {
           )}
         </div>
 
-        <div className="mt-6 bg-white rounded-xl shadow-lg p-6">
+        <div className="mt-6 surface-panel p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">数据工具</h2>
           <p className="text-sm text-gray-600 mb-4">导入/导出功能暂时保留，用于整体数据备份。</p>
           <Button>

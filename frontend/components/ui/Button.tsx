@@ -12,12 +12,16 @@ export default function Button({
   className = '',
   ...props
 }: ButtonProps) {
-  const baseStyles = 'font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2';
+  const baseStyles =
+    'font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-[var(--app-ring)]';
   
   const variantStyles = {
-    primary: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-blue-500',
-    secondary: 'bg-gray-200 text-gray-900 hover:bg-gray-300 focus:ring-gray-500',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+    primary:
+      'bg-[var(--app-accent)] text-white hover:bg-[var(--app-accent-strong)] shadow-[0_12px_25px_rgba(0,0,0,0.15)]',
+    secondary:
+      'bg-[var(--app-surface-muted)] text-[var(--app-ink)] border border-[var(--app-border)] hover:bg-[var(--app-surface)]',
+    danger:
+      'bg-[#b24b31] text-white hover:bg-[#943d28] shadow-[0_10px_22px_rgba(0,0,0,0.12)]',
   };
   
   const sizeStyles = {

@@ -104,7 +104,7 @@ export default function EditInternalPage() {
       <p>内功不存在</p>
     </div>
   ) : (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         {/* 头部 */}
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">

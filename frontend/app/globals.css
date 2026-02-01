@@ -1,37 +1,370 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --app-ink: #241c12;
+  --app-ink-muted: #4f3f2d;
+  --app-ink-soft: #6c5b47;
+  --app-ink-faint: #8b7a60;
+  --app-surface: #fff6e4;
+  --app-surface-muted: #f6ecd6;
+  --app-surface-soft: #efe2c8;
+  --app-border: #d9c2a2;
+  --app-accent: #c48a2d;
+  --app-accent-strong: #9c661b;
+  --app-accent-2: #2b7a6b;
+  --app-accent-soft: rgba(196, 138, 45, 0.14);
+  --app-accent-2-soft: rgba(43, 122, 107, 0.14);
+  --app-alert-soft: rgba(170, 86, 32, 0.16);
+  --app-shadow: 0 22px 50px rgba(32, 22, 12, 0.18);
+  --app-ring: rgba(196, 138, 45, 0.35);
+  --app-bg: radial-gradient(circle at top, #f6ead5 0%, #efe2c8 50%, #e6d5b8 100%);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-wushen-sans);
+  --font-display: var(--font-wushen-display);
+  --font-mono: var(--font-wushen-mono);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #100c08;
+  color: var(--app-ink);
+  font-family: var(--font-wushen-sans), "Noto Sans SC", system-ui, sans-serif;
+  letter-spacing: 0.01em;
 }
 
-@keyframes fadeIn {
+@layer base {
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-wushen-display), var(--font-wushen-sans), serif;
+    letter-spacing: 0.03em;
+  }
+
+  a {
+    color: inherit;
+  }
+}
+
+.app-shell {
+  position: relative;
+  min-height: 100vh;
+  background: var(--app-bg);
+  color: var(--app-ink);
+}
+
+.app-shell::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.3), transparent 35%),
+    radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.16), transparent 45%),
+    radial-gradient(circle at 80% 80%, rgba(15, 12, 8, 0.08), transparent 40%);
+  opacity: 0.9;
+}
+
+.app-shell.area-home {
+  --app-bg: radial-gradient(circle at 20% 20%, #f9f0dc 0%, #f0e0c2 50%, #e6d1ac 100%);
+}
+
+.app-shell.area-editor {
+  --app-bg: radial-gradient(circle at 20% 20%, #faf1df 0%, #f1e1c6 55%, #e5d1ae 100%);
+}
+
+.app-shell.area-game {
+  --app-bg: radial-gradient(circle at 20% 20%, #2b3534 0%, #121a19 55%, #0c1110 100%);
+  --app-ink: #f3e7cf;
+  --app-ink-muted: #d4c4a6;
+  --app-ink-soft: #b9a88b;
+  --app-ink-faint: #9c8b72;
+  --app-surface: rgba(18, 30, 29, 0.9);
+  --app-surface-muted: rgba(23, 36, 34, 0.88);
+  --app-surface-soft: rgba(30, 44, 41, 0.82);
+  --app-border: #324541;
+  --app-accent: #e0b05a;
+  --app-accent-strong: #c18a2f;
+  --app-accent-2: #6ad1b9;
+  --app-accent-soft: rgba(224, 176, 90, 0.18);
+  --app-accent-2-soft: rgba(106, 209, 185, 0.18);
+  --app-alert-soft: rgba(215, 124, 58, 0.2);
+  --app-shadow: 0 25px 65px rgba(0, 0, 0, 0.45);
+  --app-ring: rgba(224, 176, 90, 0.4);
+}
+
+.app-shell.area-neutral {
+  --app-bg: radial-gradient(circle at 20% 20%, #f6ead5 0%, #efe2c8 55%, #e6d5b8 100%);
+}
+
+.page-shell {
+  min-height: 100vh;
+  padding-top: 1.5rem;
+  padding-bottom: 2.5rem;
+  position: relative;
+  z-index: 1;
+}
+
+.surface-card {
+  position: relative;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--app-shadow);
+}
+
+.surface-card::before {
+  content: "";
+  position: absolute;
+  inset: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 1rem;
+  pointer-events: none;
+}
+
+.surface-panel {
+  background: var(--app-surface-muted);
+  border: 1px solid var(--app-border);
+  border-radius: 1.1rem;
+  box-shadow: var(--app-shadow);
+}
+
+.panel-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.panel-kicker {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.28em;
+  color: var(--app-ink-faint);
+}
+
+.nav-shell {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: var(--app-surface);
+  background: color-mix(in oklab, var(--app-surface) 80%, transparent);
+  border-bottom: 1px solid var(--app-border);
+  backdrop-filter: blur(10px);
+}
+
+.nav-brand {
+  font-family: var(--font-wushen-display), serif;
+  font-size: 1.35rem;
+  letter-spacing: 0.08em;
+}
+
+.nav-group-title {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.25em;
+  color: var(--app-ink-faint);
+}
+
+.nav-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  background: color-mix(in oklab, var(--app-surface) 85%, transparent);
+}
+
+.nav-pill:hover {
+  transform: translateY(-1px);
+  border-color: var(--app-border);
+}
+
+.nav-pill-active {
+  background: var(--app-accent);
+  color: #fdf6e6;
+  border-color: transparent;
+  box-shadow: 0 10px 25px rgba(196, 138, 45, 0.35);
+}
+
+.nav-divider {
+  width: 1px;
+  height: 2.5rem;
+  background: var(--app-border);
+  opacity: 0.6;
+}
+
+.app-shell .bg-white {
+  background-color: var(--app-surface);
+}
+
+.app-shell .bg-gray-50 {
+  background-color: var(--app-surface-muted);
+}
+
+.app-shell .bg-gray-100 {
+  background-color: var(--app-surface-soft);
+}
+
+.app-shell .border-gray-200 {
+  border-color: var(--app-border);
+}
+
+.app-shell .border-gray-300 {
+  border-color: var(--app-border);
+}
+
+.app-shell .border-gray-100 {
+  border-color: var(--app-border);
+}
+
+.app-shell .text-gray-900 {
+  color: var(--app-ink);
+}
+
+.app-shell .text-gray-800 {
+  color: var(--app-ink);
+}
+
+.app-shell .text-gray-700 {
+  color: var(--app-ink-muted);
+}
+
+.app-shell .text-gray-600 {
+  color: var(--app-ink-soft);
+}
+
+.app-shell .text-gray-500 {
+  color: var(--app-ink-faint);
+}
+
+.app-shell .text-gray-400 {
+  color: var(--app-ink-faint);
+  color: color-mix(in oklab, var(--app-ink-faint) 80%, transparent);
+}
+
+.app-shell .shadow-lg {
+  box-shadow: var(--app-shadow);
+}
+
+.app-shell .bg-blue-50 {
+  background-color: var(--app-accent-soft);
+}
+
+.app-shell .bg-emerald-50 {
+  background-color: var(--app-accent-2-soft);
+}
+
+.app-shell .bg-amber-50 {
+  background-color: var(--app-alert-soft);
+}
+
+.app-shell .border-blue-200,
+.app-shell .border-emerald-200,
+.app-shell .border-amber-200 {
+  border-color: var(--app-border);
+  border-color: color-mix(in oklab, var(--app-accent) 40%, var(--app-border));
+}
+
+.app-shell .text-blue-700,
+.app-shell .text-emerald-700 {
+  color: var(--app-accent);
+}
+
+.app-shell .text-amber-700 {
+  color: var(--app-accent-strong);
+}
+
+.app-shell .bg-blue-100 {
+  background-color: var(--app-accent-soft);
+  background-color: color-mix(in oklab, var(--app-accent) 25%, transparent);
+}
+
+.app-shell .bg-emerald-100 {
+  background-color: var(--app-accent-2-soft);
+  background-color: color-mix(in oklab, var(--app-accent-2) 25%, transparent);
+}
+
+.app-shell .bg-amber-100 {
+  background-color: var(--app-alert-soft);
+  background-color: color-mix(in oklab, var(--app-accent-strong) 25%, transparent);
+}
+
+@keyframes titleReveal {
+  0% {
+    opacity: 0;
+    transform: translateY(16px);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    text-shadow: 0 0 0 rgba(196, 138, 45, 0);
+  }
+  50% {
+    text-shadow: 0 0 18px rgba(196, 138, 45, 0.45);
+  }
+}
+
+@keyframes floatIn {
   from {
     opacity: 0;
-    transform: translateY(-5px);
+    transform: translateY(16px);
   }
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+.reveal-text {
+  animation: titleReveal 0.8s ease both;
+}
+
+.reveal-delay-1 {
+  animation-delay: 0.12s;
+}
+
+.reveal-delay-2 {
+  animation-delay: 0.24s;
+}
+
+.glow-text {
+  animation: glowPulse 2.2s ease-in-out infinite;
+}
+
+.float-in {
+  animation: floatIn 0.7s ease both;
+}
+
+.float-delay-1 {
+  animation-delay: 0.1s;
+}
+
+.float-delay-2 {
+  animation-delay: 0.2s;
+}
+
+.rune-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--app-accent), transparent);
+  opacity: 0.6;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reveal-text,
+  .glow-text,
+  .float-in {
+    animation: none;
   }
 }

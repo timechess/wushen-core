@@ -49,11 +49,11 @@ export default function EditStorylinePage() {
   };
 
   const content = !storyline ? (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-600">
+    <div className="page-shell flex items-center justify-center text-gray-600">
       {loading ? '加载中...' : '剧情线不存在'}
     </div>
   ) : (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-6xl">
         <div className="bg-white rounded-xl shadow-lg p-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">编辑剧情线</h1>

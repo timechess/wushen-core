@@ -1,15 +1,23 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Noto_Sans_SC, Noto_Serif_SC } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import AppShell from "@/components/AppShell";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const notoSans = Noto_Sans_SC({
+  variable: "--font-wushen-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const displayFont = Noto_Serif_SC({
+  variable: "--font-wushen-display",
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
 });
 
 const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+  variable: "--font-wushen-mono",
   subsets: ["latin"],
 });
 
@@ -26,10 +34,12 @@ export default function RootLayout({
   return (
     <html lang="zh-CN">
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${notoSans.variable} ${displayFont.variable} ${geistMono.variable} antialiased`}
       >
-        <Navbar />
-        {children}
+        <AppShell>
+          <Navbar />
+          {children}
+        </AppShell>
       </body>
     </html>
   );

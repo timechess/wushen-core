@@ -49,11 +49,11 @@ export default function EditEventPage() {
   };
 
   const content = !event ? (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center text-gray-600">
+    <div className="page-shell flex items-center justify-center text-gray-600">
       {loading ? '加载中...' : '事件不存在'}
     </div>
   ) : (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-5xl">
         <div className="bg-white rounded-xl shadow-lg p-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-6">编辑奇遇事件</h1>

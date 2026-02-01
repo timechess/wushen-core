@@ -69,7 +69,7 @@ export default function ModOrderPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">

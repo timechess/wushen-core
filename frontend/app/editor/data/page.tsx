@@ -51,7 +51,7 @@ export default function DataToolsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-8 max-w-3xl">
         <ActivePackStatus message="导出当前包，或导入一个新的模组包。" />
         <div className="bg-white rounded-xl shadow-lg p-6">

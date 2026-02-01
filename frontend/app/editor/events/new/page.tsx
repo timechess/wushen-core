@@ -32,7 +32,7 @@ export default function NewEventPage() {
 
   return (
     <RequireActivePack title="创建奇遇事件前需要先选择一个模组包。">
-      <div className="min-h-screen bg-gray-50">
+      <div className="page-shell">
         <div className="container mx-auto px-4 py-8 max-w-5xl">
           <div className="bg-white rounded-xl shadow-lg p-6">
             <h1 className="text-2xl font-bold text-gray-900 mb-6">新建奇遇事件</h1>

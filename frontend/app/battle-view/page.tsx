@@ -39,16 +39,16 @@ function BattleViewContent() {
 
   if (!session) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="page-shell flex items-center justify-center">
         <div className="text-gray-500">未找到战斗记录</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    <div className="page-shell">
       <div className="container mx-auto px-4 py-6 max-w-5xl">
-        <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+        <div className="surface-card p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">战斗过程</h1>
@@ -61,7 +61,7 @@ function BattleViewContent() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <section className="bg-white rounded-xl shadow-lg p-4">
+          <section className="surface-panel p-4">
             <h2 className="text-sm font-semibold text-gray-800 mb-3">进攻方</h2>
             <div className="text-sm text-gray-700 space-y-2">
               <div className="font-medium">{session.result.attacker_panel.name}</div>
@@ -70,7 +70,7 @@ function BattleViewContent() {
             </div>
           </section>
 
-          <section className="bg-white rounded-xl shadow-lg p-4 lg:col-span-1">
+          <section className="surface-panel p-4 lg:col-span-1">
             <h2 className="text-sm font-semibold text-gray-800 mb-3">战斗日志</h2>
             <div className="space-y-2 text-sm text-gray-700 max-h-[520px] overflow-y-auto">
               {records.length === 0 ? (
@@ -85,7 +85,7 @@ function BattleViewContent() {
             </div>
           </section>
 
-          <section className="bg-white rounded-xl shadow-lg p-4">
+          <section className="surface-panel p-4">
             <h2 className="text-sm font-semibold text-gray-800 mb-3">防守方</h2>
             <div className="text-sm text-gray-700 space-y-2">
               <div className="font-medium">{session.result.defender_panel.name}</div>
@@ -103,7 +103,7 @@ export default function BattleViewPage() {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="page-shell flex items-center justify-center">
           <div className="text-gray-500">加载中...</div>
         </div>
       }
