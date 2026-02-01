@@ -1,7 +1,9 @@
 /// Tauri API 模块
 /// 提供桌面端可调用的API接口
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use crate::character::panel::{CharacterPanel, ThreeDimensional};
+use crate::character::json::{parse_character_panel, serialize_character_panel};
 use crate::cultivation::{Internal, AttackSkill, DefenseSkill};
 use crate::cultivation::parser::{parse_internals, parse_attack_skills, parse_defense_skills};
 use crate::character::traits::parse_traits;
@@ -11,7 +13,38 @@ use crate::battle::battle_engine::BattleEngine;
 use crate::battle::battle_state::BattleResult;
 use crate::battle::battle_record::BattleRecord;
 use crate::effect::executor::EntryExecutor;
-use crate::event::{EventManager, parse_storylines, parse_adventure_events};
+use crate::event::{
+    AdventureEventContent,
+    AdventureOptionResult,
+    EventManager,
+    StoryEventContent,
+    StoryNodeType,
+    StoryEvent,
+    Storyline,
+    parse_storylines,
+    parse_adventure_events,
+    Reward,
+};
+use crate::game::{
+    AdventureDecisionView,
+    AdventureOptionView,
+    CharacterState,
+    GameOutcome,
+    GamePhase,
+    GameResponse,
+    GameRuntime,
+    GameView,
+    NewGameRequest,
+    SaveGame,
+    SimpleRng,
+    StoryEventSummary,
+    StoryEventView,
+    StoryEventContentView,
+    StoryOptionView,
+    StorylineProgress,
+    StorylineSummary,
+    seed_from_time,
+};
 
 /// 核心运行状态
 /// 存储特性和功法数据（从JSON加载）
@@ -19,6 +52,7 @@ pub struct WushenCore {
     trait_manager: TraitManager,
     manual_manager: ManualManager,
     event_manager: EventManager,
+    game_runtime: Option<GameRuntime>,
 }
 
 impl WushenCore {
@@ -28,6 +62,7 @@ impl WushenCore {
             trait_manager: TraitManager::new(),
             manual_manager: ManualManager::new(),
             event_manager: EventManager::new(),
+            game_runtime: None,
         }
     }
 
@@ -36,6 +71,7 @@ impl WushenCore {
         self.trait_manager = TraitManager::new();
         self.manual_manager = ManualManager::new();
         self.event_manager = EventManager::new();
+        self.game_runtime = None;
     }
     
     /// 从JSON加载特性数据
@@ -637,9 +673,762 @@ impl WushenCore {
         
         let json = serde_json::to_string(&cultivation_result)
             .map_err(|e| format!("序列化修行结果失败: {}", e))?;
-        
+
         Ok(json)
     }
+
+    // ==================== 游戏运行时 ====================
+
+    pub fn game_start_new(&mut self, request: NewGameRequest) -> Result<GameResponse, String> {
+        let storyline = self
+            .event_manager
+            .get_storyline(&request.storyline_id)
+            .ok_or_else(|| format!("剧情线 {} 不存在", request.storyline_id))?;
+        let total = request.three_d.comprehension
+            + request.three_d.bone_structure
+            + request.three_d.physique;
+        if total > 100 {
+            return Err("三维总点数不能超过 100".to_string());
+        }
+
+        let mut save = SaveGame {
+            id: request.character_id.clone(),
+            name: request.name.clone(),
+            current_character: CharacterState {
+                id: request.character_id,
+                name: request.name,
+                three_d: request.three_d,
+                traits: vec![],
+                internals: empty_manuals(),
+                attack_skills: empty_manuals(),
+                defense_skills: empty_manuals(),
+                action_points: 0,
+                cultivation_history: vec![],
+                max_qi: Some(0.0),
+                qi: Some(0.0),
+                martial_arts_attainment: Some(0.0),
+            },
+            storyline_progress: Some(StorylineProgress {
+                storyline_id: storyline.id.clone(),
+                event_id: storyline.start_event_id.clone(),
+            }),
+            active_adventure_id: None,
+            completed_characters: vec![],
+            rng_state: seed_from_time(),
+        };
+
+        ensure_rng_state(&mut save);
+        self.game_runtime = Some(GameRuntime {
+            save,
+        });
+        self.game_view(None)
+    }
+
+    pub fn game_resume(&mut self, mut save: SaveGame) -> Result<GameResponse, String> {
+        ensure_rng_state(&mut save);
+        self.game_runtime = Some(GameRuntime {
+            save,
+        });
+        self.game_view(None)
+    }
+
+    pub fn game_view(&self, outcome: Option<GameOutcome>) -> Result<GameResponse, String> {
+        let runtime = self
+            .game_runtime
+            .as_ref()
+            .ok_or_else(|| "游戏尚未初始化".to_string())?;
+        let view = self.build_game_view(runtime)?;
+        Ok(GameResponse { view, outcome })
+    }
+
+    pub fn game_cultivate(
+        &mut self,
+        manual_id: String,
+        manual_type: String,
+    ) -> Result<GameResponse, String> {
+        let character_json = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            if runtime.save.current_character.action_points == 0 {
+                return Err("行动点不足".to_string());
+            }
+            let panel = character_state_to_panel(&runtime.save.current_character);
+            serialize_character_panel(&panel)?
+        };
+        let result_json = self.execute_cultivation(&character_json, &manual_id, &manual_type)?;
+        let result: CultivationResultJson = serde_json::from_str(&result_json)
+            .map_err(|e| format!("解析修行结果失败: {}", e))?;
+        let updated_panel = parse_character_panel(&result.updated_character)?;
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            update_character_from_panel(&mut runtime.save.current_character, &updated_panel);
+            runtime.save.current_character.action_points =
+                runtime.save.current_character.action_points.saturating_sub(1);
+            runtime.save.current_character.cultivation_history.clear();
+        }
+
+        let outcome = GameOutcome::Cultivation {
+            exp_gain: result.exp_gain,
+            old_level: result.old_level,
+            old_exp: result.old_exp,
+            new_level: result.new_level,
+            new_exp: result.new_exp,
+            leveled_up: result.leveled_up,
+        };
+
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_travel(&mut self) -> Result<GameResponse, String> {
+        let (mut character, rng_state) = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            if runtime.save.current_character.action_points == 0 {
+                return Err("行动点不足".to_string());
+            }
+            (runtime.save.current_character.clone(), runtime.save.rng_state)
+        };
+
+        character.action_points = character.action_points.saturating_sub(1);
+        character.cultivation_history.clear();
+
+        let panel = character_state_to_panel(&character);
+        let mut available = Vec::new();
+        for event in self.event_manager.all_adventure_events() {
+            if EventManager::is_adventure_event_available(event, &panel, &self.manual_manager) {
+                available.push(event);
+            }
+        }
+
+        if available.is_empty() {
+            {
+                let runtime = self
+                    .game_runtime
+                    .as_mut()
+                    .ok_or_else(|| "游戏尚未初始化".to_string())?;
+                runtime.save.current_character = character;
+            }
+            let outcome = GameOutcome::Info {
+                message: "本次游历未触发奇遇".to_string(),
+            };
+            return self.game_view(Some(outcome));
+        }
+
+        let mut rng = SimpleRng::from_state(rng_state);
+        let picked = available[rng.next_usize(available.len())];
+        let next_rng_state = rng.state();
+
+        let mut active_adventure_id = None;
+        let outcome = match &picked.content {
+            AdventureEventContent::Decision { .. } => {
+                active_adventure_id = Some(picked.id.clone());
+                GameOutcome::Adventure {
+                    name: picked.name.clone(),
+                    text: None,
+                    rewards: vec![],
+                    battle_result: None,
+                    win: None,
+                }
+            }
+            AdventureEventContent::Story { text, rewards } => {
+                self.apply_rewards_to_character(&mut character, rewards)?;
+                GameOutcome::Adventure {
+                    name: picked.name.clone(),
+                    text: Some(text.clone()),
+                    rewards: rewards.clone(),
+                    battle_result: None,
+                    win: None,
+                }
+            }
+            AdventureEventContent::Battle { text, enemy, win, lose } => {
+                let battle_result = self.run_battle(&character, enemy)?;
+                let win_flag = battle_is_attacker_win(&battle_result);
+                let rewards = if win_flag { &win.rewards } else { &lose.rewards };
+                self.apply_rewards_to_character(&mut character, rewards)?;
+                GameOutcome::Adventure {
+                    name: picked.name.clone(),
+                    text: Some(text.clone()),
+                    rewards: rewards.clone(),
+                    battle_result: Some(battle_result),
+                    win: Some(win_flag),
+                }
+            }
+        };
+
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character = character;
+            runtime.save.rng_state = next_rng_state;
+            runtime.save.active_adventure_id = active_adventure_id;
+        }
+
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_story_option(&mut self, option_id: String) -> Result<GameResponse, String> {
+        let (storyline, event) = self.current_story_event()?;
+        {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            ensure_event_ready(runtime, &event)?;
+        }
+
+        let selected_next_id = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            let panel = character_state_to_panel(&runtime.save.current_character);
+            let options = match &event.content {
+                StoryEventContent::Decision { options, .. } => {
+                    EventManager::available_story_options(options, &panel, &self.manual_manager)
+                }
+                _ => return Err("当前事件不是抉择事件".to_string()),
+            };
+
+            let selected = options
+                .into_iter()
+                .find(|opt| opt.id == option_id)
+                .ok_or_else(|| "无效的选项".to_string())?;
+            selected.next_event_id.clone()
+        };
+
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            Self::advance_to_event(runtime, &storyline, &selected_next_id)?;
+        }
+        let outcome = GameOutcome::Info {
+            message: "抉择已确认".to_string(),
+        };
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_story_battle(&mut self) -> Result<GameResponse, String> {
+        let (storyline, event) = self.current_story_event()?;
+        {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            ensure_event_ready(runtime, &event)?;
+        }
+
+        let (text, enemy, win, lose) = match &event.content {
+            StoryEventContent::Battle { text, enemy, win, lose } => (text, enemy, win, lose),
+            _ => return Err("当前事件不是战斗事件".to_string()),
+        };
+
+        let mut character = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character.clone()
+        };
+
+        let battle_result = self.run_battle(&character, enemy)?;
+        let win_flag = battle_is_attacker_win(&battle_result);
+        let rewards = if win_flag { &win.rewards } else { &lose.rewards };
+        self.apply_rewards_to_character(&mut character, rewards)?;
+        let next_event_id = if win_flag {
+            win.next_event_id.clone()
+        } else {
+            lose.next_event_id.clone()
+        };
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character = character;
+            Self::advance_to_event(runtime, &storyline, &next_event_id)?;
+        }
+
+        let outcome = GameOutcome::Story {
+            text: Some(text.clone()),
+            rewards: rewards.clone(),
+            battle_result: Some(battle_result),
+            win: Some(win_flag),
+        };
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_story_continue(&mut self) -> Result<GameResponse, String> {
+        let (storyline, event) = self.current_story_event()?;
+        {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            ensure_event_ready(runtime, &event)?;
+        }
+
+        let (text, rewards, next_event_id) = match &event.content {
+            StoryEventContent::Story { text, rewards, next_event_id } => {
+                (text, rewards, next_event_id)
+            }
+            _ => return Err("当前事件不是剧情事件".to_string()),
+        };
+
+        let next_id = next_event_id
+            .clone()
+            .ok_or_else(|| "剧情事件未指定后续事件".to_string())?;
+        let mut character = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character.clone()
+        };
+        self.apply_rewards_to_character(&mut character, rewards)?;
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character = character;
+            Self::advance_to_event(runtime, &storyline, &next_id)?;
+        }
+        let outcome = GameOutcome::Story {
+            text: Some(text.clone()),
+            rewards: rewards.clone(),
+            battle_result: None,
+            win: None,
+        };
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_adventure_option(&mut self, option_id: String) -> Result<GameResponse, String> {
+        let (adventure_id, mut character) = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            let adventure_id = runtime
+                .save
+                .active_adventure_id
+                .clone()
+                .ok_or_else(|| "当前没有可处理的奇遇".to_string())?;
+            (adventure_id, runtime.save.current_character.clone())
+        };
+        let event = self
+            .event_manager
+            .get_adventure_event(&adventure_id)
+            .ok_or_else(|| "奇遇事件不存在".to_string())?;
+
+        let panel = character_state_to_panel(&character);
+        let (text, rewards, battle_result, win_flag) = match &event.content {
+            AdventureEventContent::Decision { options, .. } => {
+                let option = options
+                    .iter()
+                    .find(|opt| opt.id == option_id)
+                    .ok_or_else(|| "无效的选项".to_string())?;
+                if !EventManager::is_condition_met(&option.condition, &panel, &self.manual_manager) {
+                    return Err("选项条件不满足".to_string());
+                }
+                match &option.result {
+                    AdventureOptionResult::Story { text, rewards } => {
+                        self.apply_rewards_to_character(&mut character, rewards)?;
+                        (Some(text.clone()), rewards.clone(), None, None)
+                    }
+                    AdventureOptionResult::Battle { text, enemy, win, lose } => {
+                        let battle_result = self.run_battle(&character, enemy)?;
+                        let win_flag = battle_is_attacker_win(&battle_result);
+                        let rewards = if win_flag { &win.rewards } else { &lose.rewards };
+                        self.apply_rewards_to_character(&mut character, rewards)?;
+                        (Some(text.clone()), rewards.clone(), Some(battle_result), Some(win_flag))
+                    }
+                }
+            }
+            _ => return Err("奇遇事件不是抉择类型".to_string()),
+        };
+
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character = character;
+            runtime.save.active_adventure_id = None;
+        }
+
+        let outcome = GameOutcome::Adventure {
+            name: event.name.clone(),
+            text,
+            rewards,
+            battle_result,
+            win: win_flag,
+        };
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_finish(&mut self) -> Result<GameResponse, String> {
+        let (_storyline, event) = self.current_story_event()?;
+        {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            ensure_event_ready(runtime, &event)?;
+        }
+
+        if !matches!(event.node_type, StoryNodeType::End) {
+            return Err("当前事件不是结局".to_string());
+        }
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime
+                .save
+                .completed_characters
+                .push(runtime.save.current_character.clone());
+            runtime.save.storyline_progress = None;
+            runtime.save.active_adventure_id = None;
+        }
+
+        let outcome = GameOutcome::Info {
+            message: "剧情已完成".to_string(),
+        };
+        self.game_view(Some(outcome))
+    }
+
+    fn build_game_view(&self, runtime: &GameRuntime) -> Result<GameView, String> {
+        let mut phase = GamePhase::Completed;
+        let mut story_event_view = None;
+        let mut adventure_view = None;
+        let mut current_event_summary = None;
+        let storyline_summary = runtime
+            .save
+            .storyline_progress
+            .as_ref()
+            .and_then(|p| self.event_manager.get_storyline(&p.storyline_id))
+            .map(|s| StorylineSummary {
+                id: s.id.clone(),
+                name: s.name.clone(),
+            });
+
+        if let Some(progress) = &runtime.save.storyline_progress {
+            let storyline = self
+                .event_manager
+                .get_storyline(&progress.storyline_id)
+                .ok_or_else(|| "剧情线不存在".to_string())?;
+            let event = storyline
+                .events
+                .iter()
+                .find(|e| e.id == progress.event_id)
+                .ok_or_else(|| "事件不存在".to_string())?;
+            current_event_summary = Some(StoryEventSummary {
+                id: event.id.clone(),
+                name: event.name.clone(),
+                node_type: event.node_type,
+            });
+
+            if let Some(adventure_id) = &runtime.save.active_adventure_id {
+                let adventure = self
+                    .event_manager
+                    .get_adventure_event(adventure_id)
+                    .ok_or_else(|| "奇遇事件不存在".to_string())?;
+                if let AdventureEventContent::Decision { text, options } = &adventure.content {
+                    let panel = character_state_to_panel(&runtime.save.current_character);
+                    let mut available = Vec::new();
+                    for option in options {
+                        if EventManager::is_condition_met(&option.condition, &panel, &self.manual_manager) {
+                            available.push(AdventureOptionView {
+                                id: option.id.clone(),
+                                text: option.text.clone(),
+                            });
+                        }
+                    }
+                    adventure_view = Some(AdventureDecisionView {
+                        id: adventure.id.clone(),
+                        name: adventure.name.clone(),
+                        text: text.clone(),
+                        options: available,
+                    });
+                    phase = GamePhase::AdventureDecision;
+                }
+            } else if event.node_type == StoryNodeType::Middle
+                && runtime.save.current_character.action_points > 0
+            {
+                phase = GamePhase::Action;
+            } else {
+                let panel = character_state_to_panel(&runtime.save.current_character);
+                story_event_view = Some(build_story_event_view(
+                    event,
+                    &panel,
+                    &self.manual_manager,
+                ));
+                phase = GamePhase::Story;
+            }
+        }
+
+        Ok(GameView {
+            save: runtime.save.clone(),
+            storyline: storyline_summary,
+            phase,
+            current_event: current_event_summary,
+            story_event: story_event_view,
+            adventure: adventure_view,
+        })
+    }
+
+    fn current_story_event(&self) -> Result<(Storyline, StoryEvent), String> {
+        let runtime = self
+            .game_runtime
+            .as_ref()
+            .ok_or_else(|| "游戏尚未初始化".to_string())?;
+        let progress = runtime
+            .save
+            .storyline_progress
+            .as_ref()
+            .ok_or_else(|| "剧情线已完成".to_string())?;
+        let storyline = self
+            .event_manager
+            .get_storyline(&progress.storyline_id)
+            .ok_or_else(|| "剧情线不存在".to_string())?;
+        let event = storyline
+            .events
+            .iter()
+            .find(|e| e.id == progress.event_id)
+            .cloned()
+            .ok_or_else(|| "事件不存在".to_string())?;
+        Ok((storyline.clone(), event))
+    }
+
+    fn advance_to_event(
+        runtime: &mut GameRuntime,
+        storyline: &Storyline,
+        next_event_id: &str,
+    ) -> Result<(), String> {
+        let next_event = storyline
+            .events
+            .iter()
+            .find(|e| e.id == next_event_id)
+            .ok_or_else(|| "后续事件不存在".to_string())?;
+        let action_points = if next_event.node_type == StoryNodeType::Middle {
+            next_event.action_points
+        } else {
+            0
+        };
+        runtime.save.current_character.action_points = action_points;
+        runtime.save.current_character.cultivation_history.clear();
+        if let Some(progress) = runtime.save.storyline_progress.as_mut() {
+            progress.event_id = next_event_id.to_string();
+        }
+        Ok(())
+    }
+
+    fn apply_rewards_to_character(
+        &self,
+        character: &mut CharacterState,
+        rewards: &[Reward],
+    ) -> Result<(), String> {
+        if rewards.is_empty() {
+            return Ok(());
+        }
+        let mut panel = character_state_to_panel(character);
+        crate::event::apply_rewards(
+            &mut panel,
+            rewards,
+            Some(&self.manual_manager),
+            Some(&self.trait_manager),
+        )?;
+        update_character_from_panel(character, &panel);
+        Ok(())
+    }
+
+    fn run_battle(
+        &self,
+        character: &CharacterState,
+        enemy: &crate::event::EnemyTemplate,
+    ) -> Result<Value, String> {
+        let player_panel = character_state_to_panel(character);
+        let player_json = serialize_character_panel(&player_panel)?;
+        let enemy_panel = enemy.to_character_panel();
+        let enemy_json = serialize_character_panel(&enemy_panel)?;
+        let battle_json = self.calculate_battle(&player_json, &enemy_json, None, None)?;
+        serde_json::from_str(&battle_json)
+            .map_err(|e| format!("解析战斗结果失败: {}", e))
+    }
+}
+
+fn empty_manuals() -> crate::game::ManualsState {
+    crate::game::ManualsState {
+        owned: Vec::new(),
+        equipped: None,
+    }
+}
+
+fn ensure_rng_state(save: &mut SaveGame) {
+    if save.rng_state == 0 {
+        save.rng_state = seed_from_time();
+    }
+}
+
+fn battle_is_attacker_win(battle: &Value) -> bool {
+    battle
+        .get("result")
+        .and_then(|v| v.as_str())
+        .map(|v| v == "attacker_win")
+        .unwrap_or(false)
+}
+
+fn ensure_event_ready(runtime: &GameRuntime, event: &StoryEvent) -> Result<(), String> {
+    if event.node_type == StoryNodeType::Middle && runtime.save.current_character.action_points > 0 {
+        return Err("行动点尚未耗尽，无法进入事件".to_string());
+    }
+    Ok(())
+}
+
+fn build_story_event_view(
+    event: &StoryEvent,
+    panel: &CharacterPanel,
+    manual_manager: &ManualManager,
+) -> StoryEventView {
+    let action_points = event.action_points;
+    let content = match &event.content {
+        StoryEventContent::Decision { text, options } => {
+            let available = EventManager::available_story_options(options, panel, manual_manager);
+            let option_views = available
+                .into_iter()
+                .map(|opt| StoryOptionView {
+                    id: opt.id.clone(),
+                    text: opt.text.clone(),
+                    next_event_id: opt.next_event_id.clone(),
+                })
+                .collect();
+            StoryEventContentView::Decision {
+                text: text.clone(),
+                options: option_views,
+            }
+        }
+        StoryEventContent::Battle { text, enemy, .. } => StoryEventContentView::Battle {
+            text: text.clone(),
+            enemy_name: enemy.name.clone(),
+        },
+        StoryEventContent::Story { text, rewards, .. } => StoryEventContentView::Story {
+            text: text.clone(),
+            rewards: rewards.clone(),
+        },
+        StoryEventContent::End { text } => StoryEventContentView::End { text: text.clone() },
+    };
+
+    StoryEventView {
+        id: event.id.clone(),
+        name: event.name.clone(),
+        node_type: event.node_type,
+        action_points,
+        content,
+    }
+}
+
+fn character_state_to_panel(character: &CharacterState) -> CharacterPanel {
+    let three_d = ThreeDimensional::new(
+        character.three_d.comprehension,
+        character.three_d.bone_structure,
+        character.three_d.physique,
+    );
+    let mut panel = CharacterPanel::new(character.name.clone(), three_d);
+    panel.traits = character.traits.clone();
+
+    for manual in &character.internals.owned {
+        panel.set_internal_level_exp(manual.id.clone(), manual.level, manual.exp);
+    }
+    if let Some(id) = &character.internals.equipped {
+        panel.current_internal_id = Some(id.clone());
+    }
+
+    for manual in &character.attack_skills.owned {
+        panel.set_attack_skill_level_exp(manual.id.clone(), manual.level, manual.exp);
+    }
+    if let Some(id) = &character.attack_skills.equipped {
+        panel.current_attack_skill_id = Some(id.clone());
+    }
+
+    for manual in &character.defense_skills.owned {
+        panel.set_defense_skill_level_exp(manual.id.clone(), manual.level, manual.exp);
+    }
+    if let Some(id) = &character.defense_skills.equipped {
+        panel.current_defense_skill_id = Some(id.clone());
+    }
+
+    if let Some(max_qi) = character.max_qi {
+        panel.max_qi = max_qi;
+    }
+    if let Some(qi) = character.qi {
+        panel.qi = qi.min(panel.max_qi);
+    }
+    if let Some(attainment) = character.martial_arts_attainment {
+        panel.martial_arts_attainment = attainment;
+    }
+
+    panel
+}
+
+fn update_character_from_panel(character: &mut CharacterState, panel: &CharacterPanel) {
+    character.name = panel.name.clone();
+    character.three_d = crate::game::ThreeDimensionalState {
+        comprehension: panel.three_d.comprehension,
+        bone_structure: panel.three_d.bone_structure,
+        physique: panel.three_d.physique,
+    };
+    character.traits = panel.traits.clone();
+    character.internals = crate::game::ManualsState {
+        owned: panel
+            .owned_internals
+            .iter()
+            .map(|(id, (level, exp))| crate::game::OwnedManualState {
+                id: id.clone(),
+                level: *level,
+                exp: *exp,
+            })
+            .collect(),
+        equipped: panel.current_internal_id.clone(),
+    };
+    character.attack_skills = crate::game::ManualsState {
+        owned: panel
+            .owned_attack_skills
+            .iter()
+            .map(|(id, (level, exp))| crate::game::OwnedManualState {
+                id: id.clone(),
+                level: *level,
+                exp: *exp,
+            })
+            .collect(),
+        equipped: panel.current_attack_skill_id.clone(),
+    };
+    character.defense_skills = crate::game::ManualsState {
+        owned: panel
+            .owned_defense_skills
+            .iter()
+            .map(|(id, (level, exp))| crate::game::OwnedManualState {
+                id: id.clone(),
+                level: *level,
+                exp: *exp,
+            })
+            .collect(),
+        equipped: panel.current_defense_skill_id.clone(),
+    };
+    character.max_qi = Some(panel.max_qi);
+    character.qi = Some(panel.qi);
+    character.martial_arts_attainment = Some(panel.martial_arts_attainment);
 }
 
 // ==================== 辅助结构体 ====================
@@ -726,7 +1515,7 @@ struct BattleResultJson {
     defender_panel: BattlePanelJson,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 struct CultivationResultJson {
     exp_gain: f64,
     old_level: u32,
@@ -867,93 +1656,6 @@ fn extract_panel_deltas(record: &BattleRecord) -> (Option<crate::battle::battle_
     }
 }
 
-#[derive(Serialize, Deserialize)]
-struct CharacterPanelJson {
-    name: String,
-    three_d: ThreeDimensionalJson,
-    traits: Vec<String>,
-    internals: ManualsJson,
-    attack_skills: ManualsJson,
-    defense_skills: ManualsJson,
-    #[serde(default)]
-    max_qi: Option<f64>,
-    #[serde(default)]
-    qi: Option<f64>,
-    #[serde(default)]
-    martial_arts_attainment: Option<f64>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ThreeDimensionalJson {
-    comprehension: u32,
-    bone_structure: u32,
-    physique: u32,
-}
-
-#[derive(Serialize, Deserialize)]
-struct ManualsJson {
-    owned: Vec<OwnedManualJson>,
-    equipped: Option<String>,
-}
-
-#[derive(Serialize, Deserialize)]
-struct OwnedManualJson {
-    id: String,
-    level: u32,
-    exp: f64,
-}
-
-fn parse_character_panel(json: &str) -> Result<CharacterPanel, String> {
-    let data: CharacterPanelJson = serde_json::from_str(json)
-        .map_err(|e| format!("解析角色数据失败: {}", e))?;
-    
-    let three_d = ThreeDimensional::new(
-        data.three_d.comprehension,
-        data.three_d.bone_structure,
-        data.three_d.physique,
-    );
-    
-    let mut panel = CharacterPanel::new(data.name, three_d);
-    panel.traits = data.traits;
-    
-    for manual in data.internals.owned {
-        panel.set_internal_level_exp(manual.id, manual.level, manual.exp);
-    }
-    if let Some(id) = data.internals.equipped {
-        panel.current_internal_id = Some(id);
-    }
-    
-    for manual in data.attack_skills.owned {
-        panel.set_attack_skill_level_exp(manual.id, manual.level, manual.exp);
-    }
-    if let Some(id) = data.attack_skills.equipped {
-        panel.current_attack_skill_id = Some(id);
-    }
-    
-    for manual in data.defense_skills.owned {
-        panel.set_defense_skill_level_exp(manual.id, manual.level, manual.exp);
-    }
-    if let Some(id) = data.defense_skills.equipped {
-        panel.current_defense_skill_id = Some(id);
-    }
-    
-    if let Some(max_qi) = data.max_qi {
-        panel.max_qi = max_qi;
-    }
-    if let Some(qi) = data.qi {
-        panel.qi = qi;
-        if panel.qi > panel.max_qi {
-            panel.qi = panel.max_qi;
-        }
-    }
-    
-    if let Some(martial_arts_attainment) = data.martial_arts_attainment {
-        panel.martial_arts_attainment = martial_arts_attainment;
-    }
-    
-    Ok(panel)
-}
-
 fn format_battle_record(record: &BattleRecord) -> String {
     match record {
         BattleRecord::BattleStart { side_a_name, side_b_name, .. } => {
@@ -1023,60 +1725,4 @@ fn format_battle_record(record: &BattleRecord) -> String {
             String::new()
         }
     }
-}
-
-fn serialize_character_panel(panel: &CharacterPanel) -> Result<String, String> {
-    let three_d = ThreeDimensionalJson {
-        comprehension: panel.three_d.comprehension,
-        bone_structure: panel.three_d.bone_structure,
-        physique: panel.three_d.physique,
-    };
-    
-    let internals = ManualsJson {
-        owned: panel.owned_internals.iter()
-            .map(|(id, (level, exp))| OwnedManualJson {
-                id: id.clone(),
-                level: *level,
-                exp: *exp,
-            })
-            .collect(),
-        equipped: panel.current_internal_id.clone(),
-    };
-    
-    let attack_skills = ManualsJson {
-        owned: panel.owned_attack_skills.iter()
-            .map(|(id, (level, exp))| OwnedManualJson {
-                id: id.clone(),
-                level: *level,
-                exp: *exp,
-            })
-            .collect(),
-        equipped: panel.current_attack_skill_id.clone(),
-    };
-    
-    let defense_skills = ManualsJson {
-        owned: panel.owned_defense_skills.iter()
-            .map(|(id, (level, exp))| OwnedManualJson {
-                id: id.clone(),
-                level: *level,
-                exp: *exp,
-            })
-            .collect(),
-        equipped: panel.current_defense_skill_id.clone(),
-    };
-    
-    let character_json = CharacterPanelJson {
-        name: panel.name.clone(),
-        three_d,
-        traits: panel.traits.clone(),
-        internals,
-        attack_skills,
-        defense_skills,
-        max_qi: Some(panel.max_qi),
-        qi: Some(panel.qi),
-        martial_arts_attainment: Some(panel.martial_arts_attainment),
-    };
-    
-    serde_json::to_string(&character_json)
-        .map_err(|e| format!("序列化角色数据失败: {}", e))
 }

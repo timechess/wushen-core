@@ -156,8 +156,14 @@ impl EventManager {
             // 基于节点类型进行约束
             match event.node_type {
                 StoryNodeType::Start => {
-                    if !matches!(event.content, StoryEventContent::Decision { .. }) {
-                        return Err(format!("起始事件 {} 必须是抉择事件", event.id));
+                    if matches!(event.content, StoryEventContent::Decision { .. }) {
+                        return Err(format!("起始事件 {} 不能是抉择事件", event.id));
+                    }
+                    if matches!(event.content, StoryEventContent::End { .. }) {
+                        return Err(format!("起始事件 {} 不能是 end 类型内容", event.id));
+                    }
+                    if matches!(event.content, StoryEventContent::Story { next_event_id: None, .. }) {
+                        return Err(format!("起始剧情事件 {} 必须指定 next_event_id", event.id));
                     }
                     if event.action_points != 0 {
                         return Err(format!("起始事件 {} 行动点必须为0", event.id));

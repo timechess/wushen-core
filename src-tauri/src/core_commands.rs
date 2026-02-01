@@ -1,7 +1,11 @@
 use std::sync::Mutex;
 
-use tauri::State;
+use serde_json::Value;
+use tauri::{AppHandle, State};
 use wushen_core::tauri_api::WushenCore;
+use wushen_core::game::{NewGameRequest, SaveGame};
+
+use crate::commands::read_pack_collection;
 
 pub struct CoreState {
     core: Mutex<WushenCore>,
@@ -177,4 +181,222 @@ pub fn core_execute_cultivation(
 ) -> Result<String, String> {
     let core = lock_core(&state)?;
     core.execute_cultivation(&character_json, &manual_id, &manual_type)
+}
+
+fn persist_game_save(app: &AppHandle, save: &SaveGame) -> Result<(), String> {
+    let value = serde_json::to_value(save).map_err(|e| e.to_string())?;
+    crate::commands::save_game(app.clone(), value).map(|_| ())
+}
+
+fn serialize_game_response(response: wushen_core::game::GameResponse) -> Result<String, String> {
+    serde_json::to_string(&response).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn core_game_load_packs(
+    app: AppHandle,
+    state: State<CoreState>,
+    pack_ids: Vec<String>,
+) -> Result<(), String> {
+    use std::collections::HashSet;
+
+    fn merge_by_id(items: &mut Vec<Value>, seen: &mut HashSet<String>, next: Vec<Value>) {
+        for item in next {
+            let id = item.get("id").and_then(|v| v.as_str());
+            if let Some(id) = id {
+                if seen.insert(id.to_string()) {
+                    items.push(item);
+                }
+            }
+        }
+    }
+
+    fn ensure_type_field(items: &mut [Value]) {
+        for item in items.iter_mut() {
+            if let Some(obj) = item.as_object_mut() {
+                if obj.get("type").is_none() {
+                    if let Some(value) = obj.get("manual_type").cloned() {
+                        obj.insert("type".to_string(), value);
+                    }
+                }
+            }
+        }
+    }
+
+    let mut traits = Vec::new();
+    let mut internals = Vec::new();
+    let mut attack_skills = Vec::new();
+    let mut defense_skills = Vec::new();
+    let mut adventures = Vec::new();
+    let mut storylines = Vec::new();
+
+    let mut trait_seen = HashSet::new();
+    let mut internal_seen = HashSet::new();
+    let mut attack_seen = HashSet::new();
+    let mut defense_seen = HashSet::new();
+    let mut adventure_seen = HashSet::new();
+    let mut storyline_seen = HashSet::new();
+
+    for pack_id in pack_ids {
+        let pack_traits = read_pack_collection(&app, &pack_id, "traits.json", "traits")?;
+        merge_by_id(&mut traits, &mut trait_seen, pack_traits);
+
+        let pack_internals = read_pack_collection(&app, &pack_id, "internals.json", "internals")?;
+        merge_by_id(&mut internals, &mut internal_seen, pack_internals);
+
+        let pack_attack = read_pack_collection(&app, &pack_id, "attack_skills.json", "attack_skills")?;
+        merge_by_id(&mut attack_skills, &mut attack_seen, pack_attack);
+
+        let pack_defense = read_pack_collection(&app, &pack_id, "defense_skills.json", "defense_skills")?;
+        merge_by_id(&mut defense_skills, &mut defense_seen, pack_defense);
+
+        let pack_adventures = read_pack_collection(&app, &pack_id, "adventures.json", "adventures")?;
+        merge_by_id(&mut adventures, &mut adventure_seen, pack_adventures);
+
+        let pack_storylines = read_pack_collection(&app, &pack_id, "storylines.json", "storylines")?;
+        merge_by_id(&mut storylines, &mut storyline_seen, pack_storylines);
+    }
+
+    ensure_type_field(&mut internals);
+    ensure_type_field(&mut attack_skills);
+    ensure_type_field(&mut defense_skills);
+
+    let mut core = lock_core(&state)?;
+    core.reset();
+
+    if !traits.is_empty() {
+        let json = serde_json::json!({ "traits": traits }).to_string();
+        core.load_traits(&json)?;
+    }
+    if !internals.is_empty() {
+        let json = serde_json::json!({ "internals": internals }).to_string();
+        core.load_internals(&json)?;
+    }
+    if !attack_skills.is_empty() {
+        let json = serde_json::json!({ "attack_skills": attack_skills }).to_string();
+        core.load_attack_skills(&json)?;
+    }
+    if !defense_skills.is_empty() {
+        let json = serde_json::json!({ "defense_skills": defense_skills }).to_string();
+        core.load_defense_skills(&json)?;
+    }
+    if !storylines.is_empty() {
+        let json = serde_json::json!({ "storylines": storylines }).to_string();
+        core.load_storylines(&json)?;
+    }
+    if !adventures.is_empty() {
+        let json = serde_json::json!({ "adventures": adventures }).to_string();
+        core.load_adventure_events(&json)?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn core_game_start_new(
+    app: AppHandle,
+    state: State<CoreState>,
+    request: NewGameRequest,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_start_new(request)?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_resume_save(
+    app: AppHandle,
+    state: State<CoreState>,
+    id: String,
+) -> Result<String, String> {
+    let raw = crate::commands::load_save(app.clone(), id)?
+        .ok_or_else(|| "存档不存在".to_string())?;
+    let save: SaveGame = serde_json::from_value(raw).map_err(|e| e.to_string())?;
+    let mut core = lock_core(&state)?;
+    let response = core.game_resume(save)?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_view(state: State<CoreState>) -> Result<String, String> {
+    let core = lock_core(&state)?;
+    let response = core.game_view(None)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_cultivate(
+    app: AppHandle,
+    state: State<CoreState>,
+    manual_id: String,
+    manual_type: String,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_cultivate(manual_id, manual_type)?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_travel(app: AppHandle, state: State<CoreState>) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_travel()?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_story_option(
+    app: AppHandle,
+    state: State<CoreState>,
+    option_id: String,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_story_option(option_id)?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_story_battle(
+    app: AppHandle,
+    state: State<CoreState>,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_story_battle()?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_story_continue(
+    app: AppHandle,
+    state: State<CoreState>,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_story_continue()?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_adventure_option(
+    app: AppHandle,
+    state: State<CoreState>,
+    option_id: String,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_adventure_option(option_id)?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
+pub fn core_game_finish(app: AppHandle, state: State<CoreState>) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_finish()?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
 }

@@ -10,5 +10,7 @@ export interface SaveGame {
   name: string;
   current_character: Character;
   storyline_progress: StorylineProgress | null;
+  active_adventure_id?: string | null;
   completed_characters: Character[];
+  rng_state?: number;
 }

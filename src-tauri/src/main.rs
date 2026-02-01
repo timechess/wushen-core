@@ -70,6 +70,17 @@ fn main() {
             core_commands::core_calculate_cultivation_exp,
             core_commands::core_calculate_battle,
             core_commands::core_execute_cultivation,
+            core_commands::core_game_load_packs,
+            core_commands::core_game_start_new,
+            core_commands::core_game_resume_save,
+            core_commands::core_game_view,
+            core_commands::core_game_cultivate,
+            core_commands::core_game_travel,
+            core_commands::core_game_story_option,
+            core_commands::core_game_story_battle,
+            core_commands::core_game_story_continue,
+            core_commands::core_game_adventure_option,
+            core_commands::core_game_finish,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

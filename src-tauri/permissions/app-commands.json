@@ -68,7 +68,18 @@
           "core_get_adventure_event",
           "core_calculate_cultivation_exp",
           "core_calculate_battle",
-          "core_execute_cultivation"
+          "core_execute_cultivation",
+          "core_game_load_packs",
+          "core_game_start_new",
+          "core_game_resume_save",
+          "core_game_view",
+          "core_game_cultivate",
+          "core_game_travel",
+          "core_game_story_option",
+          "core_game_story_battle",
+          "core_game_story_continue",
+          "core_game_adventure_option",
+          "core_game_finish"
         ],
         "deny": []
       }

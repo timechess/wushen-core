@@ -104,12 +104,12 @@ export default function ModPacksPage() {
               <p className="text-gray-600">创建、选择并管理你的模组包。只有选中包后才能编辑内容。</p>
             </div>
             <div className="flex items-center gap-3">
-              <Link
-                href="/mods/order"
+              <a
+                href="/mods/order/"
                 className="text-sm font-medium text-blue-600 hover:text-blue-700"
               >
                 配置模组排序 →
-              </Link>
+              </a>
             </div>
           </div>
           {ready && (

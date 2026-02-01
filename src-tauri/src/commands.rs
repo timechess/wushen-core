@@ -166,6 +166,15 @@ fn read_collection(app: &AppHandle, pack_id: &str, file: &str, key: &str) -> Res
     Ok(vec![])
 }
 
+pub(crate) fn read_pack_collection(
+    app: &AppHandle,
+    pack_id: &str,
+    file: &str,
+    key: &str,
+) -> Result<Vec<Value>, String> {
+    read_collection(app, pack_id, file, key)
+}
+
 fn write_collection(app: &AppHandle, pack_id: &str, file: &str, key: &str, items: &[Value]) -> Result<(), String> {
     let path = pack_dir(app, pack_id)?.join(file);
     let payload = serde_json::json!({ (key): items });
@@ -219,7 +228,9 @@ fn wrap_character_as_save(character: Value, id_fallback: &str) -> Value {
         "name": name,
         "current_character": character,
         "storyline_progress": null,
+        "active_adventure_id": null,
         "completed_characters": [],
+        "rng_state": 0,
     })
 }
 
@@ -245,8 +256,14 @@ fn normalize_save_value(mut value: Value, id_fallback: &str) -> Value {
     if !obj.contains_key("storyline_progress") {
         obj.insert("storyline_progress".to_string(), Value::Null);
     }
+    if !obj.contains_key("active_adventure_id") {
+        obj.insert("active_adventure_id".to_string(), Value::Null);
+    }
     if !obj.contains_key("completed_characters") {
         obj.insert("completed_characters".to_string(), Value::Array(vec![]));
+    }
+    if !obj.contains_key("rng_state") {
+        obj.insert("rng_state".to_string(), Value::Number(0.into()));
     }
 
     value

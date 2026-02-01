@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { Trait } from '@/types/trait';
 import type { Internal, AttackSkill, DefenseSkill, ManualType } from '@/types/manual';
 import type { CharacterPanel } from '@/types/character';
-import type { BattleResult, CultivationResult } from '@/types/game';
+import type { BattleResult, CultivationResult, GameResponse } from '@/types/game';
 import type { AdventureEvent, Storyline } from '@/types/event';
 
 export async function initCore(): Promise<void> {
@@ -150,4 +150,76 @@ export async function executeCultivation(
     manualType: typeMap[manualType],
   });
   return JSON.parse(resultJson);
+}
+
+export async function gameLoadPacks(packIds: string[]): Promise<void> {
+  await invoke('core_game_load_packs', { packIds });
+}
+
+export async function gameStartNew(payload: {
+  storylineId: string;
+  characterId: string;
+  name: string;
+  threeD: { comprehension: number; bone_structure: number; physique: number };
+}): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_start_new', {
+    request: {
+      storyline_id: payload.storylineId,
+      character_id: payload.characterId,
+      name: payload.name,
+      three_d: payload.threeD,
+    },
+  });
+  return JSON.parse(response);
+}
+
+export async function gameResumeSave(id: string): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_resume_save', { id });
+  return JSON.parse(response);
+}
+
+export async function gameView(): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_view');
+  return JSON.parse(response);
+}
+
+export async function gameCultivate(
+  manualId: string,
+  manualType: ManualType
+): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_cultivate', {
+    manualId,
+    manualType,
+  });
+  return JSON.parse(response);
+}
+
+export async function gameTravel(): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_travel');
+  return JSON.parse(response);
+}
+
+export async function gameStoryOption(optionId: string): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_story_option', { optionId });
+  return JSON.parse(response);
+}
+
+export async function gameStoryBattle(): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_story_battle');
+  return JSON.parse(response);
+}
+
+export async function gameStoryContinue(): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_story_continue');
+  return JSON.parse(response);
+}
+
+export async function gameAdventureOption(optionId: string): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_adventure_option', { optionId });
+  return JSON.parse(response);
+}
+
+export async function gameFinish(): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_finish');
+  return JSON.parse(response);
 }

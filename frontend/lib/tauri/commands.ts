@@ -185,6 +185,7 @@ export async function saveCharacter(payload: Character): Promise<string> {
     name: payload.name,
     current_character: payload,
     storyline_progress: null,
+    active_adventure_id: null,
     completed_characters: [],
   };
   return saveGame(save);
