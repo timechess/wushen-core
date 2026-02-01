@@ -8,7 +8,7 @@ import type { Character } from '@/types/character';
 import type { Enemy } from '@/types/enemy';
 import type { SaveGame } from '@/types/save';
 
-export type NamedItem = { id: string; name: string };
+export type NamedItem = { id: string; name: string; created_at?: number };
 
 export async function listPacks(): Promise<ModPackMetadata[]> {
   return invoke('list_packs');
@@ -183,6 +183,7 @@ export async function saveCharacter(payload: Character): Promise<string> {
   const save: SaveGame = {
     id: payload.id,
     name: payload.name,
+    created_at: Math.floor(Date.now() / 1000),
     current_character: payload,
     storyline_progress: null,
     active_adventure_id: null,

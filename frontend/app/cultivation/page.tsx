@@ -354,7 +354,7 @@ export default function CultivationPage() {
                         className="w-4 h-4"
                       />
                       <span className="text-sm font-medium">
-                        {manuals.find((m) => m.id === manual.id)?.name || manual.id}
+                        {manuals.find((m) => m.id === manual.id)?.name ?? '未命名功法'}
                       </span>
                     </div>
                     <Button

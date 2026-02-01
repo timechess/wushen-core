@@ -12,6 +12,8 @@
     "@iarna/toml": "^3.0.0",
     "@tauri-apps/api": "^2.0.0",
     "@tauri-apps/plugin-dialog": "^2.0.0",
+    "@tisoap/react-flow-smart-edge": "^4.0.1",
+    "@xyflow/react": "^12.10.0",
     "jszip": "^3.10.1",
     "next": "16.1.6",
     "react": "19.2.3",

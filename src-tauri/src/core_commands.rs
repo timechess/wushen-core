@@ -340,9 +340,14 @@ pub fn core_game_cultivate(
 }
 
 #[tauri::command]
-pub fn core_game_travel(app: AppHandle, state: State<CoreState>) -> Result<String, String> {
+pub fn core_game_travel(
+    app: AppHandle,
+    state: State<CoreState>,
+    attacker_qi_output_rate: Option<f64>,
+    defender_qi_output_rate: Option<f64>,
+) -> Result<String, String> {
     let mut core = lock_core(&state)?;
-    let response = core.game_travel()?;
+    let response = core.game_travel(attacker_qi_output_rate, defender_qi_output_rate)?;
     persist_game_save(&app, &response.view.save)?;
     serialize_game_response(response)
 }
@@ -360,12 +365,27 @@ pub fn core_game_story_option(
 }
 
 #[tauri::command]
+pub fn core_game_equip_manual(
+    app: AppHandle,
+    state: State<CoreState>,
+    manual_id: String,
+    manual_type: String,
+) -> Result<String, String> {
+    let mut core = lock_core(&state)?;
+    let response = core.game_equip_manual(manual_id, manual_type)?;
+    persist_game_save(&app, &response.view.save)?;
+    serialize_game_response(response)
+}
+
+#[tauri::command]
 pub fn core_game_story_battle(
     app: AppHandle,
     state: State<CoreState>,
+    attacker_qi_output_rate: Option<f64>,
+    defender_qi_output_rate: Option<f64>,
 ) -> Result<String, String> {
     let mut core = lock_core(&state)?;
-    let response = core.game_story_battle()?;
+    let response = core.game_story_battle(attacker_qi_output_rate, defender_qi_output_rate)?;
     persist_game_save(&app, &response.view.save)?;
     serialize_game_response(response)
 }
@@ -386,9 +406,11 @@ pub fn core_game_adventure_option(
     app: AppHandle,
     state: State<CoreState>,
     option_id: String,
+    attacker_qi_output_rate: Option<f64>,
+    defender_qi_output_rate: Option<f64>,
 ) -> Result<String, String> {
     let mut core = lock_core(&state)?;
-    let response = core.game_adventure_option(option_id)?;
+    let response = core.game_adventure_option(option_id, attacker_qi_output_rate, defender_qi_output_rate)?;
     persist_game_save(&app, &response.view.save)?;
     serialize_game_response(response)
 }

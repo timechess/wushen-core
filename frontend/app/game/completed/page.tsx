@@ -70,7 +70,7 @@ export default function CompletedCharactersPage() {
                       <div className="text-lg font-semibold text-gray-900">{entry.character.name}</div>
                       <div className="text-xs text-gray-500">存档：{entry.saveName}</div>
                     </div>
-                    <div className="text-xs text-gray-400">{entry.character.id}</div>
+                    <div className="text-xs text-gray-400">{entry.character.name}</div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-gray-700">
                     <div>悟性 {entry.character.three_d.comprehension}</div>

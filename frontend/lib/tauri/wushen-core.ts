@@ -194,8 +194,25 @@ export async function gameCultivate(
   return JSON.parse(response);
 }
 
-export async function gameTravel(): Promise<GameResponse> {
-  const response = await invoke<string>('core_game_travel');
+export async function gameEquipManual(
+  manualId: string,
+  manualType: ManualType
+): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_equip_manual', {
+    manualId,
+    manualType,
+  });
+  return JSON.parse(response);
+}
+
+export async function gameTravel(
+  attackerQiOutputRate?: number,
+  defenderQiOutputRate?: number
+): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_travel', {
+    attackerQiOutputRate: attackerQiOutputRate ?? null,
+    defenderQiOutputRate: defenderQiOutputRate ?? null,
+  });
   return JSON.parse(response);
 }
 
@@ -204,8 +221,14 @@ export async function gameStoryOption(optionId: string): Promise<GameResponse> {
   return JSON.parse(response);
 }
 
-export async function gameStoryBattle(): Promise<GameResponse> {
-  const response = await invoke<string>('core_game_story_battle');
+export async function gameStoryBattle(
+  attackerQiOutputRate?: number,
+  defenderQiOutputRate?: number
+): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_story_battle', {
+    attackerQiOutputRate: attackerQiOutputRate ?? null,
+    defenderQiOutputRate: defenderQiOutputRate ?? null,
+  });
   return JSON.parse(response);
 }
 
@@ -214,8 +237,16 @@ export async function gameStoryContinue(): Promise<GameResponse> {
   return JSON.parse(response);
 }
 
-export async function gameAdventureOption(optionId: string): Promise<GameResponse> {
-  const response = await invoke<string>('core_game_adventure_option', { optionId });
+export async function gameAdventureOption(
+  optionId: string,
+  attackerQiOutputRate?: number,
+  defenderQiOutputRate?: number
+): Promise<GameResponse> {
+  const response = await invoke<string>('core_game_adventure_option', {
+    optionId,
+    attackerQiOutputRate: attackerQiOutputRate ?? null,
+    defenderQiOutputRate: defenderQiOutputRate ?? null,
+  });
   return JSON.parse(response);
 }
 

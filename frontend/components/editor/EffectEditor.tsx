@@ -5,6 +5,7 @@ import { Effect, AttributeTarget, Operation, Trigger, PanelTarget } from '@/type
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
+import { FORMULA_VARIABLE_GROUPS, FORMULA_VARIABLE_LABELS } from '@/lib/utils/formulaVariables';
 
 interface EffectEditorProps {
   effect: Effect;
@@ -123,9 +124,9 @@ export default function EffectEditor({
 
   const effectTypeLabel =
     effect.type === 'modify_attribute'
-      ? '修改数值'
+      ? '修改数值（实际数值）'
       : effect.type === 'modify_percentage'
-        ? '修改百分比'
+        ? '修改百分比（1=100%）'
         : '额外攻击';
 
   const handleTypeChange = (type: Effect['type']) => {
@@ -253,8 +254,8 @@ export default function EffectEditor({
           <Select
             label="效果类型"
             options={[
-              { value: 'modify_attribute', label: '修改数值' },
-              { value: 'modify_percentage', label: '修改百分比' },
+              { value: 'modify_attribute', label: '修改数值（实际数值）' },
+              { value: 'modify_percentage', label: '修改百分比（1=100%）' },
               ...(allowsExtraAttackEffect ? [{ value: 'extra_attack', label: '额外攻击' }] : []),
             ]}
             value={effect.type}
@@ -284,11 +285,32 @@ export default function EffectEditor({
                   type="text"
                   value={getValueDisplay()}
                   onChange={(e) => handleValueChange(e.target.value)}
-                  placeholder="例如: 100 或 self_z * 2"
+                  placeholder={
+                    effect.type === 'modify_percentage'
+                      ? '例如: 0.1 或 self_damage_bonus * 0.2'
+                      : '例如: 100 或 self_z * 2'
+                  }
                 />
                 <p className="mt-1 text-xs text-gray-500">
-                  可以是固定数值（如 100、0.1）或公式字符串（如 "self_z * 2"）
+                  {effect.type === 'modify_percentage'
+                    ? '单位：百分比（1=100%）。可以是固定数值（如 0.1）或公式字符串（如 "self_damage_bonus * 0.2"）。'
+                    : '单位：实际数值。可以是固定数值（如 100）或公式字符串（如 "self_z * 2"）。'}
                 </p>
+                <details className="mt-2 text-xs text-gray-500">
+                  <summary className="cursor-pointer">公式变量说明</summary>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {FORMULA_VARIABLE_GROUPS.map((group) => (
+                      <div key={group.title} className="space-y-1">
+                        <div className="font-medium text-gray-600">{group.title}</div>
+                        {group.keys.map((key) => (
+                          <div key={key}>
+                            {key} = {FORMULA_VARIABLE_LABELS[key] ?? key}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
               <Select
                 label="操作类型"
@@ -383,6 +405,21 @@ export default function EffectEditor({
                 <p className="mt-1 text-xs text-gray-500">
                   必须是公式字符串，计算结果为攻击输出值
                 </p>
+                <details className="mt-2 text-xs text-gray-500">
+                  <summary className="cursor-pointer">公式变量说明</summary>
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {FORMULA_VARIABLE_GROUPS.map((group) => (
+                      <div key={group.title} className="space-y-1">
+                        <div className="font-medium text-gray-600">{group.title}</div>
+                        {group.keys.map((key) => (
+                          <div key={key}>
+                            {key} = {FORMULA_VARIABLE_LABELS[key] ?? key}
+                          </div>
+                        ))}
+                      </div>
+                    ))}
+                  </div>
+                </details>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">

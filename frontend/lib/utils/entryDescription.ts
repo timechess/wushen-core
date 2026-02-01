@@ -11,6 +11,7 @@ import {
   PanelTarget,
   FormulaValue,
 } from '@/types/trait';
+import { annotateFormula } from '@/lib/utils/formulaVariables';
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
   game_start: '开局',
@@ -92,6 +93,8 @@ const PANEL_TARGET_LABELS: Record<PanelTarget, string> = {
   opponent: '对手',
 };
 
+const PERCENT_LIKE_TARGETS = new Set<AttributeTarget>(['qi_loss_rate']);
+
 function formatNumber(value: number): string {
   if (Number.isInteger(value)) {
     return value.toString();
@@ -99,19 +102,27 @@ function formatNumber(value: number): string {
   return parseFloat(value.toFixed(4)).toString();
 }
 
-function formatFormulaValue(value: FormulaValue): string {
+function formatFormulaValueText(value: FormulaValue): { text: string; isFormula: boolean; hasVars: boolean } {
   if (typeof value === 'number') {
-    return formatNumber(value);
+    return { text: formatNumber(value), isFormula: false, hasVars: false };
   }
   const trimmed = value.trim();
-  return trimmed === '' ? '0' : trimmed;
+  if (trimmed === '') {
+    return { text: '0', isFormula: false, hasVars: false };
+  }
+  const annotated = annotateFormula(trimmed);
+  return {
+    text: annotated.text,
+    isFormula: true,
+    hasVars: annotated.variables.length > 0,
+  };
 }
 
 function getTriggerLabel(trigger: Trigger): string {
   return TRIGGER_LABELS[trigger] ?? trigger;
 }
 
-function describeCondition(condition?: Condition | null, parentOp?: 'and' | 'or'): string {
+export function describeCondition(condition?: Condition | null, parentOp?: 'and' | 'or'): string {
   if (!condition) return '';
 
   if ('and' in condition) {
@@ -170,13 +181,13 @@ function describeCondition(condition?: Condition | null, parentOp?: 'and' | 'or'
     const { attribute, op, value } = condition.self_attribute_comparison;
     const attrLabel = BATTLE_ATTRIBUTE_LABELS[attribute] ?? attribute;
     const opLabel = COMPARISON_LABELS[op] ?? op;
-    return `自身${attrLabel} ${opLabel} ${formatFormulaValue(value)}`;
+    return `自身${attrLabel} ${opLabel} ${formatFormulaValueText(value).text}`;
   }
   if ('opponent_attribute_comparison' in condition) {
     const { attribute, op, value } = condition.opponent_attribute_comparison;
     const attrLabel = BATTLE_ATTRIBUTE_LABELS[attribute] ?? attribute;
     const opLabel = COMPARISON_LABELS[op] ?? op;
-    return `对手${attrLabel} ${opLabel} ${formatFormulaValue(value)}`;
+    return `对手${attrLabel} ${opLabel} ${formatFormulaValueText(value).text}`;
   }
   if ('opponent_internal_is' in condition) {
     return `对手内功为「${condition.opponent_internal_is}」`;
@@ -215,31 +226,21 @@ function describeCondition(condition?: Condition | null, parentOp?: 'and' | 'or'
 function describeEffect(effect: Effect): string {
   if (effect.type === 'extra_attack') {
     const output = effect.output?.trim() ? effect.output.trim() : '0';
-    return `额外攻击，输出=${output}`;
+    const annotated = annotateFormula(output);
+    const outputText = annotated.variables.length > 0 ? annotated.text : output;
+    return `额外攻击，输出=${outputText}`;
   }
 
   const panelLabel = PANEL_TARGET_LABELS[effect.target_panel ?? 'own'] ?? '自身';
   const targetLabel = ATTRIBUTE_LABELS[effect.target] ?? effect.target;
   const operationLabel = OPERATION_LABELS[effect.operation] ?? effect.operation;
-  const valueText = formatFormulaValue(effect.value);
+  const valueMeta = formatFormulaValueText(effect.value);
+  const isPercentUnit = effect.type === 'modify_percentage' || PERCENT_LIKE_TARGETS.has(effect.target);
+  const valueText = isPercentUnit && !valueMeta.isFormula
+    ? `${formatNumber(Number(valueMeta.text) * 100)}%`
+    : valueMeta.text;
 
-  let description = `${panelLabel}${targetLabel}${operationLabel}${valueText}`;
-
-  const tags: string[] = [];
-  if (effect.type === 'modify_percentage') {
-    tags.push('百分比');
-  }
-  if (effect.can_exceed_limit) {
-    tags.push('可突破上限');
-  }
-  if (effect.is_temporary) {
-    tags.push('临时');
-  }
-  if (tags.length > 0) {
-    description += `（${tags.join('，')}）`;
-  }
-
-  return description;
+  return `${panelLabel}${targetLabel}${operationLabel}${valueText}`;
 }
 
 export function describeEntry(entry: Entry): string {

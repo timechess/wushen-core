@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Internal, InternalRealm } from '@/types/manual';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -13,8 +13,8 @@ import { getInternal, saveInternal } from '@/lib/tauri/commands';
 
 export default function EditInternalPage() {
   const router = useRouter();
-  const params = useParams();
-  const internalId = params?.id as string;
+  const searchParams = useSearchParams();
+  const internalId = searchParams.get('id') ?? '';
 
   const [internal, setInternal] = useState<Internal | null>(null);
   const [loading, setLoading] = useState(true);
@@ -26,6 +26,9 @@ export default function EditInternalPage() {
   useEffect(() => {
     if (internalId) {
       loadInternal();
+    } else {
+      setInternal(null);
+      setLoading(false);
     }
   }, [internalId, activePack]);
 
@@ -199,7 +202,7 @@ export default function EditInternalPage() {
                         ...internal,
                         cultivation_formula: formula,
                       });
-                      
+
                       // 实时验证公式
                       if (formula.trim()) {
                         const validation = validateCultivationFormula(formula);
@@ -220,18 +223,15 @@ export default function EditInternalPage() {
                   {formulaError && (
                     <p className="mt-1 text-sm text-red-600">{formulaError}</p>
                   )}
-                  {formulaPreview && !formulaError && (
-                    <p className="mt-1 text-sm text-green-600">{formulaPreview}</p>
+                  {formulaPreview && (
+                    <p className="mt-2 text-xs text-gray-500">{formulaPreview}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    支持变量: x（悟性）、y（根骨）、z（体魄）、A（武学素养）
-                  </p>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* 右侧：境界列表 */}
+          {/* 右侧：境界配置 */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">

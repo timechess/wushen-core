@@ -81,8 +81,14 @@ function CharacterPanelDisplay({
   manualNameMap: Record<string, string>;
   traitNameMap: Record<string, string>;
 }) {
-  const getManualName = (id: string) => manualNameMap[id] || id;
-  const getTraitName = (id: string) => traitNameMap[id] || id;
+  const getManualName = (id: string) => {
+    if (!id) return '未指定功法';
+    return manualNameMap[id] || '未命名功法';
+  };
+  const getTraitName = (id: string) => {
+    if (!id) return '未指定特性';
+    return traitNameMap[id] || '未命名特性';
+  };
   
   return (
     <div className="space-y-2 text-sm">

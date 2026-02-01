@@ -77,6 +77,7 @@ fn main() {
             core_commands::core_game_cultivate,
             core_commands::core_game_travel,
             core_commands::core_game_story_option,
+            core_commands::core_game_equip_manual,
             core_commands::core_game_story_battle,
             core_commands::core_game_story_continue,
             core_commands::core_game_adventure_option,

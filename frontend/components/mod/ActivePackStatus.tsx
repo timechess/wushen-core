@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useActivePack } from '@/lib/mods/active-pack';
 
 interface ActivePackStatusProps {
@@ -25,9 +24,9 @@ export default function ActivePackStatus({ message }: ActivePackStatusProps) {
         )}
       </div>
       {message && <span className="text-xs text-gray-500">{message}</span>}
-      <Link href="/mods" className="text-xs font-medium text-blue-600 hover:text-blue-700">
+      <a href="/mods" className="text-xs font-medium text-blue-600 hover:text-blue-700">
         {activePack ? '切换模组包' : '选择模组包'}
-      </Link>
+      </a>
     </div>
   );
 }

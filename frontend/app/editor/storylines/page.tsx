@@ -42,7 +42,7 @@ export default function StorylinesEditorPage() {
   };
 
   const handleEdit = (id: string) => {
-    router.push(`/editor/storylines/${encodeURIComponent(id)}`);
+    router.push(`/editor/storylines/edit?id=${encodeURIComponent(id)}`);
   };
 
   const handleDelete = async (id: string) => {

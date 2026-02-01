@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Button from '@/components/ui/Button';
 import EnemyEditor from '@/components/editor/EnemyEditor';
 import RequireActivePack from '@/components/mod/RequireActivePack';
@@ -12,8 +12,8 @@ import type { Enemy } from '@/types/enemy';
 
 export default function EditEnemyPage() {
   const router = useRouter();
-  const params = useParams();
-  const enemyId = params?.id as string;
+  const searchParams = useSearchParams();
+  const enemyId = searchParams.get('id') ?? '';
   const { activePack } = useActivePack();
 
   const [enemy, setEnemy] = useState<Enemy | null>(null);
@@ -23,6 +23,9 @@ export default function EditEnemyPage() {
   useEffect(() => {
     if (enemyId && activePack) {
       loadEnemy();
+    } else {
+      setEnemy(null);
+      setLoading(false);
     }
   }, [enemyId, activePack]);
 

@@ -257,8 +257,8 @@ export default function RewardEditor({ rewards, onChange }: RewardEditorProps) {
         <div className="text-sm text-gray-500">暂无奖励</div>
       ) : (
         rewards.map((reward, index) => (
-          <div key={index} className="border border-gray-200 rounded-lg p-4 space-y-3 bg-white">
-            <div className="flex items-center justify-between">
+          <div key={index} className="border border-gray-200 rounded-xl p-4 space-y-3 bg-white">
+            <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_auto] gap-3 items-end">
               <Select
                 label="奖励类型"
                 value={reward.type}
@@ -269,7 +269,12 @@ export default function RewardEditor({ rewards, onChange }: RewardEditorProps) {
                   updateReward(index, createDefaultRewardByType(type));
                 }}
               />
-              <Button variant="danger" size="sm" onClick={() => handleDeleteReward(index)}>
+              <Button
+                variant="secondary"
+                size="sm"
+                className="h-[42px] px-3 border-red-200 text-red-700 hover:bg-red-50"
+                onClick={() => handleDeleteReward(index)}
+              >
                 删除
               </Button>
             </div>

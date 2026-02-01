@@ -219,6 +219,36 @@ impl ManualManager {
                             }
                         }
                     }
+                    Effect::ModifyAttribute {
+                        target: AttributeTarget::CultivationExpGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        // 计算公式值
+                        let calculated_value = match value.as_formula() {
+                            Some(formula) => {
+                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                    Ok(v) => v,
+                                    Err(_) => continue, // 如果公式计算失败，跳过
+                                }
+                            }
+                            None => {
+                                match value.as_fixed() {
+                                    Some(v) => v,
+                                    None => continue,
+                                }
+                            }
+                        };
+
+                        // 应用操作到经验增益（实际数值）
+                        match operation {
+                            Operation::Add => exp_gain += calculated_value,
+                            Operation::Subtract => exp_gain -= calculated_value,
+                            Operation::Set => exp_gain = calculated_value,
+                            Operation::Multiply => exp_gain *= calculated_value,
+                        }
+                    }
                     _ => {
                         // 修行时只允许修改 CultivationExpGain，其他效果忽略
                     }
@@ -377,6 +407,36 @@ impl ManualManager {
                             Operation::Multiply => exp_gain *= calculated_value,
                         }
                     }
+                    Effect::ModifyAttribute {
+                        target: AttributeTarget::CultivationExpGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        // 计算公式值
+                        let calculated_value = match value.as_formula() {
+                            Some(formula) => {
+                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                    Ok(v) => v,
+                                    Err(_) => continue,
+                                }
+                            }
+                            None => {
+                                match value.as_fixed() {
+                                    Some(v) => v,
+                                    None => continue,
+                                }
+                            }
+                        };
+
+                        // 应用操作到经验增益（实际数值）
+                        match operation {
+                            Operation::Add => exp_gain += calculated_value,
+                            Operation::Subtract => exp_gain -= calculated_value,
+                            Operation::Set => exp_gain = calculated_value,
+                            Operation::Multiply => exp_gain *= calculated_value,
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -524,6 +584,36 @@ impl ManualManager {
                         match operation {
                             Operation::Add => exp_gain *= 1.0 + calculated_value,
                             Operation::Subtract => exp_gain *= 1.0 - calculated_value,
+                            Operation::Set => exp_gain = calculated_value,
+                            Operation::Multiply => exp_gain *= calculated_value,
+                        }
+                    }
+                    Effect::ModifyAttribute {
+                        target: AttributeTarget::CultivationExpGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        // 计算公式值
+                        let calculated_value = match value.as_formula() {
+                            Some(formula) => {
+                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                    Ok(v) => v,
+                                    Err(_) => continue,
+                                }
+                            }
+                            None => {
+                                match value.as_fixed() {
+                                    Some(v) => v,
+                                    None => continue,
+                                }
+                            }
+                        };
+
+                        // 应用操作到经验增益（实际数值）
+                        match operation {
+                            Operation::Add => exp_gain += calculated_value,
+                            Operation::Subtract => exp_gain -= calculated_value,
                             Operation::Set => exp_gain = calculated_value,
                             Operation::Multiply => exp_gain *= calculated_value,
                         }

@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
 import { useActivePack } from '@/lib/mods/active-pack';
-import Button from '@/components/ui/Button';
 
 const EDITOR_LINKS = [
   { href: '/editor/traits', label: '特性' },
@@ -36,9 +34,9 @@ export default function EditorHubPage() {
                   <span>尚未选择模组包</span>
                 </div>
               )}
-              <Link href="/mods" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+              <a href="/mods" className="text-sm font-medium text-blue-600 hover:text-blue-700">
                 前往选择
-              </Link>
+              </a>
             </div>
           )}
         </div>
@@ -47,7 +45,7 @@ export default function EditorHubPage() {
           <h2 className="text-xl font-semibold text-gray-900 mb-4">编辑模块</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {EDITOR_LINKS.map((item) => (
-              <Link
+              <a
                 key={item.href}
                 href={item.href}
                 className={`flex items-center justify-between rounded-lg border px-5 py-4 transition-colors ${
@@ -61,7 +59,7 @@ export default function EditorHubPage() {
               >
                 <span className="text-base font-medium">{item.label}</span>
                 <span className="text-sm">→</span>
-              </Link>
+              </a>
             ))}
           </div>
           {!activePack && (
@@ -74,9 +72,12 @@ export default function EditorHubPage() {
         <div className="mt-6 surface-panel p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">数据工具</h2>
           <p className="text-sm text-gray-600 mb-4">导入/导出功能暂时保留，用于整体数据备份。</p>
-          <Button>
-            <Link href="/editor/data">打开导入/导出</Link>
-          </Button>
+          <a
+            href="/editor/data"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-[var(--app-ring)] bg-[var(--app-accent)] text-white hover:bg-[var(--app-accent-strong)] shadow-[0_12px_25px_rgba(0,0,0,0.15)] px-4 py-2 text-base"
+          >
+            打开导入/导出
+          </a>
         </div>
       </div>
     </div>

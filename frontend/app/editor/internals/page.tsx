@@ -44,7 +44,7 @@ export default function InternalsEditorPage() {
 
   const handleEdit = (id: string) => {
     // 跳转到编辑页面
-    router.push(`/editor/internals/${encodeURIComponent(id)}`);
+    router.push(`/editor/internals/edit?id=${encodeURIComponent(id)}`);
   };
 
   const handleDelete = async (id: string) => {

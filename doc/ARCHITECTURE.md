@@ -86,16 +86,16 @@ root
 - `frontend/lib/tauri/commands.ts`：模组/存档/文件相关命令
 - `frontend/lib/tauri/wushen-core.ts`：核心引擎命令
 
-### 4.2 动态页面
+### 4.2 编辑页面（静态路由 + Query）
 
-由于 `output: "export"`，动态路由页使用“壳页面 + ClientPage”：
+由于 `output: "export"`，编辑页改为静态路由并通过 query 传 id：
 
 ```
-app/editor/attack-skills/[id]/page.tsx      # 仅导出 generateStaticParams
-app/editor/attack-skills/[id]/ClientPage.tsx # 真实交互逻辑
+app/editor/attack-skills/edit/page.tsx      # 壳页面
+app/editor/attack-skills/edit/ClientPage.tsx # 真实交互逻辑
 ```
 
-ClientPage 内通过 `useParams()` 获取 id。
+ClientPage 内通过 `useSearchParams()` 读取 `?id=...`。
 
 ## 5. 典型数据流
 

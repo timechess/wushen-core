@@ -13,9 +13,11 @@ function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
     const current = save.current_character;
     const id = save.id || current?.id || fallbackId;
     const name = save.name || current?.name || id;
+    const created_at = typeof save.created_at === 'number' ? save.created_at : Math.floor(Date.now() / 1000);
     return {
       id,
       name,
+      created_at,
       current_character: current,
       storyline_progress: save.storyline_progress ?? null,
       active_adventure_id: save.active_adventure_id ?? null,
@@ -30,6 +32,7 @@ function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
   return {
     id,
     name,
+    created_at: Math.floor(Date.now() / 1000),
     current_character: character,
     storyline_progress: null,
     active_adventure_id: null,
@@ -108,6 +111,7 @@ export async function saveGame(save: SaveGame): Promise<void> {
   const normalized: SaveGame = {
     id,
     name,
+    created_at: save.created_at ?? Math.floor(Date.now() / 1000),
     current_character: save.current_character,
     storyline_progress: save.storyline_progress ?? null,
     active_adventure_id: save.active_adventure_id ?? null,

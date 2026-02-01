@@ -42,7 +42,7 @@ export default function DefenseSkillsEditorPage() {
   };
 
   const handleEdit = (id: string) => {
-    router.push(`/editor/defense-skills/${encodeURIComponent(id)}`);
+    router.push(`/editor/defense-skills/edit?id=${encodeURIComponent(id)}`);
   };
 
   const handleDelete = async (id: string) => {

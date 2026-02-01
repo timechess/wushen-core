@@ -1,1 +1,1 @@
-{"main-dialogs":{"identifier":"main-dialogs","description":"Allow the main window to open/save files via the dialog plugin.","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-save","app-commands"]}}
+{"main-dialogs":{"identifier":"main-dialogs","description":"Allow the main window to open/save files via the dialog plugin.","remote":{"urls":["http://localhost:3000/*","http://127.0.0.1:3000/*"]},"local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-save","app-commands"]}}

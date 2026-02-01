@@ -13,6 +13,8 @@ pub struct GameRuntime {
 pub struct SaveGame {
     pub id: String,
     pub name: String,
+    #[serde(default)]
+    pub created_at: u64,
     pub current_character: CharacterState,
     pub storyline_progress: Option<StorylineProgress>,
     #[serde(default)]
@@ -241,4 +243,11 @@ pub fn seed_from_time() -> u64 {
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_nanos() as u64)
         .unwrap_or(0x9E3779B97F4A7C15)
+}
+
+pub fn now_timestamp() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0)
 }

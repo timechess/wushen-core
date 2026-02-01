@@ -74,6 +74,7 @@
           "core_game_resume_save",
           "core_game_view",
           "core_game_cultivate",
+          "core_game_equip_manual",
           "core_game_travel",
           "core_game_story_option",
           "core_game_story_battle",

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type {
   Storyline,
   StoryEvent,
@@ -10,6 +10,7 @@ import type {
   EnemyTemplate,
 } from '@/types/event';
 import type { Enemy } from '@/types/enemy';
+import type { ManualListItem } from '@/types/manual';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
@@ -18,7 +19,7 @@ import ConditionEditor from '@/components/editor/ConditionEditor';
 import RewardEditor from '@/components/editor/RewardEditor';
 import { generateUlid } from '@/lib/utils/ulid';
 import { useActivePack } from '@/lib/mods/active-pack';
-import { getEnemy, listEnemies } from '@/lib/tauri/commands';
+import { getEnemy, listAttackSkills, listDefenseSkills, listEnemies, listInternals } from '@/lib/tauri/commands';
 
 interface StorylineFormProps {
   initialStoryline: Storyline;
@@ -111,6 +112,10 @@ export default function StorylineForm({
   const [loading, setLoading] = useState(false);
   const [enemyOptions, setEnemyOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingEnemies, setLoadingEnemies] = useState(false);
+  const [internals, setInternals] = useState<ManualListItem[]>([]);
+  const [attackSkills, setAttackSkills] = useState<ManualListItem[]>([]);
+  const [defenseSkills, setDefenseSkills] = useState<ManualListItem[]>([]);
+  const [loadingManuals, setLoadingManuals] = useState(false);
   const { activePack } = useActivePack();
   const eventOptions = storyline.events.map((event, index) => ({
     value: event.id,
@@ -137,6 +142,58 @@ export default function StorylineForm({
     };
     loadEnemies();
   }, [activePack]);
+
+  useEffect(() => {
+    const loadManuals = async () => {
+      if (!activePack) {
+        setInternals([]);
+        setAttackSkills([]);
+        setDefenseSkills([]);
+        return;
+      }
+      try {
+        setLoadingManuals(true);
+        const [internalsData, attackData, defenseData] = await Promise.all([
+          listInternals(activePack.id),
+          listAttackSkills(activePack.id),
+          listDefenseSkills(activePack.id),
+        ]);
+        setInternals(internalsData);
+        setAttackSkills(attackData);
+        setDefenseSkills(defenseData);
+      } catch (error) {
+        console.error('加载功法列表失败:', error);
+        setInternals([]);
+        setAttackSkills([]);
+        setDefenseSkills([]);
+      } finally {
+        setLoadingManuals(false);
+      }
+    };
+    loadManuals();
+  }, [activePack]);
+
+  const manualNameLookup = useMemo(() => {
+    return {
+      internal: new Map(internals.map((manual) => [manual.id, manual.name])),
+      attack_skill: new Map(attackSkills.map((manual) => [manual.id, manual.name])),
+      defense_skill: new Map(defenseSkills.map((manual) => [manual.id, manual.name])),
+    };
+  }, [internals, attackSkills, defenseSkills]);
+
+  const resolveManualName = (
+    type: 'internal' | 'attack_skill' | 'defense_skill',
+    manualId?: string | null
+  ) => {
+    if (!manualId) return '无';
+    const fallback =
+      type === 'internal'
+        ? '未命名内功'
+        : type === 'attack_skill'
+        ? '未命名攻击武技'
+        : '未命名防御武技';
+    return manualNameLookup[type].get(manualId) ?? fallback;
+  };
 
   const handleEventChange = (index: number, next: StoryEvent) => {
     const updated = storyline.events.map((evt, i) => (i === index ? next : evt));
@@ -333,9 +390,9 @@ export default function StorylineForm({
                 </div>
                 <div className="mt-1 flex flex-wrap gap-2 text-gray-500">
                   <span>特性 {content.enemy.traits?.length ?? 0}</span>
-                  <span>内功 {content.enemy.internal?.id ?? '无'}</span>
-                  <span>攻击 {content.enemy.attack_skill?.id ?? '无'}</span>
-                  <span>防御 {content.enemy.defense_skill?.id ?? '无'}</span>
+                  <span>内功 {loadingManuals ? '加载中...' : resolveManualName('internal', content.enemy.internal?.id)}</span>
+                  <span>攻击 {loadingManuals ? '加载中...' : resolveManualName('attack_skill', content.enemy.attack_skill?.id)}</span>
+                  <span>防御 {loadingManuals ? '加载中...' : resolveManualName('defense_skill', content.enemy.defense_skill?.id)}</span>
                 </div>
               </div>
             </div>

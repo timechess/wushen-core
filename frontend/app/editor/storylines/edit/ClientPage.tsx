@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { Storyline } from '@/types/event';
-import StorylineForm from '@/components/editor/StorylineForm';
+import StorylineGraphEditor from '@/components/editor/StorylineGraphEditor';
 import RequireActivePack from '@/components/mod/RequireActivePack';
 import { useActivePack } from '@/lib/mods/active-pack';
 import { getStoryline, saveStoryline } from '@/lib/tauri/commands';
 
 export default function EditStorylinePage() {
   const router = useRouter();
-  const params = useParams();
-  const storylineId = params?.id as string;
+  const searchParams = useSearchParams();
+  const storylineId = searchParams.get('id') ?? '';
   const [storyline, setStoryline] = useState<Storyline | null>(null);
   const [loading, setLoading] = useState(false);
   const { activePack } = useActivePack();
@@ -19,6 +19,8 @@ export default function EditStorylinePage() {
   useEffect(() => {
     if (storylineId) {
       loadStoryline();
+    } else {
+      setStoryline(null);
     }
   }, [activePack, storylineId]);
 
@@ -53,19 +55,14 @@ export default function EditStorylinePage() {
       {loading ? '加载中...' : '剧情线不存在'}
     </div>
   ) : (
-    <div className="page-shell">
-      <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <div className="bg-white rounded-xl shadow-lg p-6">
-          <h1 className="text-2xl font-bold text-gray-900 mb-6">编辑剧情线</h1>
-          <StorylineForm
-            initialStoryline={storyline}
-            onSubmit={handleSubmit}
-            onCancel={() => router.push('/editor/storylines')}
-            submitLabel="保存修改"
-          />
-        </div>
-      </div>
-    </div>
+    <StorylineGraphEditor
+      initialStoryline={storyline}
+      onSubmit={handleSubmit}
+      onCancel={() => router.push('/editor/storylines')}
+      submitLabel="保存修改"
+      title="编辑剧情线"
+      description="调整事件结构、分支与内容"
+    />
   );
 
   return (

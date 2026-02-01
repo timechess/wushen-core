@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import type { Storyline } from '@/types/event';
-import StorylineForm from '@/components/editor/StorylineForm';
+import StorylineGraphEditor from '@/components/editor/StorylineGraphEditor';
 import RequireActivePack from '@/components/mod/RequireActivePack';
 import { useActivePack } from '@/lib/mods/active-pack';
 import { saveStoryline } from '@/lib/tauri/commands';
@@ -28,19 +28,14 @@ export default function NewStorylinePage() {
 
   return (
     <RequireActivePack title="创建剧情线前需要先选择一个模组包。">
-      <div className="page-shell">
-        <div className="container mx-auto px-4 py-8 max-w-6xl">
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h1 className="text-2xl font-bold text-gray-900 mb-6">新建剧情线</h1>
-            <StorylineForm
-              initialStoryline={DEFAULT_STORYLINE}
-              onSubmit={handleSubmit}
-              onCancel={() => router.push('/editor/storylines')}
-              submitLabel="保存剧情线"
-            />
-          </div>
-        </div>
-      </div>
+      <StorylineGraphEditor
+        initialStoryline={DEFAULT_STORYLINE}
+        onSubmit={handleSubmit}
+        onCancel={() => router.push('/editor/storylines')}
+        submitLabel="保存剧情线"
+        title="新建剧情线"
+        description="创建新的剧情线并配置事件流程"
+      />
     </RequireActivePack>
   );
 }

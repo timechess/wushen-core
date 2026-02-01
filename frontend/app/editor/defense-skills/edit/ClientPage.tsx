@@ -1,22 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { AttackSkill, AttackSkillRealm } from '@/types/manual';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { DefenseSkill, DefenseSkillRealm } from '@/types/manual';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import RealmEditor from '@/components/editor/RealmEditor';
 import { validateCultivationFormula, formatFormulaPreview } from '@/lib/utils/formulaValidator';
 import RequireActivePack from '@/components/mod/RequireActivePack';
 import { useActivePack } from '@/lib/mods/active-pack';
-import { getAttackSkill, saveAttackSkill } from '@/lib/tauri/commands';
+import { getDefenseSkill, saveDefenseSkill } from '@/lib/tauri/commands';
 
-export default function EditAttackSkillPage() {
+export default function EditDefenseSkillPage() {
   const router = useRouter();
-  const params = useParams();
-  const skillId = params?.id as string;
+  const searchParams = useSearchParams();
+  const skillId = searchParams.get('id') ?? '';
 
-  const [skill, setSkill] = useState<AttackSkill | null>(null);
+  const [skill, setSkill] = useState<DefenseSkill | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [formulaError, setFormulaError] = useState<string | null>(null);
@@ -26,6 +26,9 @@ export default function EditAttackSkillPage() {
   useEffect(() => {
     if (skillId) {
       loadSkill();
+    } else {
+      setSkill(null);
+      setLoading(false);
     }
   }, [skillId, activePack]);
 
@@ -33,17 +36,17 @@ export default function EditAttackSkillPage() {
     try {
       setLoading(true);
       if (!activePack) return;
-      const skillData = await getAttackSkill(activePack.id, skillId);
+      const skillData = await getDefenseSkill(activePack.id, skillId);
       if (!skillData) {
-        alert('攻击武技不存在');
-        router.push('/editor/attack-skills');
+        alert('防御武技不存在');
+        router.push('/editor/defense-skills');
         return;
       }
       setSkill(skillData);
     } catch (error) {
-      console.error('加载攻击武技失败:', error);
-      alert('加载攻击武技失败');
-      router.push('/editor/attack-skills');
+      console.error('加载防御武技失败:', error);
+      alert('加载防御武技失败');
+      router.push('/editor/defense-skills');
     } finally {
       setLoading(false);
     }
@@ -74,7 +77,7 @@ export default function EditAttackSkillPage() {
     }
 
     if (skill.realms.length !== 5) {
-      alert('攻击武技必须有5个境界');
+      alert('防御武技必须有5个境界');
       return;
     }
 
@@ -83,12 +86,12 @@ export default function EditAttackSkillPage() {
       if (!activePack) {
         throw new Error('请先选择模组包');
       }
-      await saveAttackSkill(activePack.id, skill);
+      await saveDefenseSkill(activePack.id, skill);
 
       await new Promise(resolve => setTimeout(resolve, 200));
-      router.push('/editor/attack-skills');
+      router.push('/editor/defense-skills');
     } catch (error) {
-      console.error('保存攻击武技失败:', error);
+      console.error('保存防御武技失败:', error);
       alert(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
     } finally {
       setSaving(false);
@@ -101,7 +104,7 @@ export default function EditAttackSkillPage() {
     </div>
   ) : !skill ? (
     <div className="container mx-auto px-4 py-8">
-      <p>攻击武技不存在</p>
+      <p>防御武技不存在</p>
     </div>
   ) : (
     <div className="page-shell">
@@ -109,13 +112,13 @@ export default function EditAttackSkillPage() {
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">编辑攻击武技</h1>
-              <p className="text-gray-600">编辑攻击武技并配置境界</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">编辑防御武技</h1>
+              <p className="text-gray-600">编辑防御武技并配置境界</p>
             </div>
             <div className="flex gap-3">
               <Button
                 variant="secondary"
-                onClick={() => router.push('/editor/attack-skills')}
+                onClick={() => router.push('/editor/defense-skills')}
                 disabled={saving}
               >
                 取消
@@ -138,7 +141,7 @@ export default function EditAttackSkillPage() {
               </h2>
               <div className="space-y-4">
                 <Input
-                  label="攻击武技名称"
+                  label="防御武技名称"
                   value={skill.name}
                   onChange={(e) => setSkill({ ...skill, name: e.target.value })}
                 />
@@ -199,22 +202,10 @@ export default function EditAttackSkillPage() {
                   {formulaError && (
                     <p className="mt-1 text-sm text-red-600">{formulaError}</p>
                   )}
-                  {formulaPreview && !formulaError && (
-                    <p className="mt-1 text-sm text-green-600">{formulaPreview}</p>
+                  {formulaPreview && (
+                    <p className="mt-2 text-xs text-gray-500">{formulaPreview}</p>
                   )}
-                  <p className="mt-1 text-xs text-gray-500">
-                    支持变量: x（悟性）、y（根骨）、z（体魄）、A（武学素养）
-                  </p>
                 </div>
-                <Input
-                  label="攻击日志模板（支持 {self} 和 {opponent} 占位符）"
-                  type="text"
-                  value={skill.log_template || ''}
-                  onChange={(e) =>
-                    setSkill({ ...skill, log_template: e.target.value || undefined })
-                  }
-                  placeholder="例如：{self}对{opponent}发起了一次基础拳法攻击"
-                />
               </div>
             </div>
           </div>
@@ -225,7 +216,7 @@ export default function EditAttackSkillPage() {
                 <div>
                   <h2 className="text-xl font-semibold text-gray-900">境界列表</h2>
                   <p className="text-sm text-gray-600 mt-1">
-                    配置攻击武技的5个境界（必须包含5个境界）
+                    配置防御武技的5个境界（必须包含5个境界）
                   </p>
                 </div>
                 {skill.realms.length < 5 && (
@@ -233,12 +224,11 @@ export default function EditAttackSkillPage() {
                     size="sm"
                     onClick={() => {
                       const newLevel = skill.realms.length + 1;
-                      const newRealm: AttackSkillRealm = {
+                      const newRealm: DefenseSkillRealm = {
                         level: newLevel,
                         exp_required: 0,
                         martial_arts_attainment: 0,
-                        power: 0,
-                        charge_time: 0,
+                        defense_power: 0,
                         entries: [],
                       };
                       setSkill({ ...skill, realms: [...skill.realms, newRealm] });
@@ -266,11 +256,11 @@ export default function EditAttackSkillPage() {
                     <RealmEditor
                       key={index}
                       realm={realm}
-                      realmType="attack_skill"
+                      realmType="defense_skill"
                       previousRealm={index > 0 ? skill.realms[index - 1] : undefined}
                       onChange={(newRealm) => {
                         const newRealms = [...skill.realms];
-                        newRealms[index] = newRealm as AttackSkillRealm;
+                        newRealms[index] = newRealm as DefenseSkillRealm;
                         setSkill({ ...skill, realms: newRealms });
                       }}
                       onDelete={
@@ -292,7 +282,7 @@ export default function EditAttackSkillPage() {
               {skill.realms.length !== 5 && (
                 <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <p className="text-sm text-yellow-800">
-                    警告：攻击武技必须有5个境界，当前有 {skill.realms.length} 个
+                    警告：防御武技必须有5个境界，当前有 {skill.realms.length} 个
                   </p>
                 </div>
               )}
@@ -304,7 +294,7 @@ export default function EditAttackSkillPage() {
   );
 
   return (
-    <RequireActivePack title="编辑攻击武技前需要先选择一个模组包。">
+    <RequireActivePack title="编辑防御武技前需要先选择一个模组包。">
       {content}
     </RequireActivePack>
   );

@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import type { ModPackMetadata } from '@/types/mod';
 import { getPackOrder, listPacks, setPackOrder } from '@/lib/tauri/commands';
@@ -77,9 +76,9 @@ export default function ModOrderPage() {
               <h1 className="text-3xl font-bold text-gray-900 mb-2">模组排序</h1>
               <p className="text-gray-600">优先级越高的包越靠上，冲突时将覆盖后面的内容。</p>
             </div>
-            <Link href="/mods" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            <a href="/mods" className="text-sm font-medium text-blue-600 hover:text-blue-700">
               返回模组包管理 →
-            </Link>
+            </a>
           </div>
         </div>
 

@@ -1,8 +1,10 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::time::UNIX_EPOCH;
 use tauri::{AppHandle, Manager};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
@@ -49,6 +51,8 @@ struct PackList {
 pub struct NamedItem {
     pub id: String,
     pub name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub created_at: Option<u64>,
 }
 
 fn data_root(app: &AppHandle) -> Result<PathBuf, String> {
@@ -94,6 +98,22 @@ fn now_iso() -> Result<String, String> {
         .map_err(|e| e.to_string())
 }
 
+fn now_timestamp() -> u64 {
+    OffsetDateTime::now_utc().unix_timestamp().max(0) as u64
+}
+
+fn file_timestamp(path: &Path) -> Option<u64> {
+    let metadata = fs::metadata(path).ok()?;
+    let modified = metadata.modified().ok().or_else(|| metadata.created().ok())?;
+    modified.duration_since(UNIX_EPOCH).ok().map(|d| d.as_secs())
+}
+
+fn timestamp_to_iso(timestamp: u64) -> Option<String> {
+    OffsetDateTime::from_unix_timestamp(timestamp as i64)
+        .ok()
+        .and_then(|dt| dt.format(&Rfc3339).ok())
+}
+
 fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>, String> {
     if !path.exists() {
         return Ok(None);
@@ -108,12 +128,145 @@ fn write_json<T: Serialize + ?Sized>(path: &Path, data: &T) -> Result<(), String
     fs::write(path, content).map_err(|e| e.to_string())
 }
 
+fn is_pack_dir(dir: &Path) -> bool {
+    if dir.join("metadata.toml").exists() {
+        return true;
+    }
+    PACK_FILES.iter().any(|(file, _)| dir.join(file).exists())
+}
+
+fn pack_dir_timestamp(dir: &Path) -> Option<u64> {
+    let mut latest = file_timestamp(&dir.join("metadata.toml"));
+    for (file, _) in PACK_FILES.iter() {
+        if let Some(ts) = file_timestamp(&dir.join(file)) {
+            latest = Some(latest.map_or(ts, |prev| prev.max(ts)));
+        }
+    }
+    latest
+}
+
+fn pack_metadata_from_disk(pack_id: &str, dir: &Path) -> Result<Option<PackMetadata>, String> {
+    if !is_pack_dir(dir) {
+        return Ok(None);
+    }
+
+    let manifest_path = dir.join("metadata.toml");
+    let manifest = if manifest_path.exists() {
+        fs::read_to_string(&manifest_path)
+            .ok()
+            .and_then(|raw| toml::from_str::<PackManifest>(&raw).ok())
+    } else {
+        None
+    };
+
+    let name = manifest
+        .as_ref()
+        .map(|m| m.name.clone())
+        .unwrap_or_else(|| pack_id.to_string());
+    let version = manifest
+        .as_ref()
+        .map(|m| m.version.clone())
+        .unwrap_or_else(|| "0.1.0".to_string());
+    let author = manifest.as_ref().and_then(|m| m.author.clone());
+    let description = manifest.as_ref().and_then(|m| m.description.clone());
+
+    let created_at = pack_dir_timestamp(dir)
+        .and_then(timestamp_to_iso)
+        .unwrap_or_else(|| now_iso().unwrap_or_else(|_| "1970-01-01T00:00:00Z".to_string()));
+
+    let updated_at = pack_dir_timestamp(dir).and_then(timestamp_to_iso);
+
+    Ok(Some(PackMetadata {
+        id: pack_id.to_string(),
+        name,
+        version,
+        author,
+        description,
+        created_at,
+        updated_at,
+    }))
+}
+
+fn scan_packs(app: &AppHandle) -> Result<Vec<PackMetadata>, String> {
+    let root = data_root(app)?.join("packs");
+    if !root.exists() {
+        return Ok(vec![]);
+    }
+    let mut packs = Vec::new();
+    for entry in fs::read_dir(&root).map_err(|e| e.to_string())? {
+        let entry = entry.map_err(|e| e.to_string())?;
+        let file_type = entry.file_type().map_err(|e| e.to_string())?;
+        if !file_type.is_dir() {
+            continue;
+        }
+        let pack_id = entry.file_name().to_string_lossy().to_string();
+        if let Some(pack) = pack_metadata_from_disk(&pack_id, &entry.path())? {
+            packs.push(pack);
+        }
+    }
+    Ok(packs)
+}
+
 fn read_packs(app: &AppHandle) -> Result<Vec<PackMetadata>, String> {
     let path = packs_path(app)?;
-    if let Some(list) = read_json::<PackList>(&path)? {
-        return Ok(list.packs);
+    let mut packs = if let Some(list) = read_json::<PackList>(&path)? {
+        list.packs
+    } else {
+        vec![]
+    };
+
+    let disk_packs = scan_packs(app)?;
+    if disk_packs.is_empty() {
+        return Ok(packs);
     }
-    Ok(vec![])
+
+    let mut changed = false;
+    let mut map: HashMap<String, PackMetadata> = packs
+        .into_iter()
+        .map(|pack| (pack.id.clone(), pack))
+        .collect();
+
+    for disk_pack in disk_packs {
+        match map.get_mut(&disk_pack.id) {
+            Some(existing) => {
+                if existing.name != disk_pack.name {
+                    existing.name = disk_pack.name.clone();
+                    changed = true;
+                }
+                if existing.version != disk_pack.version {
+                    existing.version = disk_pack.version.clone();
+                    changed = true;
+                }
+                if existing.author != disk_pack.author {
+                    existing.author = disk_pack.author.clone();
+                    changed = true;
+                }
+                if existing.description != disk_pack.description {
+                    existing.description = disk_pack.description.clone();
+                    changed = true;
+                }
+                if existing.created_at.trim().is_empty() {
+                    existing.created_at = disk_pack.created_at.clone();
+                    changed = true;
+                }
+                if existing.updated_at.is_none() && disk_pack.updated_at.is_some() {
+                    existing.updated_at = disk_pack.updated_at.clone();
+                    changed = true;
+                }
+            }
+            None => {
+                map.insert(disk_pack.id.clone(), disk_pack);
+                changed = true;
+            }
+        }
+    }
+
+    packs = map.into_values().collect();
+    if changed {
+        write_packs(app, &packs)?;
+    }
+
+    Ok(packs)
 }
 
 fn write_packs(app: &AppHandle, packs: &[PackMetadata]) -> Result<(), String> {
@@ -220,12 +373,19 @@ fn pick_current_character_string(value: &Value, key: &str) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+fn pick_u64(value: &Value, key: &str) -> Option<u64> {
+    value
+        .get(key)
+        .and_then(|v| v.as_u64().or_else(|| v.as_i64().and_then(|num| if num >= 0 { Some(num as u64) } else { None })))
+}
+
 fn wrap_character_as_save(character: Value, id_fallback: &str) -> Value {
     let id = pick_string(&character, "id").unwrap_or_else(|| id_fallback.to_string());
     let name = pick_string(&character, "name").unwrap_or_else(|| id.clone());
     serde_json::json!({
         "id": id,
         "name": name,
+        "created_at": now_timestamp(),
         "current_character": character,
         "storyline_progress": null,
         "active_adventure_id": null,
@@ -245,6 +405,9 @@ fn normalize_save_value(mut value: Value, id_fallback: &str) -> Value {
     let name = pick_string(&value, "name")
         .or_else(|| pick_current_character_string(&value, "name"))
         .unwrap_or_else(|| id.clone());
+    let created_at = pick_u64(&value, "created_at")
+        .filter(|value| *value > 0)
+        .unwrap_or_else(now_timestamp);
 
     let obj = match value.as_object_mut() {
         Some(obj) => obj,
@@ -253,6 +416,7 @@ fn normalize_save_value(mut value: Value, id_fallback: &str) -> Value {
 
     obj.insert("id".to_string(), Value::String(id));
     obj.insert("name".to_string(), Value::String(name));
+    obj.insert("created_at".to_string(), Value::Number(created_at.into()));
     if !obj.contains_key("storyline_progress") {
         obj.insert("storyline_progress".to_string(), Value::Null);
     }
@@ -330,7 +494,7 @@ fn list_named_items(app: &AppHandle, pack_id: &str, file: &str, key: &str) -> Re
     for item in items {
         if let (Some(id), Some(name)) = (item.get("id"), item.get("name")) {
             if let (Some(id), Some(name)) = (id.as_str(), name.as_str()) {
-                result.push(NamedItem { id: id.to_string(), name: name.to_string() });
+                result.push(NamedItem { id: id.to_string(), name: name.to_string(), created_at: None });
             }
         }
     }
@@ -573,9 +737,142 @@ define_entity_commands!(list_traits, get_trait, save_trait, delete_trait, "trait
 define_entity_commands!(list_internals, get_internal, save_internal, delete_internal, "internals.json", "internals");
 define_entity_commands!(list_attack_skills, get_attack_skill, save_attack_skill, delete_attack_skill, "attack_skills.json", "attack_skills");
 define_entity_commands!(list_defense_skills, get_defense_skill, save_defense_skill, delete_defense_skill, "defense_skills.json", "defense_skills");
-define_entity_commands!(list_enemies, get_enemy, save_enemy, delete_enemy, "enemies.json", "enemies");
 define_entity_commands!(list_adventure_events, get_adventure_event, save_adventure_event, delete_adventure_event, "adventures.json", "adventures");
 define_entity_commands!(list_storylines, get_storyline, save_storyline, delete_storyline, "storylines.json", "storylines");
+
+fn strip_enemy_id(mut enemy: Value) -> Value {
+    if let Some(obj) = enemy.as_object_mut() {
+        obj.remove("id");
+    }
+    enemy
+}
+
+fn update_enemy_fields(
+    target: &mut serde_json::Map<String, Value>,
+    enemy_id: &str,
+    enemy_template: &Value,
+) -> bool {
+    if target
+        .get("enemy_id")
+        .and_then(|v| v.as_str())
+        .filter(|value| !value.is_empty())
+        != Some(enemy_id)
+    {
+        return false;
+    }
+    if target.get("enemy") == Some(enemy_template) {
+        return false;
+    }
+    target.insert("enemy".to_string(), enemy_template.clone());
+    true
+}
+
+fn update_enemy_in_content(
+    content: &mut serde_json::Map<String, Value>,
+    enemy_id: &str,
+    enemy_template: &Value,
+) -> bool {
+    let Some(content_type) = content.get("type").and_then(|v| v.as_str()) else {
+        return false;
+    };
+    match content_type {
+        "battle" => update_enemy_fields(content, enemy_id, enemy_template),
+        "decision" => {
+            let mut changed = false;
+            if let Some(options) = content.get_mut("options").and_then(|v| v.as_array_mut()) {
+                for option in options.iter_mut() {
+                    let Some(option_obj) = option.as_object_mut() else { continue };
+                    let Some(result) = option_obj.get_mut("result").and_then(|v| v.as_object_mut()) else {
+                        continue;
+                    };
+                    if update_enemy_fields(result, enemy_id, enemy_template) {
+                        changed = true;
+                    }
+                }
+            }
+            changed
+        }
+        _ => false,
+    }
+}
+
+fn update_enemy_in_storylines(
+    app: &AppHandle,
+    pack_id: &str,
+    enemy_id: &str,
+    enemy_template: &Value,
+) -> Result<(), String> {
+    let mut items = read_collection(app, pack_id, "storylines.json", "storylines")?;
+    let mut changed = false;
+    for storyline in items.iter_mut() {
+        let Some(story_obj) = storyline.as_object_mut() else { continue };
+        let Some(events) = story_obj.get_mut("events").and_then(|v| v.as_array_mut()) else {
+            continue;
+        };
+        for event in events.iter_mut() {
+            let Some(event_obj) = event.as_object_mut() else { continue };
+            let Some(content) = event_obj.get_mut("content").and_then(|v| v.as_object_mut()) else {
+                continue;
+            };
+            if update_enemy_in_content(content, enemy_id, enemy_template) {
+                changed = true;
+            }
+        }
+    }
+    if changed {
+        write_collection(app, pack_id, "storylines.json", "storylines", &items)?;
+    }
+    Ok(())
+}
+
+fn update_enemy_in_adventures(
+    app: &AppHandle,
+    pack_id: &str,
+    enemy_id: &str,
+    enemy_template: &Value,
+) -> Result<(), String> {
+    let mut items = read_collection(app, pack_id, "adventures.json", "adventures")?;
+    let mut changed = false;
+    for adventure in items.iter_mut() {
+        let Some(adventure_obj) = adventure.as_object_mut() else { continue };
+        let Some(content) = adventure_obj.get_mut("content").and_then(|v| v.as_object_mut()) else {
+            continue;
+        };
+        if update_enemy_in_content(content, enemy_id, enemy_template) {
+            changed = true;
+        }
+    }
+    if changed {
+        write_collection(app, pack_id, "adventures.json", "adventures", &items)?;
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_enemies(app: AppHandle, pack_id: String) -> Result<Vec<NamedItem>, String> {
+    list_named_items(&app, &pack_id, "enemies.json", "enemies")
+}
+
+#[tauri::command]
+pub fn get_enemy(app: AppHandle, pack_id: String, id: String) -> Result<Option<Value>, String> {
+    get_item(&app, &pack_id, "enemies.json", "enemies", &id)
+}
+
+#[tauri::command]
+pub fn save_enemy(app: AppHandle, pack_id: String, payload: Value) -> Result<String, String> {
+    let mut payload = payload;
+    let enemy_id = ensure_item_id(&mut payload)?;
+    let enemy_template = strip_enemy_id(payload.clone());
+    let id = upsert_item(&app, &pack_id, "enemies.json", "enemies", payload)?;
+    update_enemy_in_storylines(&app, &pack_id, &enemy_id, &enemy_template)?;
+    update_enemy_in_adventures(&app, &pack_id, &enemy_id, &enemy_template)?;
+    Ok(id)
+}
+
+#[tauri::command]
+pub fn delete_enemy(app: AppHandle, pack_id: String, id: String) -> Result<(), String> {
+    delete_item(&app, &pack_id, "enemies.json", "enemies", &id)
+}
 
 #[tauri::command]
 pub fn list_saves(app: AppHandle) -> Result<Vec<NamedItem>, String> {
@@ -597,7 +894,10 @@ pub fn list_saves(app: AppHandle) -> Result<Vec<NamedItem>, String> {
                     let name = pick_string(&value, "name")
                         .or_else(|| pick_current_character_string(&value, "name"))
                         .unwrap_or_else(|| id.clone());
-                    result.push(NamedItem { id, name });
+                    let created_at = pick_u64(&value, "created_at")
+                        .filter(|value| *value > 0)
+                        .or_else(|| file_timestamp(&path));
+                    result.push(NamedItem { id, name, created_at });
                 }
             }
         }

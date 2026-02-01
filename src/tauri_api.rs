@@ -12,7 +12,9 @@ use crate::character::trait_manager::TraitManager;
 use crate::battle::battle_engine::BattleEngine;
 use crate::battle::battle_state::BattleResult;
 use crate::battle::battle_record::BattleRecord;
+use crate::effect::condition::CultivationContext;
 use crate::effect::executor::EntryExecutor;
+use crate::effect::trigger::Trigger;
 use crate::event::{
     AdventureEventContent,
     AdventureOptionResult,
@@ -43,6 +45,7 @@ use crate::game::{
     StoryOptionView,
     StorylineProgress,
     StorylineSummary,
+    now_timestamp,
     seed_from_time,
 };
 
@@ -694,6 +697,7 @@ impl WushenCore {
         let mut save = SaveGame {
             id: request.character_id.clone(),
             name: request.name.clone(),
+            created_at: now_timestamp(),
             current_character: CharacterState {
                 id: request.character_id,
                 name: request.name,
@@ -718,6 +722,7 @@ impl WushenCore {
         };
 
         ensure_rng_state(&mut save);
+        self.apply_game_start_effects(&mut save.current_character)?;
         self.game_runtime = Some(GameRuntime {
             save,
         });
@@ -784,7 +789,11 @@ impl WushenCore {
         self.game_view(Some(outcome))
     }
 
-    pub fn game_travel(&mut self) -> Result<GameResponse, String> {
+    pub fn game_travel(
+        &mut self,
+        attacker_qi_output_rate: Option<f64>,
+        defender_qi_output_rate: Option<f64>,
+    ) -> Result<GameResponse, String> {
         let (mut character, rng_state) = {
             let runtime = self
                 .game_runtime
@@ -848,7 +857,12 @@ impl WushenCore {
                 }
             }
             AdventureEventContent::Battle { text, enemy, win, lose } => {
-                let battle_result = self.run_battle(&character, enemy)?;
+                let battle_result = self.run_battle(
+                    &character,
+                    enemy,
+                    attacker_qi_output_rate,
+                    defender_qi_output_rate,
+                )?;
                 let win_flag = battle_is_attacker_win(&battle_result);
                 let rewards = if win_flag { &win.rewards } else { &lose.rewards };
                 self.apply_rewards_to_character(&mut character, rewards)?;
@@ -918,7 +932,74 @@ impl WushenCore {
         self.game_view(Some(outcome))
     }
 
-    pub fn game_story_battle(&mut self) -> Result<GameResponse, String> {
+    pub fn game_equip_manual(
+        &mut self,
+        manual_id: String,
+        manual_type: String,
+    ) -> Result<GameResponse, String> {
+        let mut character = {
+            let runtime = self
+                .game_runtime
+                .as_ref()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character.clone()
+        };
+
+        let mut panel = character_state_to_panel(&character);
+        let (label, name) = match manual_type.as_str() {
+            "internal" => {
+                self.manual_manager.equip_internal(&manual_id, &mut panel)?;
+                let name = self
+                    .manual_manager
+                    .get_internal(&manual_id)
+                    .map(|m| m.manual.name.clone())
+                    .unwrap_or_else(|| manual_id.clone());
+                ("内功", name)
+            }
+            "attack_skill" => {
+                self.manual_manager
+                    .equip_attack_skill(&manual_id, &mut panel)?;
+                let name = self
+                    .manual_manager
+                    .get_attack_skill(&manual_id)
+                    .map(|m| m.manual.name.clone())
+                    .unwrap_or_else(|| manual_id.clone());
+                ("攻击武技", name)
+            }
+            "defense_skill" => {
+                self.manual_manager
+                    .equip_defense_skill(&manual_id, &mut panel)?;
+                let name = self
+                    .manual_manager
+                    .get_defense_skill(&manual_id)
+                    .map(|m| m.manual.name.clone())
+                    .unwrap_or_else(|| manual_id.clone());
+                ("防御武技", name)
+            }
+            _ => return Err("未知的功法类型".to_string()),
+        };
+
+        update_character_from_panel(&mut character, &panel);
+
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            runtime.save.current_character = character;
+        }
+
+        let outcome = GameOutcome::Info {
+            message: format!("已切换{}：{}", label, name),
+        };
+        self.game_view(Some(outcome))
+    }
+
+    pub fn game_story_battle(
+        &mut self,
+        attacker_qi_output_rate: Option<f64>,
+        defender_qi_output_rate: Option<f64>,
+    ) -> Result<GameResponse, String> {
         let (storyline, event) = self.current_story_event()?;
         {
             let runtime = self
@@ -941,7 +1022,12 @@ impl WushenCore {
             runtime.save.current_character.clone()
         };
 
-        let battle_result = self.run_battle(&character, enemy)?;
+        let battle_result = self.run_battle(
+            &character,
+            enemy,
+            attacker_qi_output_rate,
+            defender_qi_output_rate,
+        )?;
         let win_flag = battle_is_attacker_win(&battle_result);
         let rewards = if win_flag { &win.rewards } else { &lose.rewards };
         self.apply_rewards_to_character(&mut character, rewards)?;
@@ -1013,7 +1099,12 @@ impl WushenCore {
         self.game_view(Some(outcome))
     }
 
-    pub fn game_adventure_option(&mut self, option_id: String) -> Result<GameResponse, String> {
+    pub fn game_adventure_option(
+        &mut self,
+        option_id: String,
+        attacker_qi_output_rate: Option<f64>,
+        defender_qi_output_rate: Option<f64>,
+    ) -> Result<GameResponse, String> {
         let (adventure_id, mut character) = {
             let runtime = self
                 .game_runtime
@@ -1047,7 +1138,12 @@ impl WushenCore {
                         (Some(text.clone()), rewards.clone(), None, None)
                     }
                     AdventureOptionResult::Battle { text, enemy, win, lose } => {
-                        let battle_result = self.run_battle(&character, enemy)?;
+                        let battle_result = self.run_battle(
+                            &character,
+                            enemy,
+                            attacker_qi_output_rate,
+                            defender_qi_output_rate,
+                        )?;
                         let win_flag = battle_is_attacker_win(&battle_result);
                         let rewards = if win_flag { &win.rewards } else { &lose.rewards };
                         self.apply_rewards_to_character(&mut character, rewards)?;
@@ -1254,16 +1350,54 @@ impl WushenCore {
         Ok(())
     }
 
+    fn apply_game_start_effects(
+        &self,
+        character: &mut CharacterState,
+    ) -> Result<(), String> {
+        if character.traits.is_empty() {
+            return Ok(());
+        }
+        let mut panel = character_state_to_panel(character);
+        let mut executor = self.trait_manager.create_executor(&panel.traits);
+        let context = CultivationContext {
+            internal_id: None,
+            internal_type: None,
+            attack_skill_id: None,
+            attack_skill_type: None,
+            defense_skill_id: None,
+            defense_skill_type: None,
+            traits: panel.traits.clone(),
+            comprehension: panel.three_d.comprehension as f64,
+            bone_structure: panel.three_d.bone_structure as f64,
+            physique: panel.three_d.physique as f64,
+            martial_arts_attainment: panel.martial_arts_attainment,
+        };
+        let effects = executor.trigger_cultivation(Trigger::GameStart, &mut panel, &context);
+        if effects.is_empty() {
+            return Ok(());
+        }
+        executor.apply_effects_cultivation(effects, &mut panel, &context);
+        update_character_from_panel(character, &panel);
+        Ok(())
+    }
+
     fn run_battle(
         &self,
         character: &CharacterState,
         enemy: &crate::event::EnemyTemplate,
+        attacker_qi_output_rate: Option<f64>,
+        defender_qi_output_rate: Option<f64>,
     ) -> Result<Value, String> {
         let player_panel = character_state_to_panel(character);
         let player_json = serialize_character_panel(&player_panel)?;
         let enemy_panel = enemy.to_character_panel();
         let enemy_json = serialize_character_panel(&enemy_panel)?;
-        let battle_json = self.calculate_battle(&player_json, &enemy_json, None, None)?;
+        let battle_json = self.calculate_battle(
+            &player_json,
+            &enemy_json,
+            attacker_qi_output_rate,
+            defender_qi_output_rate,
+        )?;
         serde_json::from_str(&battle_json)
             .map_err(|e| format!("解析战斗结果失败: {}", e))
     }
@@ -1277,6 +1411,9 @@ fn empty_manuals() -> crate::game::ManualsState {
 }
 
 fn ensure_rng_state(save: &mut SaveGame) {
+    if save.created_at == 0 {
+        save.created_at = now_timestamp();
+    }
     if save.rng_state == 0 {
         save.rng_state = seed_from_time();
     }

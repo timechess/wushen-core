@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import type { AdventureEvent } from '@/types/event';
 import AdventureEventForm from '@/components/editor/AdventureEventForm';
 import RequireActivePack from '@/components/mod/RequireActivePack';
@@ -10,8 +10,8 @@ import { getAdventureEvent, saveAdventureEvent } from '@/lib/tauri/commands';
 
 export default function EditEventPage() {
   const router = useRouter();
-  const params = useParams();
-  const eventId = params?.id as string;
+  const searchParams = useSearchParams();
+  const eventId = searchParams.get('id') ?? '';
   const [event, setEvent] = useState<AdventureEvent | null>(null);
   const [loading, setLoading] = useState(false);
   const { activePack } = useActivePack();
@@ -19,6 +19,9 @@ export default function EditEventPage() {
   useEffect(() => {
     if (eventId) {
       loadEvent();
+    } else {
+      setEvent(null);
+      setLoading(false);
     }
   }, [activePack, eventId]);
 

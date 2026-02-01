@@ -1,5 +1,4 @@
 import React from 'react';
-import Button from './Button';
 
 interface ModalProps {
   isOpen: boolean;
@@ -7,6 +6,8 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  contentClassName?: string;
+  bodyClassName?: string;
 }
 
 export default function Modal({
@@ -15,6 +16,8 @@ export default function Modal({
   title,
   children,
   footer,
+  contentClassName = '',
+  bodyClassName = '',
 }: ModalProps) {
   if (!isOpen) return null;
 
@@ -28,7 +31,9 @@ export default function Modal({
       
       {/* Modal 内容容器 */}
       <div className="flex min-h-full items-center justify-center p-4 text-center sm:p-0">
-        <div className="relative inline-block w-full max-w-4xl transform overflow-hidden rounded-2xl bg-[var(--app-surface)] text-left align-bottom shadow-xl transition-all sm:my-8 sm:align-middle border border-[var(--app-border)]">
+        <div
+          className={`relative inline-block w-full max-w-4xl transform overflow-hidden rounded-2xl bg-[var(--app-surface)] text-left align-bottom shadow-xl transition-all sm:my-8 sm:align-middle border border-[var(--app-border)] ${contentClassName}`}
+        >
           {/* Modal 头部和内容 */}
           <div className="bg-[var(--app-surface)] px-4 pt-5 pb-4 sm:p-6">
             <div className="flex items-center justify-between mb-4">
@@ -44,7 +49,7 @@ export default function Modal({
               </button>
             </div>
             
-            <div className="mt-2 max-h-[60vh] overflow-y-auto">
+            <div className={`mt-2 max-h-[60vh] overflow-y-auto ${bodyClassName}`}>
               {children}
             </div>
           </div>

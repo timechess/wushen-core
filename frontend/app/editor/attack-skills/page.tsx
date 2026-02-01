@@ -42,7 +42,7 @@ export default function AttackSkillsEditorPage() {
   };
 
   const handleEdit = (id: string) => {
-    router.push(`/editor/attack-skills/${encodeURIComponent(id)}`);
+    router.push(`/editor/attack-skills/edit?id=${encodeURIComponent(id)}`);
   };
 
   const handleDelete = async (id: string) => {

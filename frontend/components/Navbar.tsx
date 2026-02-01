@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 export default function Navbar() {
@@ -41,25 +40,25 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <Link href="/" className="nav-brand">
+            <a href="/" className="nav-brand">
               武神·工坊
-            </Link>
+            </a>
             <span className="panel-kicker">WUSHEN CORE</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <Link href="/" className={linkClass('/')}>
+            <a href="/" className={linkClass('/')}>
               工作台
-            </Link>
+            </a>
 
             <div className="nav-divider hidden lg:block" />
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="nav-group-title">游戏</span>
               {gameItems.map((item) => (
-                <Link key={item.href} href={item.href} className={linkClass(item.href)}>
+                <a key={item.href} href={item.href} className={linkClass(item.href)}>
                   {item.label}
-                </Link>
+                </a>
               ))}
             </div>
 
@@ -73,9 +72,9 @@ export default function Navbar() {
                     {item.label}
                   </a>
                 ) : (
-                  <Link key={item.href} href={item.href} className={linkClass(item.href)}>
+                  <a key={item.href} href={item.href} className={linkClass(item.href)}>
                     {item.label}
-                  </Link>
+                  </a>
                 )
               )}
             </div>

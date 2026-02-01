@@ -8,6 +8,7 @@ export interface StorylineProgress {
 export interface SaveGame {
   id: string;
   name: string;
+  created_at?: number;
   current_character: Character;
   storyline_progress: StorylineProgress | null;
   active_adventure_id?: string | null;

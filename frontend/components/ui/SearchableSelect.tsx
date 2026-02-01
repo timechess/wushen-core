@@ -14,6 +14,8 @@ interface SearchableSelectProps {
   onChange: (value: string) => void;
   placeholder?: string;
   error?: string;
+  disabled?: boolean;
+  searchable?: boolean;
   className?: string;
 }
 
@@ -24,6 +26,8 @@ export default function SearchableSelect({
   onChange,
   placeholder = '搜索...',
   error,
+  disabled = false,
+  searchable = true,
   className = '',
 }: SearchableSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
@@ -38,9 +42,11 @@ export default function SearchableSelect({
   const displayValue = selectedOption ? selectedOption.label : '';
 
   // 过滤选项（前缀匹配，不区分大小写）
-  const filteredOptions = options.filter(option =>
-    option.label.toLowerCase().startsWith(searchTerm.toLowerCase())
-  );
+  const filteredOptions = searchable
+    ? options.filter(option =>
+        option.label.toLowerCase().startsWith(searchTerm.toLowerCase())
+      )
+    : options;
 
   // 点击外部关闭下拉列表
   useEffect(() => {
@@ -103,6 +109,7 @@ export default function SearchableSelect({
   }, [highlightedIndex]);
 
   const handleSelect = (selectedValue: string) => {
+    if (disabled) return;
     onChange(selectedValue);
     setIsOpen(false);
     setSearchTerm('');
@@ -111,6 +118,8 @@ export default function SearchableSelect({
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (disabled) return;
+    if (!searchable) return;
     const term = e.target.value;
     setSearchTerm(term);
     setHighlightedIndex(-1);
@@ -120,12 +129,16 @@ export default function SearchableSelect({
   };
 
   const handleInputFocus = () => {
+    if (disabled) return;
     setIsOpen(true);
     // 如果已经有选中值，清空搜索词以便重新搜索
-    if (value) {
+    if (searchable && value) {
       setSearchTerm('');
     }
   };
+
+  const inputValue = searchable ? (isOpen ? searchTerm : displayValue) : displayValue;
+  const inputPlaceholder = searchable ? placeholder : (displayValue ? '' : placeholder);
 
   return (
     <div className={`w-full relative ${className}`} ref={containerRef}>
@@ -138,20 +151,23 @@ export default function SearchableSelect({
         <input
           ref={inputRef}
           type="text"
-          value={isOpen ? searchTerm : displayValue}
+          value={inputValue}
           onChange={handleInputChange}
           onFocus={handleInputFocus}
-          placeholder={isOpen ? placeholder : (displayValue || placeholder)}
+          placeholder={inputPlaceholder}
+          disabled={disabled}
+          readOnly={!searchable}
           className={`
             w-full px-3 py-2 border rounded-lg bg-[var(--app-surface-soft)] text-[var(--app-ink)]
             focus:outline-none focus:ring-2 focus:ring-[var(--app-ring)] focus:border-[var(--app-accent)]
             ${error ? 'border-red-500' : 'border-[var(--app-border)]'}
             ${isOpen ? 'rounded-b-none' : ''}
+            disabled:opacity-60 disabled:cursor-not-allowed
           `}
         />
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
           <svg
-            className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
+            className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''} ${disabled ? 'opacity-60' : ''}`}
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -166,7 +182,7 @@ export default function SearchableSelect({
         </div>
       </div>
 
-      {isOpen && (
+      {isOpen && !disabled && (
         <div
           ref={listRef}
           className={`

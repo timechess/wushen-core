@@ -1,4 +1,3 @@
-import Link from "next/link";
 
 export default function Home() {
   return (
@@ -35,20 +34,20 @@ export default function Home() {
               选择模组包、创建角色、进入剧情线，专注于战斗与成长。
             </p>
             <div className="mt-5 space-y-3">
-              <Link
+              <a
                 href="/game"
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">开始/继续游戏</span>
                 <span className="text-sm">→</span>
-              </Link>
-              <Link
+              </a>
+              <a
                 href="/game/completed"
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">已完成角色</span>
                 <span className="text-sm">→</span>
-              </Link>
+              </a>
             </div>
           </section>
 
@@ -59,13 +58,13 @@ export default function Home() {
               管理模组包、编辑特性与功法、配置事件与剧情，打造属于你的江湖。
             </p>
             <div className="mt-5 grid grid-cols-1 gap-3">
-              <Link
+              <a
                 href="/mods"
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">模组包管理</span>
                 <span className="text-sm">→</span>
-              </Link>
+              </a>
               <a
                 href="/mods/order/"
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
@@ -73,20 +72,20 @@ export default function Home() {
                 <span className="font-medium">模组排序</span>
                 <span className="text-sm">→</span>
               </a>
-              <Link
+              <a
                 href="/editor"
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">内容编辑中心</span>
                 <span className="text-sm">→</span>
-              </Link>
-              <Link
+              </a>
+              <a
                 href="/editor/data"
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">导入 / 导出</span>
                 <span className="text-sm">→</span>
-              </Link>
+              </a>
             </div>
           </section>
         </div>
@@ -105,27 +104,27 @@ export default function Home() {
             <div className="space-y-2">
               <div className="text-sm font-medium text-gray-700">内容模块</div>
               <div className="grid grid-cols-1 gap-2">
-                <Link href="/editor/traits" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">特性</Link>
-                <Link href="/editor/internals" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">内功</Link>
-                <Link href="/editor/attack-skills" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">攻击武技</Link>
-                <Link href="/editor/defense-skills" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">防御武技</Link>
-                <Link href="/character" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">敌人</Link>
+                <a href="/editor/traits" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">特性</a>
+                <a href="/editor/internals" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">内功</a>
+                <a href="/editor/attack-skills" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">攻击武技</a>
+                <a href="/editor/defense-skills" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">防御武技</a>
+                <a href="/character" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">敌人</a>
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="text-sm font-medium text-gray-700">剧情模块</div>
               <div className="grid grid-cols-1 gap-2">
-                <Link href="/editor/events" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">奇遇事件</Link>
-                <Link href="/editor/storylines" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">剧情线</Link>
+                <a href="/editor/events" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">奇遇事件</a>
+                <a href="/editor/storylines" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">剧情线</a>
               </div>
             </div>
 
             <div className="space-y-2">
               <div className="text-sm font-medium text-gray-700">测试工具</div>
               <div className="grid grid-cols-1 gap-2">
-                <Link href="/battle" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">战斗模拟</Link>
-                <Link href="/cultivation" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">修行系统</Link>
+                <a href="/battle" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">战斗模拟</a>
+                <a href="/cultivation" className="rounded-lg border border-[var(--app-border)] px-4 py-2 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors">修行系统</a>
               </div>
             </div>
           </div>

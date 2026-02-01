@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@xyflow/react/dist/style.css";
 
 :root {
   --app-ink: #241c12;
@@ -31,6 +32,10 @@ body {
   color: var(--app-ink);
   font-family: var(--font-wushen-sans), "Noto Sans SC", system-ui, sans-serif;
   letter-spacing: 0.01em;
+}
+
+html {
+  font-size: clamp(15px, 1vw + 10px, 20px);
 }
 
 @layer base {
@@ -92,6 +97,7 @@ body {
   --app-alert-soft: rgba(215, 124, 58, 0.2);
   --app-shadow: 0 25px 65px rgba(0, 0, 0, 0.45);
   --app-ring: rgba(224, 176, 90, 0.4);
+  color-scheme: dark;
 }
 
 .app-shell.area-neutral {
@@ -291,6 +297,66 @@ body {
 .app-shell .bg-amber-100 {
   background-color: var(--app-alert-soft);
   background-color: color-mix(in oklab, var(--app-accent-strong) 25%, transparent);
+}
+
+.app-shell select {
+  background-color: var(--app-surface-soft);
+  color: var(--app-ink);
+  border-color: var(--app-border);
+  border-radius: 0.75rem;
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, var(--app-ink-muted) 50%),
+    linear-gradient(135deg, var(--app-ink-muted) 50%, transparent 50%);
+  background-position:
+    right 1.1rem center,
+    right 0.75rem center;
+  background-size: 8px 8px, 8px 8px;
+  background-repeat: no-repeat;
+  padding-right: 2.5rem;
+}
+
+.app-shell option {
+  background-color: var(--app-surface);
+  color: var(--app-ink);
+  padding: 0.45rem 0.75rem;
+  font-size: 0.95em;
+}
+
+.app-shell option:checked,
+.app-shell option:hover {
+  background-color: color-mix(in oklab, var(--app-accent) 18%, var(--app-surface));
+  color: var(--app-ink);
+}
+
+.storyline-flow .react-flow__attribution {
+  display: none;
+}
+
+.storyline-flow .react-flow__controls {
+  box-shadow: var(--app-shadow);
+  border-radius: 0.8rem;
+  overflow: hidden;
+}
+
+.storyline-flow .react-flow__controls-button {
+  background: var(--app-surface);
+  border-color: var(--app-border);
+  color: var(--app-ink);
+}
+
+.app-shell.area-game select {
+  background-color: var(--app-surface-soft) !important;
+  color: var(--app-ink) !important;
+  color-scheme: dark;
+  border-color: var(--app-border);
+  -webkit-text-fill-color: var(--app-ink);
+}
+
+.app-shell.area-game option {
+  background-color: var(--app-surface-muted) !important;
+  color: var(--app-ink) !important;
+  color-scheme: dark;
 }
 
 @keyframes titleReveal {

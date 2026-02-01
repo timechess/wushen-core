@@ -42,7 +42,7 @@ export default function EventsEditorPage() {
   };
 
   const handleEdit = (id: string) => {
-    router.push(`/editor/events/${encodeURIComponent(id)}`);
+    router.push(`/editor/events/edit?id=${encodeURIComponent(id)}`);
   };
 
   const handleDelete = async (id: string) => {

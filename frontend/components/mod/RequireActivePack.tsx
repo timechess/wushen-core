@@ -1,8 +1,6 @@
 'use client';
 
-import Link from 'next/link';
 import { ReactNode } from 'react';
-import Button from '@/components/ui/Button';
 import { useActivePack } from '@/lib/mods/active-pack';
 
 interface RequireActivePackProps {
@@ -27,9 +25,12 @@ export default function RequireActivePack({ children, title }: RequireActivePack
         <div className="bg-white rounded-xl shadow-lg p-8 max-w-md text-center">
           <h1 className="text-2xl font-bold text-gray-900 mb-2">需要先选择模组包</h1>
           <p className="text-gray-600 mb-6">{title ?? '创建内容前必须先选定一个模组包。'}</p>
-          <Button>
-            <Link href="/mods">前往模组包管理</Link>
-          </Button>
+          <a
+            href="/mods"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-[var(--app-ring)] bg-[var(--app-accent)] text-white hover:bg-[var(--app-accent-strong)] shadow-[0_12px_25px_rgba(0,0,0,0.15)] px-4 py-2 text-base"
+          >
+            前往模组包管理
+          </a>
         </div>
       </div>
     );
