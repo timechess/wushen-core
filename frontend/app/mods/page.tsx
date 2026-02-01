@@ -254,7 +254,7 @@ export default function ModPacksPage() {
         }
       >
         <div className="text-sm text-gray-600">
-          确定要删除模组包「{pendingDeletePack?.name ?? ''}」吗？此操作不会删除本地编译数据，但会移除该包记录。
+          确定要删除模组包「{pendingDeletePack?.name ?? ''}」吗？此操作会删除数据文件夹中的该模组包并移除记录。
         </div>
       </Modal>
 

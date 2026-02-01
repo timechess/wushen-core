@@ -550,12 +550,16 @@ pub fn create_pack(
 
 #[tauri::command]
 pub fn delete_pack(app: AppHandle, id: String) -> Result<(), String> {
+    let pack_dir = data_root(&app)?.join("packs").join(&id);
     let packs = read_packs(&app)?;
     let filtered: Vec<PackMetadata> = packs.into_iter().filter(|pack| pack.id != id).collect();
     write_packs(&app, &filtered)?;
     let order = read_pack_order(&app)?;
     let next_order: Vec<String> = order.into_iter().filter(|pack_id| pack_id != &id).collect();
     write_pack_order(&app, &next_order)?;
+    if pack_dir.exists() {
+        fs::remove_dir_all(&pack_dir).map_err(|e| e.to_string())?;
+    }
     Ok(())
 }
 
