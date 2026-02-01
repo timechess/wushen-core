@@ -11,6 +11,7 @@ use crate::effect::{
     executor::EntryExecutor,
     trigger::Trigger,
     condition::CultivationContext,
+    entry::Entry,
     effect::{Effect, AttributeTarget, Operation},
     formula::FormulaCalculator,
 };
@@ -107,7 +108,7 @@ impl ManualManager {
     /// 
     /// # 返回
     /// 获得的经验值
-    pub fn cultivate_internal(&self, panel: &mut CharacterPanel, executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
+    pub fn cultivate_internal(&self, panel: &mut CharacterPanel, mut executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
         // 检查是否装备了内功
         let id = panel.current_internal_id.as_ref()
             .ok_or_else(|| "角色未装备内功，无法修行".to_string())?
@@ -139,7 +140,7 @@ impl ManualManager {
         )?;
         
         // 触发特性词条并应用经验增益修改
-        if let Some(executor) = executor {
+        if let Some(executor) = executor.as_deref_mut() {
             // 创建修行上下文（先克隆需要的值）
             let internal_type = internal.manual.manual_type.clone();
             let traits = panel.traits.clone();
@@ -247,35 +248,49 @@ impl ManualManager {
         // 更新角色拥有的功法状态
         panel.set_internal_level_exp(id.clone(), new_level, new_exp);
         
-        // 如果等级提升了，更新内息上限和武学素养
+        // 如果等级提升了，触发升级词条并更新属性
         if new_level > current_level {
-            // 更新内息上限（累加所有已升级境界的qi_gain）
-            let mut total_qi_gain = 0.0;
-            for level in 1..=new_level {
-                if let Some(realm) = internal.realm_at_level(level) {
-                    total_qi_gain += realm.qi_gain;
-                }
-            }
-            panel.max_qi = total_qi_gain;
-            // 升级后当前内息量也要跟最大内息量保持一致
-            panel.qi = panel.max_qi;
-            
-            // 更新武学素养（累加新增等级的martial_arts_attainment）
-            // 注意：内功转修时会重新计算，所以这里应该累加新增部分
-            let mut new_martial_arts_attainment = 0.0;
             for level in (current_level + 1)..=new_level {
                 if let Some(realm) = internal.realm_at_level(level) {
-                    new_martial_arts_attainment += realm.martial_arts_attainment;
+                    let context = CultivationContext {
+                        internal_id: Some(id.clone()),
+                        internal_type: Some(internal.manual.manual_type.clone()),
+                        attack_skill_id: None,
+                        attack_skill_type: None,
+                        defense_skill_id: None,
+                        defense_skill_type: None,
+                        traits: panel.traits.clone(),
+                        comprehension: panel.three_d.comprehension as f64,
+                        bone_structure: panel.three_d.bone_structure as f64,
+                        physique: panel.three_d.physique as f64,
+                        martial_arts_attainment: panel.martial_arts_attainment,
+                    };
+                    
+                    let (qi_gain, martial_arts_gain) = self.apply_level_up_effects(
+                        panel,
+                        Trigger::InternalLevelUp,
+                        Some(realm.qi_gain),
+                        realm.martial_arts_attainment,
+                        executor.as_deref_mut(),
+                        &realm.entries,
+                        context,
+                    );
+                    
+                    if let Some(qi_gain) = qi_gain {
+                        panel.max_qi += qi_gain;
+                        panel.qi = panel.max_qi;
+                    }
+                    
+                    panel.martial_arts_attainment += martial_arts_gain;
                 }
             }
-            panel.martial_arts_attainment += new_martial_arts_attainment;
         }
         
         Ok(exp_gain)
     }
     
     /// 修行攻击武技
-    pub fn cultivate_attack_skill(&self, id: &str, panel: &mut CharacterPanel, executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
+    pub fn cultivate_attack_skill(&self, id: &str, panel: &mut CharacterPanel, mut executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
         // 检查角色是否拥有该攻击武技
         if !panel.has_attack_skill(id) {
             return Err(format!("角色未拥有攻击武技 {}", id));
@@ -302,7 +317,7 @@ impl ManualManager {
         )?;
         
         // 触发特性词条并应用经验增益修改
-        if let Some(executor) = executor {
+        if let Some(executor) = executor.as_deref_mut() {
             // 创建修行上下文
             let context = CultivationContext {
                 internal_id: None,
@@ -389,24 +404,44 @@ impl ManualManager {
         // 更新角色拥有的功法状态
         panel.set_attack_skill_level_exp(id.to_string(), new_level, new_exp);
         
-        // 如果等级提升了，更新武学素养（累加新增等级的martial_arts_attainment）
+        // 如果等级提升了，触发升级词条并更新武学素养
         if new_level > current_level {
-            let mut new_martial_arts_attainment = 0.0;
-            // 只累加新增等级的武学素养
             for level in (current_level + 1)..=new_level {
                 if let Some(realm) = skill.realm_at_level(level) {
-                    new_martial_arts_attainment += realm.martial_arts_attainment;
+                    let context = CultivationContext {
+                        internal_id: None,
+                        internal_type: None,
+                        attack_skill_id: Some(id.to_string()),
+                        attack_skill_type: Some(skill.manual.manual_type.clone()),
+                        defense_skill_id: None,
+                        defense_skill_type: None,
+                        traits: panel.traits.clone(),
+                        comprehension: panel.three_d.comprehension as f64,
+                        bone_structure: panel.three_d.bone_structure as f64,
+                        physique: panel.three_d.physique as f64,
+                        martial_arts_attainment: panel.martial_arts_attainment,
+                    };
+                    
+                    let (_qi_gain, martial_arts_gain) = self.apply_level_up_effects(
+                        panel,
+                        Trigger::AttackLevelUp,
+                        None,
+                        realm.martial_arts_attainment,
+                        executor.as_deref_mut(),
+                        &realm.entries,
+                        context,
+                    );
+                    
+                    panel.martial_arts_attainment += martial_arts_gain;
                 }
             }
-            // 累加到现有的武学素养上
-            panel.martial_arts_attainment += new_martial_arts_attainment;
         }
         
         Ok(exp_gain)
     }
     
     /// 修行防御武技
-    pub fn cultivate_defense_skill(&self, id: &str, panel: &mut CharacterPanel, executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
+    pub fn cultivate_defense_skill(&self, id: &str, panel: &mut CharacterPanel, mut executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
         // 检查角色是否拥有该防御武技
         if !panel.has_defense_skill(id) {
             return Err(format!("角色未拥有防御武技 {}", id));
@@ -433,7 +468,7 @@ impl ManualManager {
         )?;
         
         // 触发特性词条并应用经验增益修改
-        if let Some(executor) = executor {
+        if let Some(executor) = executor.as_deref_mut() {
             // 创建修行上下文
             let context = CultivationContext {
                 internal_id: None,
@@ -520,17 +555,37 @@ impl ManualManager {
         // 更新角色拥有的功法状态
         panel.set_defense_skill_level_exp(id.to_string(), new_level, new_exp);
         
-        // 如果等级提升了，更新武学素养（累加新增等级的martial_arts_attainment）
+        // 如果等级提升了，触发升级词条并更新武学素养
         if new_level > current_level {
-            let mut new_martial_arts_attainment = 0.0;
-            // 只累加新增等级的武学素养
             for level in (current_level + 1)..=new_level {
                 if let Some(realm) = skill.realm_at_level(level) {
-                    new_martial_arts_attainment += realm.martial_arts_attainment;
+                    let context = CultivationContext {
+                        internal_id: None,
+                        internal_type: None,
+                        attack_skill_id: None,
+                        attack_skill_type: None,
+                        defense_skill_id: Some(id.to_string()),
+                        defense_skill_type: Some(skill.manual.manual_type.clone()),
+                        traits: panel.traits.clone(),
+                        comprehension: panel.three_d.comprehension as f64,
+                        bone_structure: panel.three_d.bone_structure as f64,
+                        physique: panel.three_d.physique as f64,
+                        martial_arts_attainment: panel.martial_arts_attainment,
+                    };
+                    
+                    let (_qi_gain, martial_arts_gain) = self.apply_level_up_effects(
+                        panel,
+                        Trigger::DefenseLevelUp,
+                        None,
+                        realm.martial_arts_attainment,
+                        executor.as_deref_mut(),
+                        &realm.entries,
+                        context,
+                    );
+                    
+                    panel.martial_arts_attainment += martial_arts_gain;
                 }
             }
-            // 累加到现有的武学素养上
-            panel.martial_arts_attainment += new_martial_arts_attainment;
         }
         
         Ok(exp_gain)
@@ -897,6 +952,147 @@ impl ManualManager {
         panel.current_defense_skill_name = Some(skill.manual.name.clone());
         
         Ok(())
+    }
+
+    /// 应用升级时的词条效果（包含增益修改）
+    fn apply_level_up_effects(
+        &self,
+        panel: &mut CharacterPanel,
+        trigger: Trigger,
+        base_qi_gain: Option<f64>,
+        base_martial_arts_gain: f64,
+        mut executor: Option<&mut EntryExecutor>,
+        realm_entries: &[Entry],
+        context: CultivationContext,
+    ) -> (Option<f64>, f64) {
+        let mut effects = Vec::new();
+        
+        if let Some(exec) = executor.as_deref_mut() {
+            effects.extend(exec.trigger_cultivation(trigger, panel, &context));
+        }
+        
+        if !realm_entries.is_empty() {
+            let mut realm_executor = EntryExecutor::new();
+            realm_executor.add_entries(realm_entries.to_vec());
+            effects.extend(realm_executor.trigger_cultivation(trigger, panel, &context));
+        }
+        
+        let mut qi_gain = base_qi_gain.unwrap_or(0.0);
+        let mut martial_arts_gain = base_martial_arts_gain;
+        
+        if !effects.is_empty() {
+            let formula_context = crate::effect::formula::CultivationFormulaContext {
+                self_panel: panel.clone(),
+            };
+            
+            for effect in &effects {
+                match effect {
+                    Effect::ModifyPercentage {
+                        target: AttributeTarget::QiGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        if base_qi_gain.is_some() {
+                            let calculated_value = match value.as_formula() {
+                                Some(formula) => {
+                                    FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                                }
+                                None => value.as_fixed().unwrap_or(0.0),
+                            };
+                            match operation {
+                                Operation::Add => qi_gain *= 1.0 + calculated_value,
+                                Operation::Subtract => qi_gain *= 1.0 - calculated_value,
+                                Operation::Set => qi_gain = calculated_value,
+                                Operation::Multiply => qi_gain *= calculated_value,
+                            }
+                        }
+                    }
+                    Effect::ModifyAttribute {
+                        target: AttributeTarget::QiGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        if base_qi_gain.is_some() {
+                            let calculated_value = match value.as_formula() {
+                                Some(formula) => {
+                                    FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                                }
+                                None => value.as_fixed().unwrap_or(0.0),
+                            };
+                            match operation {
+                                Operation::Add => qi_gain += calculated_value,
+                                Operation::Subtract => qi_gain -= calculated_value,
+                                Operation::Set => qi_gain = calculated_value,
+                                Operation::Multiply => qi_gain *= calculated_value,
+                            }
+                        }
+                    }
+                    Effect::ModifyPercentage {
+                        target: AttributeTarget::MartialArtsAttainmentGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        let calculated_value = match value.as_formula() {
+                            Some(formula) => {
+                                FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                            }
+                            None => value.as_fixed().unwrap_or(0.0),
+                        };
+                        match operation {
+                            Operation::Add => martial_arts_gain *= 1.0 + calculated_value,
+                            Operation::Subtract => martial_arts_gain *= 1.0 - calculated_value,
+                            Operation::Set => martial_arts_gain = calculated_value,
+                            Operation::Multiply => martial_arts_gain *= calculated_value,
+                        }
+                    }
+                    Effect::ModifyAttribute {
+                        target: AttributeTarget::MartialArtsAttainmentGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
+                        let calculated_value = match value.as_formula() {
+                            Some(formula) => {
+                                FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                            }
+                            None => value.as_fixed().unwrap_or(0.0),
+                        };
+                        match operation {
+                            Operation::Add => martial_arts_gain += calculated_value,
+                            Operation::Subtract => martial_arts_gain -= calculated_value,
+                            Operation::Set => martial_arts_gain = calculated_value,
+                            Operation::Multiply => martial_arts_gain *= calculated_value,
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            
+            if let Some(exec) = executor.as_deref_mut() {
+                exec.apply_effects_cultivation(effects, panel, &context);
+            } else {
+                let exec = EntryExecutor::new();
+                exec.apply_effects_cultivation(effects, panel, &context);
+            }
+        }
+        
+        if qi_gain < 0.0 {
+            qi_gain = 0.0;
+        }
+        if martial_arts_gain < 0.0 {
+            martial_arts_gain = 0.0;
+        }
+        
+        let qi_gain = if base_qi_gain.is_some() {
+            Some(qi_gain)
+        } else {
+            None
+        };
+        
+        (qi_gain, martial_arts_gain)
     }
 
     /// 应用阅读功法的武学素养增益（包含词条修改）

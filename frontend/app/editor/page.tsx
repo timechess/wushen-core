@@ -9,6 +9,7 @@ const EDITOR_LINKS = [
   { href: '/editor/internals', label: '内功' },
   { href: '/editor/attack-skills', label: '攻击武技' },
   { href: '/editor/defense-skills', label: '防御武技' },
+  { href: '/character', label: '敌人' },
   { href: '/editor/events', label: '奇遇事件' },
   { href: '/editor/storylines', label: '剧情线' },
 ];

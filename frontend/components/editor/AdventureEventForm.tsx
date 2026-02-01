@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   AdventureEvent,
   AdventureEventContent,
@@ -9,13 +9,16 @@ import type {
   AdventureOutcome,
   EnemyTemplate,
 } from '@/types/event';
+import type { Enemy } from '@/types/enemy';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import ConditionEditor from '@/components/editor/ConditionEditor';
 import RewardEditor from '@/components/editor/RewardEditor';
-import EnemyEditor from '@/components/editor/EnemyEditor';
 import { generateUlid } from '@/lib/utils/ulid';
+import { useActivePack } from '@/lib/mods/active-pack';
+import { getEnemy, listEnemies } from '@/lib/tauri/commands';
 
 interface AdventureEventFormProps {
   initialEvent: AdventureEvent;
@@ -64,6 +67,7 @@ function defaultContent(type: AdventureEventContent['type']): AdventureEventCont
       return {
         type: 'battle',
         text: '',
+        enemy_id: '',
         enemy: defaultEnemy(),
         win: defaultOutcome(),
         lose: defaultOutcome(),
@@ -79,6 +83,7 @@ function defaultOptionResult(type: AdventureOptionResult['type']): AdventureOpti
     return {
       type: 'battle',
       text: '',
+      enemy_id: '',
       enemy: defaultEnemy(),
       win: defaultOutcome(),
       lose: defaultOutcome(),
@@ -108,6 +113,29 @@ export default function AdventureEventForm({
 }: AdventureEventFormProps) {
   const [event, setEvent] = useState<AdventureEvent>(initialEvent);
   const [loading, setLoading] = useState(false);
+  const [enemyOptions, setEnemyOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingEnemies, setLoadingEnemies] = useState(false);
+  const { activePack } = useActivePack();
+
+  useEffect(() => {
+    const loadEnemies = async () => {
+      if (!activePack) {
+        setEnemyOptions([]);
+        return;
+      }
+      try {
+        setLoadingEnemies(true);
+        const enemies = await listEnemies(activePack.id);
+        setEnemyOptions(enemies);
+      } catch (error) {
+        console.error('加载敌人列表失败:', error);
+        setEnemyOptions([]);
+      } finally {
+        setLoadingEnemies(false);
+      }
+    };
+    loadEnemies();
+  }, [activePack]);
 
   const handleContentTypeChange = (type: AdventureEventContent['type']) => {
     setEvent({
@@ -170,6 +198,57 @@ export default function AdventureEventForm({
     </div>
   );
 
+  const renderEnemyPicker = (
+    enemy: EnemyTemplate,
+    enemyId: string | undefined,
+    onSelect: (nextEnemy: EnemyTemplate, nextEnemyId: string) => void
+  ) => (
+    <div className="space-y-2">
+      <SearchableSelect
+        label="选择敌人"
+        value={enemyId ?? ''}
+        options={[
+          { value: '', label: '请选择敌人' },
+          ...enemyOptions.map((enemy) => ({ value: enemy.id, label: enemy.name })),
+        ]}
+        onChange={async (value) => {
+          if (!value) {
+            onSelect(defaultEnemy(), '');
+            return;
+          }
+          if (!activePack) {
+            alert('请先选择模组包');
+            return;
+          }
+          const enemyData = await getEnemy(activePack.id, value);
+          if (!enemyData) {
+            alert('敌人不存在');
+            return;
+          }
+          const { id: _id, ...rest } = enemyData as Enemy;
+          onSelect(rest, value);
+        }}
+        placeholder={loadingEnemies ? '加载中...' : '搜索敌人...'}
+      />
+      <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600">
+        <div className="font-medium text-gray-800">
+          当前敌人：{enemy.name || '未命名敌人'}
+        </div>
+        <div className="mt-1 grid grid-cols-3 gap-2">
+          <span>悟性 {enemy.three_d.comprehension}</span>
+          <span>根骨 {enemy.three_d.bone_structure}</span>
+          <span>体魄 {enemy.three_d.physique}</span>
+        </div>
+        <div className="mt-1 flex flex-wrap gap-2 text-gray-500">
+          <span>特性 {enemy.traits?.length ?? 0}</span>
+          <span>内功 {enemy.internal?.id ?? '无'}</span>
+          <span>攻击 {enemy.attack_skill?.id ?? '无'}</span>
+          <span>防御 {enemy.defense_skill?.id ?? '无'}</span>
+        </div>
+      </div>
+    </div>
+  );
+
   const renderBattleContent = (content: Extract<AdventureEventContent, { type: 'battle' }>) => (
     <div className="space-y-4">
       <Input
@@ -183,16 +262,13 @@ export default function AdventureEventForm({
         }
       />
       <div className="border border-gray-200 rounded-lg p-4">
-        <h4 className="text-sm font-semibold text-gray-700 mb-3">敌人配置</h4>
-        <EnemyEditor
-          enemy={content.enemy}
-          onChange={(enemy) =>
-            setEvent({
-              ...event,
-              content: { ...content, enemy },
-            })
-          }
-        />
+        <h4 className="text-sm font-semibold text-gray-700 mb-3">敌人选择</h4>
+        {renderEnemyPicker(content.enemy, content.enemy_id, (nextEnemy, nextEnemyId) =>
+          setEvent({
+            ...event,
+            content: { ...content, enemy: nextEnemy, enemy_id: nextEnemyId },
+          })
+        )}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {renderOutcome('胜利结果', content.win, (win) =>
@@ -237,10 +313,9 @@ export default function AdventureEventForm({
           value={result.text}
           onChange={(e) => onChange({ ...result, text: e.target.value })}
         />
-        <EnemyEditor
-          enemy={result.enemy}
-          onChange={(enemy) => onChange({ ...result, enemy })}
-        />
+        {renderEnemyPicker(result.enemy, result.enemy_id, (nextEnemy, nextEnemyId) =>
+          onChange({ ...result, enemy: nextEnemy, enemy_id: nextEnemyId })
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {renderOutcome('胜利结果', result.win, (win) => onChange({ ...result, win }))}
           {renderOutcome('失败结果', result.lose, (lose) => onChange({ ...result, lose }))}

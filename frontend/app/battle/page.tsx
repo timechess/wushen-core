@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Character } from '@/types/character';
 import { CharacterPanel } from '@/types/character';
 import { BattleResult, PanelDelta, BattlePanel } from '@/types/game';
 import { initCore, loadTraits, loadInternals, loadAttackSkills, loadDefenseSkills, calculateBattle } from '@/lib/tauri/wushen-core';
@@ -11,6 +10,7 @@ import Select from '@/components/ui/Select';
 import ActivePackStatus from '@/components/mod/ActivePackStatus';
 import RequireActivePack from '@/components/mod/RequireActivePack';
 import { useActivePack } from '@/lib/mods/active-pack';
+import type { Enemy } from '@/types/enemy';
 import {
   getAttackSkill,
   getDefenseSkill,
@@ -19,9 +19,9 @@ import {
   listAttackSkills,
   listDefenseSkills,
   listInternals,
-  listSaves,
+  listEnemies,
   listTraits,
-  loadSave,
+  getEnemy,
 } from '@/lib/tauri/commands';
 
 // 应用面板变化量
@@ -69,14 +69,14 @@ function applyPanelDelta(panel: BattlePanel, delta: PanelDelta, reverse: boolean
   }
 }
 
-// 角色面板显示组件
+// 敌人面板显示组件
 function CharacterPanelDisplay({ 
   character, 
   battlePanel,
   manualNameMap,
   traitNameMap
 }: { 
-  character: Character;
+  character: CharacterPanel;
   battlePanel?: import('@/types/game').BattlePanel;
   manualNameMap: Record<string, string>;
   traitNameMap: Record<string, string>;
@@ -217,11 +217,11 @@ export default function BattlePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [coreReady, setCoreReady] = useState(false);
-  const [characters, setCharacters] = useState<Array<{ id: string; name: string }>>([]);
+  const [enemies, setEnemies] = useState<Array<{ id: string; name: string }>>([]);
   const [attackerId, setAttackerId] = useState<string>('');
   const [defenderId, setDefenderId] = useState<string>('');
-  const [attacker, setAttacker] = useState<Character | null>(null);
-  const [defender, setDefender] = useState<Character | null>(null);
+  const [attacker, setAttacker] = useState<CharacterPanel | null>(null);
+  const [defender, setDefender] = useState<CharacterPanel | null>(null);
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
   const [battling, setBattling] = useState(false);
   const [manualNameMap, setManualNameMap] = useState<Record<string, string>>({});
@@ -239,7 +239,12 @@ export default function BattlePage() {
 
   useEffect(() => {
     if (!activePack) {
-      setCharacters([]);
+      setEnemies([]);
+      setAttackerId('');
+      setDefenderId('');
+      setAttacker(null);
+      setDefender(null);
+      setBattleResult(null);
       setManualNameMap({});
       setTraitNameMap({});
       setCoreReady(false);
@@ -482,21 +487,21 @@ export default function BattlePage() {
         return;
       }
 
-      // 加载角色列表
-      console.log('加载角色列表...');
+      // 加载敌人列表
+      console.log('加载敌人列表...');
       try {
-        const saves = await listSaves();
+        const enemyList = await listEnemies(packId);
 
         // 检查是否已取消
         if (isCancelled()) {
-          console.log('初始化已取消（角色列表加载后）');
+          console.log('初始化已取消（敌人列表加载后）');
           return;
         }
 
-        setCharacters(saves);
-        console.log('角色列表加载完成:', saves.length);
+        setEnemies(enemyList);
+        console.log('敌人列表加载完成:', enemyList.length);
       } catch (err) {
-        console.error('加载角色列表失败:', err);
+        console.error('加载敌人列表失败:', err);
       }
 
       // 最后检查是否已取消
@@ -518,18 +523,38 @@ export default function BattlePage() {
     }
   };
 
-  const convertCharacterToPanel = (character: Character): CharacterPanel => {
+  const convertEnemyToPanel = (enemy: Enemy): CharacterPanel => {
+    const internalOwned = enemy.internal ? [enemy.internal] : [];
+    const attackOwned = enemy.attack_skill ? [enemy.attack_skill] : [];
+    const defenseOwned = enemy.defense_skill ? [enemy.defense_skill] : [];
+
     return {
-      name: character.name,
-      three_d: character.three_d,
-      traits: character.traits,
-      internals: character.internals,
-      attack_skills: character.attack_skills,
-      defense_skills: character.defense_skills,
+      name: enemy.name,
+      three_d: enemy.three_d,
+      traits: enemy.traits ?? [],
+      internals: {
+        owned: internalOwned,
+        equipped: enemy.internal?.id ?? null,
+      },
+      attack_skills: {
+        owned: attackOwned,
+        equipped: enemy.attack_skill?.id ?? null,
+      },
+      defense_skills: {
+        owned: defenseOwned,
+        equipped: enemy.defense_skill?.id ?? null,
+      },
+      max_qi: enemy.max_qi ?? undefined,
+      qi: enemy.qi ?? undefined,
+      martial_arts_attainment: enemy.martial_arts_attainment ?? undefined,
     };
   };
 
   const handleBattle = async () => {
+    if (!activePack) {
+      alert('请先选择模组包');
+      return;
+    }
     if (!attackerId || !defenderId) {
       alert('请选择攻击者和防御者');
       return;
@@ -546,23 +571,22 @@ export default function BattlePage() {
       setDisplayedRecords([]);
       setIsDisplaying(false);
       
-      // 加载两个角色
+      // 加载两个敌人
       const [attackerData, defenderData] = await Promise.all([
-        loadSave(attackerId),
-        loadSave(defenderId),
+        getEnemy(activePack.id, attackerId),
+        getEnemy(activePack.id, defenderId),
       ]);
 
       if (!attackerData || !defenderData) {
-        throw new Error('加载角色失败');
+        throw new Error('加载敌人失败');
       }
 
-      // 保存完整角色信息
-      setAttacker(attackerData);
-      setDefender(defenderData);
+      const attackerPanelInput = convertEnemyToPanel(attackerData);
+      const defenderPanelInput = convertEnemyToPanel(defenderData);
 
-      // 转换为CharacterPanel
-      const attackerPanelInput = convertCharacterToPanel(attackerData);
-      const defenderPanelInput = convertCharacterToPanel(defenderData);
+      // 保存敌人面板信息
+      setAttacker(attackerPanelInput);
+      setDefender(defenderPanelInput);
 
       // 执行战斗（传入内息输出参数）
       const result = await calculateBattle(
@@ -687,9 +711,9 @@ export default function BattlePage() {
       <ActivePackStatus message="战斗模拟将使用当前可用的模组数据。" />
 
       <div className="space-y-6">
-        {/* 角色选择 */}
+        {/* 敌人选择 */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">选择角色</h2>
+          <h2 className="text-xl font-semibold mb-4">选择敌人</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -698,7 +722,7 @@ export default function BattlePage() {
               <Select
                 options={[
                   { value: '', label: '请选择...' },
-                  ...characters.map((c) => ({ value: c.id, label: c.name })),
+                  ...enemies.map((c) => ({ value: c.id, label: c.name })),
                 ]}
                 value={attackerId}
                 onChange={(e) => setAttackerId(e.target.value)}
@@ -729,7 +753,7 @@ export default function BattlePage() {
               <Select
                 options={[
                   { value: '', label: '请选择...' },
-                  ...characters.map((c) => ({ value: c.id, label: c.name })),
+                  ...enemies.map((c) => ({ value: c.id, label: c.name })),
                 ]}
                 value={defenderId}
                 onChange={(e) => setDefenderId(e.target.value)}

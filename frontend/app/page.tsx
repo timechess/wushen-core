@@ -39,6 +39,7 @@ export default function Home() {
               <Link href="/editor/internals" className="rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">内功</Link>
               <Link href="/editor/attack-skills" className="rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">攻击武技</Link>
               <Link href="/editor/defense-skills" className="rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">防御武技</Link>
+              <Link href="/character" className="rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">敌人</Link>
               <Link href="/editor/events" className="rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">奇遇事件</Link>
               <Link href="/editor/storylines" className="rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">剧情线</Link>
             </div>
@@ -56,7 +57,7 @@ export default function Home() {
                 <span className="text-sm">→</span>
               </Link>
               <Link href="/character" className="flex items-center justify-between rounded-lg border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 transition-colors">
-                <span className="font-medium">角色管理</span>
+                <span className="font-medium">敌人管理</span>
                 <span className="text-sm">→</span>
               </Link>
             </div>

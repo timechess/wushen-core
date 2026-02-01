@@ -5,6 +5,7 @@ import type { Trait } from '@/types/trait';
 import type { Internal, AttackSkill, DefenseSkill } from '@/types/manual';
 import type { AdventureEvent, Storyline } from '@/types/event';
 import type { Character } from '@/types/character';
+import type { Enemy } from '@/types/enemy';
 
 export type NamedItem = { id: string; name: string };
 
@@ -115,6 +116,22 @@ export async function saveDefenseSkill(packId: string, payload: DefenseSkill): P
 
 export async function deleteDefenseSkill(packId: string, id: string): Promise<void> {
   await invoke('delete_defense_skill', { packId, id });
+}
+
+export async function listEnemies(packId: string): Promise<NamedItem[]> {
+  return invoke('list_enemies', { packId });
+}
+
+export async function getEnemy(packId: string, id: string): Promise<Enemy | null> {
+  return invoke('get_enemy', { packId, id });
+}
+
+export async function saveEnemy(packId: string, payload: Enemy): Promise<string> {
+  return invoke('save_enemy', { packId, payload });
+}
+
+export async function deleteEnemy(packId: string, id: string): Promise<void> {
+  await invoke('delete_enemy', { packId, id });
 }
 
 export async function listAdventureEvents(packId: string): Promise<NamedItem[]> {

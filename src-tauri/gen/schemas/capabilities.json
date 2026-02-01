@@ -1,0 +1,1 @@
+{"main-dialogs":{"identifier":"main-dialogs","description":"Allow the main window to open/save files via the dialog plugin.","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","dialog:allow-save"]}}

@@ -3,17 +3,18 @@ use serde_json::Value;
 use std::fs;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 use time::format_description::well_known::Rfc3339;
 use time::OffsetDateTime;
 use ulid::Ulid;
 use zip::write::FileOptions;
 
-const PACK_FILES: [(&str, &str); 6] = [
+const PACK_FILES: [(&str, &str); 7] = [
     ("traits.json", "traits"),
     ("internals.json", "internals"),
     ("attack_skills.json", "attack_skills"),
     ("defense_skills.json", "defense_skills"),
+    ("enemies.json", "enemies"),
     ("adventures.json", "adventures"),
     ("storylines.json", "storylines"),
 ];
@@ -79,7 +80,7 @@ fn ensure_pack_files(app: &AppHandle, pack_id: &str) -> Result<(), String> {
     for (file, key) in PACK_FILES.iter() {
         let file_path = dir.join(file);
         if !file_path.exists() {
-            let payload = serde_json::json!({ key: [] as [Value; 0] });
+            let payload = serde_json::json!({ (*key): [] });
             fs::write(&file_path, serde_json::to_string_pretty(&payload).unwrap())
                 .map_err(|e| e.to_string())?;
         }
@@ -102,7 +103,7 @@ fn read_json<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<Option<T>, Str
     Ok(Some(data))
 }
 
-fn write_json<T: Serialize>(path: &Path, data: &T) -> Result<(), String> {
+fn write_json<T: Serialize + ?Sized>(path: &Path, data: &T) -> Result<(), String> {
     let content = serde_json::to_string_pretty(data).map_err(|e| e.to_string())?;
     fs::write(path, content).map_err(|e| e.to_string())
 }
@@ -167,7 +168,7 @@ fn read_collection(app: &AppHandle, pack_id: &str, file: &str, key: &str) -> Res
 
 fn write_collection(app: &AppHandle, pack_id: &str, file: &str, key: &str, items: &[Value]) -> Result<(), String> {
     let path = pack_dir(app, pack_id)?.join(file);
-    let payload = serde_json::json!({ key: items });
+    let payload = serde_json::json!({ (key): items });
     let content = serde_json::to_string_pretty(&payload).map_err(|e| e.to_string())?;
     fs::write(path, content).map_err(|e| e.to_string())
 }
@@ -323,27 +324,41 @@ pub fn export_pack_zip(app: AppHandle, pack_id: String, dest_path: String) -> Re
     let manifest_path = pack_dir.join("metadata.toml");
     let mut files: Vec<String> = PACK_FILES.iter().map(|(file, _)| file.to_string()).collect();
 
-    let manifest_toml = if manifest_path.exists() {
+    let mut manifest = if manifest_path.exists() {
         let raw = fs::read_to_string(&manifest_path).map_err(|e| e.to_string())?;
-        if let Ok(parsed) = toml::from_str::<PackManifest>(&raw) {
-            if let Some(list) = parsed.files.clone() {
-                if !list.is_empty() {
-                    files = list;
-                }
-            }
-        }
-        raw
-    } else {
-        let manifest = PackManifest {
+        toml::from_str::<PackManifest>(&raw).unwrap_or(PackManifest {
             id: pack.id.clone(),
             name: pack.name.clone(),
             version: pack.version.clone(),
             author: pack.author.clone(),
             description: pack.description.clone(),
-            files: Some(files.clone()),
-        };
-        toml::to_string(&manifest).map_err(|e| e.to_string())?
+            files: None,
+        })
+    } else {
+        PackManifest {
+            id: pack.id.clone(),
+            name: pack.name.clone(),
+            version: pack.version.clone(),
+            author: pack.author.clone(),
+            description: pack.description.clone(),
+            files: None,
+        }
     };
+
+    if let Some(list) = manifest.files.clone() {
+        if !list.is_empty() {
+            files = list;
+        }
+    }
+
+    for (file, _) in PACK_FILES.iter() {
+        if !files.contains(&file.to_string()) {
+            files.push(file.to_string());
+        }
+    }
+
+    manifest.files = Some(files.clone());
+    let manifest_toml = toml::to_string(&manifest).map_err(|e| e.to_string())?;
 
     let zip_file = fs::File::create(dest_path).map_err(|e| e.to_string())?;
     let mut writer = zip::ZipWriter::new(zip_file);
@@ -370,9 +385,11 @@ pub fn import_pack_zip(app: AppHandle, zip_path: String) -> Result<PackMetadata,
     let file = fs::File::open(&zip_path).map_err(|e| e.to_string())?;
     let mut archive = zip::ZipArchive::new(file).map_err(|e| e.to_string())?;
 
-    let mut manifest_file = archive.by_name("metadata.toml").map_err(|_| "缺少 metadata.toml".to_string())?;
     let mut manifest_str = String::new();
-    manifest_file.read_to_string(&mut manifest_str).map_err(|e| e.to_string())?;
+    {
+        let mut manifest_file = archive.by_name("metadata.toml").map_err(|_| "缺少 metadata.toml".to_string())?;
+        manifest_file.read_to_string(&mut manifest_str).map_err(|e| e.to_string())?;
+    }
     let manifest: PackManifest = toml::from_str(&manifest_str).map_err(|e| e.to_string())?;
 
     let pack_id = manifest.id.clone();
@@ -450,6 +467,7 @@ define_entity_commands!(list_traits, get_trait, save_trait, delete_trait, "trait
 define_entity_commands!(list_internals, get_internal, save_internal, delete_internal, "internals.json", "internals");
 define_entity_commands!(list_attack_skills, get_attack_skill, save_attack_skill, delete_attack_skill, "attack_skills.json", "attack_skills");
 define_entity_commands!(list_defense_skills, get_defense_skill, save_defense_skill, delete_defense_skill, "defense_skills.json", "defense_skills");
+define_entity_commands!(list_enemies, get_enemy, save_enemy, delete_enemy, "enemies.json", "enemies");
 define_entity_commands!(list_adventure_events, get_adventure_event, save_adventure_event, delete_adventure_event, "adventures.json", "adventures");
 define_entity_commands!(list_storylines, get_storyline, save_storyline, delete_storyline, "storylines.json", "storylines");
 

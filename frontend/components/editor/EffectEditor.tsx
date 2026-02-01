@@ -119,17 +119,21 @@ export default function EffectEditor({
     );
   }, [allowedTargets]);
 
+  const isModifyEffect = effect.type === 'modify_attribute' || effect.type === 'modify_percentage';
+
   const effectTypeLabel =
     effect.type === 'modify_attribute'
       ? '修改数值'
-      : '额外攻击';
+      : effect.type === 'modify_percentage'
+        ? '修改百分比'
+        : '额外攻击';
 
   const handleTypeChange = (type: Effect['type']) => {
-    if (type === 'modify_attribute') {
+    if (type === 'modify_attribute' || type === 'modify_percentage') {
       // 使用第一个允许的目标作为默认值
       const defaultTarget = allowedTargets[0] || 'hp';
       onChange({
-        type: 'modify_attribute',
+        type,
         target: defaultTarget as AttributeTarget,
         value: 0,
         operation: 'add',
@@ -162,7 +166,7 @@ export default function EffectEditor({
   const handleValueChange = (value: string) => {
     // 如果为空字符串，设置为 0（避免无效值）
     if (value.trim() === '') {
-      if (effect.type === 'modify_attribute') {
+      if (isModifyEffect) {
         onChange({ ...effect, value: 0 });
       } else {
         onChange({ ...effect, output: '0' });
@@ -181,7 +185,7 @@ export default function EffectEditor({
     
     const newValue: number | string = isCompleteNumber ? numValue : trimmedValue;
     
-    if (effect.type === 'modify_attribute') {
+    if (isModifyEffect) {
       onChange({ ...effect, value: newValue });
     } else {
       onChange({ ...effect, output: trimmedValue });
@@ -192,16 +196,17 @@ export default function EffectEditor({
     if (effect.type === 'extra_attack') {
       return effect.output || '';
     }
-    if (typeof effect.value === 'number') {
+    if (isModifyEffect && typeof effect.value === 'number') {
       // 确保数字正确显示，包括小数
       return effect.value.toString();
     }
-    return effect.value || '';
+    return isModifyEffect ? (effect.value || '') : '';
   };
 
   const getTypeColor = () => {
     switch (effect.type) {
       case 'modify_attribute':
+      case 'modify_percentage':
         return 'bg-blue-50 border-blue-200';
       case 'extra_attack':
         return 'bg-red-50 border-red-200';
@@ -249,13 +254,14 @@ export default function EffectEditor({
             label="效果类型"
             options={[
               { value: 'modify_attribute', label: '修改数值' },
+              { value: 'modify_percentage', label: '修改百分比' },
               ...(allowsExtraAttackEffect ? [{ value: 'extra_attack', label: '额外攻击' }] : []),
             ]}
             value={effect.type}
             onChange={(e) => handleTypeChange(e.target.value as Effect['type'])}
           />
 
-          {effect.type === 'modify_attribute' && (
+          {isModifyEffect && (
             <>
               <Select
                 label="目标属性"

@@ -3,40 +3,48 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
-import { deleteSave, listSaves } from '@/lib/tauri/commands';
+import ActivePackStatus from '@/components/mod/ActivePackStatus';
+import { useActivePack } from '@/lib/mods/active-pack';
+import { deleteEnemy, listEnemies } from '@/lib/tauri/commands';
+import type { EnemyListItem } from '@/types/enemy';
 
-interface SaveInfo {
-  id: string;
-  name: string;
-}
-
-export default function CharacterListPage() {
-  const [saves, setSaves] = useState<SaveInfo[]>([]);
+export default function EnemyListPage() {
+  const [enemies, setEnemies] = useState<EnemyListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { activePack } = useActivePack();
+  const canEdit = Boolean(activePack);
 
   useEffect(() => {
-    loadSaves();
-  }, []);
+    if (activePack) {
+      loadEnemies();
+    } else {
+      setEnemies([]);
+      setLoading(false);
+    }
+  }, [activePack]);
 
-  const loadSaves = async () => {
+  const loadEnemies = async () => {
     try {
-      const data = await listSaves();
-      setSaves(data);
+      setLoading(true);
+      if (!activePack) return;
+      const data = await listEnemies(activePack.id);
+      setEnemies(data);
     } catch (error) {
-      console.error('加载存档列表失败:', error);
+      console.error('加载敌人列表失败:', error);
     } finally {
       setLoading(false);
     }
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('确定要删除这个角色吗？')) return;
+    if (!confirm('确定要删除这个敌人吗？')) return;
 
     try {
-      await deleteSave(id);
-      loadSaves();
+      if (!activePack) return;
+      await deleteEnemy(activePack.id, id);
+      loadEnemies();
     } catch (error) {
-      console.error('删除存档失败:', error);
+      console.error('删除敌人失败:', error);
       alert('删除失败');
     }
   };
@@ -52,16 +60,18 @@ export default function CharacterListPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">角色管理</h1>
+        <h1 className="text-3xl font-bold">敌人管理</h1>
         <Link href="/character/new">
-          <Button>新建角色</Button>
+          <Button disabled={!canEdit}>新建敌人</Button>
         </Link>
       </div>
 
+      <ActivePackStatus message={canEdit ? '编辑内容将写入当前模组包。' : '请选择模组包后再进行编辑。'} />
+
       <div className="bg-white rounded-lg shadow overflow-hidden">
-        {saves.length === 0 ? (
+        {enemies.length === 0 ? (
           <div className="p-8 text-center text-gray-500">
-            还没有创建任何角色
+            还没有创建任何敌人
           </div>
         ) : (
           <table className="min-w-full divide-y divide-gray-200">
@@ -76,21 +86,22 @@ export default function CharacterListPage() {
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {saves.map((save) => (
-                <tr key={save.id}>
+              {enemies.map((enemy) => (
+                <tr key={enemy.id}>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    {save.name}
+                    {enemy.name}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <Link href={`/character/${save.id}`}>
-                      <Button variant="secondary" size="sm" className="mr-2">
+                    <Link href={`/character/${enemy.id}`}>
+                      <Button variant="secondary" size="sm" className="mr-2" disabled={!canEdit}>
                         编辑
                       </Button>
                     </Link>
                     <Button
                       variant="danger"
                       size="sm"
-                      onClick={() => handleDelete(save.id)}
+                      onClick={() => handleDelete(enemy.id)}
+                      disabled={!canEdit}
                     >
                       删除
                     </Button>

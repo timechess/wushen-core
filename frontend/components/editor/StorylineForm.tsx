@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type {
   Storyline,
   StoryEvent,
@@ -9,13 +9,16 @@ import type {
   StoryBattleBranch,
   EnemyTemplate,
 } from '@/types/event';
+import type { Enemy } from '@/types/enemy';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
+import SearchableSelect from '@/components/ui/SearchableSelect';
 import ConditionEditor from '@/components/editor/ConditionEditor';
 import RewardEditor from '@/components/editor/RewardEditor';
-import EnemyEditor from '@/components/editor/EnemyEditor';
 import { generateUlid } from '@/lib/utils/ulid';
+import { useActivePack } from '@/lib/mods/active-pack';
+import { getEnemy, listEnemies } from '@/lib/tauri/commands';
 
 interface StorylineFormProps {
   initialStoryline: Storyline;
@@ -66,6 +69,7 @@ function defaultContent(type: StoryEventContent['type']): StoryEventContent {
       return {
         type: 'battle',
         text: '',
+        enemy_id: '',
         enemy: defaultEnemy(),
         win: defaultBranch(),
         lose: defaultBranch(),
@@ -105,11 +109,34 @@ export default function StorylineForm({
 }: StorylineFormProps) {
   const [storyline, setStoryline] = useState<Storyline>(initialStoryline);
   const [loading, setLoading] = useState(false);
+  const [enemyOptions, setEnemyOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingEnemies, setLoadingEnemies] = useState(false);
+  const { activePack } = useActivePack();
   const eventOptions = storyline.events.map((event, index) => ({
     value: event.id,
     label: event.name ? event.name : `未命名事件 ${index + 1}`,
   }));
   const nextEventOptions = [{ value: '', label: '无 / 结束' }, ...eventOptions];
+
+  useEffect(() => {
+    const loadEnemies = async () => {
+      if (!activePack) {
+        setEnemyOptions([]);
+        return;
+      }
+      try {
+        setLoadingEnemies(true);
+        const enemies = await listEnemies(activePack.id);
+        setEnemyOptions(enemies);
+      } catch (error) {
+        console.error('加载敌人列表失败:', error);
+        setEnemyOptions([]);
+      } finally {
+        setLoadingEnemies(false);
+      }
+    };
+    loadEnemies();
+  }, [activePack]);
 
   const handleEventChange = (index: number, next: StoryEvent) => {
     const updated = storyline.events.map((evt, i) => (i === index ? next : evt));
@@ -268,10 +295,50 @@ export default function StorylineForm({
               value={content.text}
               onChange={(e) => onChange({ ...content, text: e.target.value })}
             />
-            <EnemyEditor
-              enemy={content.enemy}
-              onChange={(enemy) => onChange({ ...content, enemy })}
-            />
+            <div className="space-y-2">
+              <SearchableSelect
+                label="选择敌人"
+                value={content.enemy_id ?? ''}
+                options={[
+                  { value: '', label: '请选择敌人' },
+                  ...enemyOptions.map((enemy) => ({ value: enemy.id, label: enemy.name })),
+                ]}
+                onChange={async (value) => {
+                  if (!value) {
+                    onChange({ ...content, enemy_id: '', enemy: defaultEnemy() });
+                    return;
+                  }
+                  if (!activePack) {
+                    alert('请先选择模组包');
+                    return;
+                  }
+                  const enemy = await getEnemy(activePack.id, value);
+                  if (!enemy) {
+                    alert('敌人不存在');
+                    return;
+                  }
+                  const { id: _id, ...rest } = enemy as Enemy;
+                  onChange({ ...content, enemy_id: value, enemy: rest });
+                }}
+                placeholder={loadingEnemies ? '加载中...' : '搜索敌人...'}
+              />
+              <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600">
+                <div className="font-medium text-gray-800">
+                  当前敌人：{content.enemy.name || '未命名敌人'}
+                </div>
+                <div className="mt-1 grid grid-cols-3 gap-2">
+                  <span>悟性 {content.enemy.three_d.comprehension}</span>
+                  <span>根骨 {content.enemy.three_d.bone_structure}</span>
+                  <span>体魄 {content.enemy.three_d.physique}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2 text-gray-500">
+                  <span>特性 {content.enemy.traits?.length ?? 0}</span>
+                  <span>内功 {content.enemy.internal?.id ?? '无'}</span>
+                  <span>攻击 {content.enemy.attack_skill?.id ?? '无'}</span>
+                  <span>防御 {content.enemy.defense_skill?.id ?? '无'}</span>
+                </div>
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {renderBranch('胜利分支', content.win, (win) => onChange({ ...content, win }))}
               {renderBranch('失败分支', content.lose, (lose) => onChange({ ...content, lose }))}

@@ -15,7 +15,7 @@ impl Default for CoreState {
     }
 }
 
-fn lock_core(state: &State<CoreState>) -> Result<std::sync::MutexGuard<'_, WushenCore>, String> {
+fn lock_core<'a>(state: &'a State<'a, CoreState>) -> Result<std::sync::MutexGuard<'a, WushenCore>, String> {
     state
         .core
         .lock()

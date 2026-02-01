@@ -159,6 +159,17 @@ export interface EffectModifyAttribute {
   battle_record_template?: BattleRecordTemplate;
 }
 
+export interface EffectModifyPercentage {
+  type: 'modify_percentage';
+  target: AttributeTarget;
+  value: FormulaValue;
+  operation: Operation;
+  target_panel?: PanelTarget; // 目标面板（可选，默认为自身）
+  can_exceed_limit?: boolean;
+  is_temporary?: boolean;
+  battle_record_template?: BattleRecordTemplate;
+}
+
 export interface EffectExtraAttack {
   type: 'extra_attack';
   output: string;
@@ -167,6 +178,7 @@ export interface EffectExtraAttack {
 
 export type Effect =
   | EffectModifyAttribute
+  | EffectModifyPercentage
   | EffectExtraAttack;
 
 export interface TraitListItem {

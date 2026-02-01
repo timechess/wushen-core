@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Character } from '@/types/character';
-import { CharacterPanel } from '@/types/character';
+import { CharacterPanel, OwnedManual } from '@/types/character';
 import { CultivationResult } from '@/types/game';
 import { ManualType, ManualListItem } from '@/types/manual';
+import { TraitListItem } from '@/types/trait';
 import { initCore, loadTraits, loadInternals, loadAttackSkills, loadDefenseSkills, executeCultivation } from '@/lib/tauri/wushen-core';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
@@ -21,51 +21,88 @@ import {
   listAttackSkills,
   listDefenseSkills,
   listInternals,
-  listSaves,
   listTraits,
-  loadSave,
-  saveCharacter,
 } from '@/lib/tauri/commands';
 
 export default function CultivationPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [coreReady, setCoreReady] = useState(false);
-  const [characters, setCharacters] = useState<Array<{ id: string; name: string }>>([]);
-  const [selectedCharacterId, setSelectedCharacterId] = useState<string>('');
-  const [selectedCharacter, setSelectedCharacter] = useState<Character | null>(null);
+  const [traits, setTraits] = useState<TraitListItem[]>([]);
+  const [internals, setInternals] = useState<ManualListItem[]>([]);
+  const [attackSkills, setAttackSkills] = useState<ManualListItem[]>([]);
+  const [defenseSkills, setDefenseSkills] = useState<ManualListItem[]>([]);
+  const [selectKeys, setSelectKeys] = useState({
+    internal: 0,
+    attack_skill: 0,
+    defense_skill: 0,
+  });
+  const [tempCharacter, setTempCharacter] = useState<CharacterPanel>({
+    name: '临时角色',
+    three_d: {
+      comprehension: 10,
+      bone_structure: 10,
+      physique: 10,
+    },
+    traits: [],
+    internals: {
+      owned: [],
+      equipped: null,
+    },
+    attack_skills: {
+      owned: [],
+      equipped: null,
+    },
+    defense_skills: {
+      owned: [],
+      equipped: null,
+    },
+    max_qi: undefined,
+    qi: undefined,
+    martial_arts_attainment: undefined,
+  });
   const [manualType, setManualType] = useState<ManualType>('internal');
   const [availableManuals, setAvailableManuals] = useState<ManualListItem[]>([]);
   const [selectedManualId, setSelectedManualId] = useState<string>('');
   const [cultivationResult, setCultivationResult] = useState<CultivationResult | null>(null);
   const [cultivating, setCultivating] = useState(false);
-  const [manualNameMap, setManualNameMap] = useState<Record<string, string>>({});
-  const [traitNameMap, setTraitNameMap] = useState<Record<string, string>>({});
   const { activePack } = useActivePack();
 
   useEffect(() => {
     if (activePack) {
       initialize(activePack.id);
     } else {
-      setCharacters([]);
-      setTraitNameMap({});
-      setManualNameMap({});
+      setTraits([]);
+      setInternals([]);
+      setAttackSkills([]);
+      setDefenseSkills([]);
       setCoreReady(false);
       setLoading(false);
     }
   }, [activePack]);
 
   useEffect(() => {
-    if (selectedCharacterId) {
-      loadCharacter();
-    }
-  }, [selectedCharacterId]);
+    const field = `${manualType}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const ownedIds = new Set(tempCharacter[field].owned.map((m) => m.id));
+    const source =
+      manualType === 'internal'
+        ? internals
+        : manualType === 'attack_skill'
+        ? attackSkills
+        : defenseSkills;
 
-  useEffect(() => {
-    if (selectedCharacter) {
-      loadAvailableManuals();
+    const ownedManuals = source.filter((m) => ownedIds.has(m.id));
+    setAvailableManuals(ownedManuals);
+
+    const equippedId = tempCharacter[field].equipped;
+    if (equippedId && ownedIds.has(equippedId)) {
+      setSelectedManualId(equippedId);
+    } else if (ownedManuals.length > 0) {
+      setSelectedManualId(ownedManuals[0].id);
+    } else {
+      setSelectedManualId('');
     }
-  }, [selectedCharacter, manualType, activePack]);
+  }, [tempCharacter, manualType, internals, attackSkills, defenseSkills]);
 
   const initialize = async (packId: string) => {
     try {
@@ -82,18 +119,10 @@ export default function CultivationPage() {
         listDefenseSkills(packId),
       ]);
 
-      // 构建名称映射
-      const traitMap: Record<string, string> = {};
-      traitsJson.forEach((t: { id: string; name: string }) => {
-        traitMap[t.id] = t.name;
-      });
-      setTraitNameMap(traitMap);
-
-      const manualMap: Record<string, string> = {};
-      [...internalsJson, ...attackJson, ...defenseJson].forEach((m: { id: string; name: string }) => {
-        manualMap[m.id] = m.name;
-      });
-      setManualNameMap(manualMap);
+      setTraits(traitsJson);
+      setInternals(internalsJson);
+      setAttackSkills(attackJson);
+      setDefenseSkills(defenseJson);
 
       // 加载到核心引擎
       if (traitsJson.length > 0) {
@@ -160,10 +189,6 @@ export default function CultivationPage() {
         }
       }
 
-      // 加载角色列表
-      const saves = await listSaves();
-      setCharacters(saves);
-
       setCoreReady(true);
     } catch (error) {
       console.error('初始化失败:', error);
@@ -173,115 +198,214 @@ export default function CultivationPage() {
     }
   };
 
-  const loadCharacter = async () => {
-    try {
-      const characterData = await loadSave(selectedCharacterId);
-      if (!characterData) {
-        throw new Error('加载角色失败');
-      }
-      
-      // 确保 internals、attack_skills、defense_skills 字段存在并正确初始化
-      const normalizedCharacter: Character = {
-        ...characterData,
-        internals: characterData.internals || { owned: [], equipped: null },
-        attack_skills: characterData.attack_skills || { owned: [], equipped: null },
-        defense_skills: characterData.defense_skills || { owned: [], equipped: null },
-        traits: characterData.traits || [],
-        cultivation_history: characterData.cultivation_history || [],
-      };
-      
-      // 确保 owned 数组存在
-      if (!normalizedCharacter.internals.owned) {
-        normalizedCharacter.internals.owned = [];
-      }
-      if (!normalizedCharacter.attack_skills.owned) {
-        normalizedCharacter.attack_skills.owned = [];
-      }
-      if (!normalizedCharacter.defense_skills.owned) {
-        normalizedCharacter.defense_skills.owned = [];
-      }
-      
-      setSelectedCharacter(normalizedCharacter);
-    } catch (error) {
-      console.error('加载角色失败:', error);
-      alert('加载角色失败');
-    }
-  };
+  const handleAddManual = (
+    type: 'internal' | 'attack_skill' | 'defense_skill',
+    manualId: string
+  ) => {
+    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const currentManuals = tempCharacter[field];
 
-  const loadAvailableManuals = async () => {
-    if (!selectedCharacter) return;
-
-    try {
-      if (!activePack) {
-        setAvailableManuals([]);
-        setSelectedManualId('');
-        return;
-      }
-
-      let manuals: ManualListItem[] = [];
-      switch (manualType) {
-        case 'internal':
-          manuals = await listInternals(activePack.id);
-          break;
-        case 'attack_skill':
-          manuals = await listAttackSkills(activePack.id);
-          break;
-        case 'defense_skill':
-          manuals = await listDefenseSkills(activePack.id);
-          break;
-      }
-
-      // 只显示角色已拥有的功法
-      const field = `${manualType}s` as 'internals' | 'attack_skills' | 'defense_skills';
-      
-      // 确保字段存在并正确初始化
-      const manualsData = selectedCharacter[field];
-      if (!manualsData || !manualsData.owned) {
-        console.warn(`角色数据中缺少 ${field}.owned 字段，初始化为空数组`);
-        setAvailableManuals([]);
-        setSelectedManualId('');
-        return;
-      }
-      
-      const ownedIds = new Set(manualsData.owned.map((m) => m.id));
-      const ownedManuals = manuals.filter((m) => ownedIds.has(m.id));
-      setAvailableManuals(ownedManuals);
-      
-      // 如果有已装备的功法，默认选择它
-      const equippedId = manualsData.equipped;
-      if (equippedId && ownedIds.has(equippedId)) {
-        setSelectedManualId(equippedId);
-      } else if (ownedManuals.length > 0) {
-        setSelectedManualId(ownedManuals[0].id);
-      } else {
-        setSelectedManualId('');
-      }
-    } catch (error) {
-      console.error('加载功法列表失败:', error);
-      setAvailableManuals([]);
-      setSelectedManualId('');
-    }
-  };
-
-  const convertCharacterToPanel = (character: Character): CharacterPanel => {
-    return {
-      name: character.name,
-      three_d: character.three_d,
-      traits: character.traits,
-      internals: character.internals,
-      attack_skills: character.attack_skills,
-      defense_skills: character.defense_skills,
-    };
-  };
-
-  const handleCultivate = async () => {
-    if (!selectedCharacter || !selectedManualId) {
-      alert('请选择角色和功法');
+    if (currentManuals.owned.find((m) => m.id === manualId)) {
+      alert('该功法已添加');
       return;
     }
 
-    if (selectedCharacter.action_points < 1) {
-      alert('行动点不足');
+    const newManual: OwnedManual = { id: manualId, level: 0, exp: 0 };
+    const nextOwned = [...currentManuals.owned, newManual];
+    const nextEquipped = currentManuals.equipped ?? manualId;
+
+    setTempCharacter({
+      ...tempCharacter,
+      [field]: {
+        owned: nextOwned,
+        equipped: nextEquipped,
+      },
+    });
+
+    setSelectKeys((prev) => ({
+      ...prev,
+      [type]: prev[type as keyof typeof prev] + 1,
+    }));
+  };
+
+  const handleRemoveManual = (
+    type: 'internal' | 'attack_skill' | 'defense_skill',
+    manualId: string
+  ) => {
+    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const currentManuals = tempCharacter[field];
+    const nextOwned = currentManuals.owned.filter((m) => m.id !== manualId);
+    const nextEquipped = currentManuals.equipped === manualId ? null : currentManuals.equipped;
+
+    setTempCharacter({
+      ...tempCharacter,
+      [field]: {
+        owned: nextOwned,
+        equipped: nextEquipped,
+      },
+    });
+  };
+
+  const handleEquipManual = (
+    type: 'internal' | 'attack_skill' | 'defense_skill',
+    manualId: string | null
+  ) => {
+    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const currentManuals = tempCharacter[field];
+    setTempCharacter({
+      ...tempCharacter,
+      [field]: {
+        owned: currentManuals.owned,
+        equipped: manualId,
+      },
+    });
+  };
+
+  const handleUpdateManualLevel = (
+    type: 'internal' | 'attack_skill' | 'defense_skill',
+    manualId: string,
+    level: number,
+    exp: number
+  ) => {
+    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const currentManuals = tempCharacter[field];
+    setTempCharacter({
+      ...tempCharacter,
+      [field]: {
+        owned: currentManuals.owned.map((m) =>
+          m.id === manualId ? { ...m, level, exp } : m
+        ),
+        equipped: currentManuals.equipped,
+      },
+    });
+  };
+
+  const handleToggleTrait = (traitId: string) => {
+    const currentTraits = tempCharacter.traits;
+    if (currentTraits.includes(traitId)) {
+      setTempCharacter({
+        ...tempCharacter,
+        traits: currentTraits.filter((id) => id !== traitId),
+      });
+    } else {
+      setTempCharacter({
+        ...tempCharacter,
+        traits: [...currentTraits, traitId],
+      });
+    }
+  };
+
+  const renderManualSection = (
+    title: string,
+    type: 'internal' | 'attack_skill' | 'defense_skill',
+    manuals: ManualListItem[],
+    ownedManuals: OwnedManual[],
+    equippedId: string | null
+  ) => {
+    const availableManuals = manuals.filter(
+      (m) => !ownedManuals.find((om) => om.id === m.id)
+    );
+
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold mb-4">{title}</h3>
+        <div className="mb-4">
+          <label className="block text-sm font-medium text-gray-700 mb-2">
+            添加功法
+          </label>
+          {availableManuals.length === 0 ? (
+            <p className="text-sm text-gray-500">所有功法已添加</p>
+          ) : (
+            <Select
+              key={`${type}-${selectKeys[type]}`}
+              options={[
+                { value: '', label: '请选择...' },
+                ...availableManuals.map((m) => ({
+                  value: m.id,
+                  label: m.name,
+                })),
+              ]}
+              value=""
+              onChange={(e) => {
+                const selectedValue = e.target.value;
+                if (selectedValue) {
+                  handleAddManual(type, selectedValue);
+                }
+              }}
+            />
+          )}
+        </div>
+
+        {ownedManuals.length > 0 && (
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              已拥有的功法
+            </label>
+            <div className="space-y-2">
+              {ownedManuals.map((manual) => (
+                <div key={manual.id} className="p-3 border border-gray-300 rounded-lg">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="radio"
+                        name={`equipped-${type}`}
+                        checked={equippedId === manual.id}
+                        onChange={() => handleEquipManual(type, manual.id)}
+                        className="w-4 h-4"
+                      />
+                      <span className="text-sm font-medium">
+                        {manuals.find((m) => m.id === manual.id)?.name || manual.id}
+                      </span>
+                    </div>
+                    <Button
+                      variant="danger"
+                      size="sm"
+                      onClick={() => handleRemoveManual(type, manual.id)}
+                    >
+                      移除
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 ml-7">
+                    <Input
+                      label="等级"
+                      type="number"
+                      value={manual.level.toString()}
+                      onChange={(e) =>
+                        handleUpdateManualLevel(
+                          type,
+                          manual.id,
+                          parseInt(e.target.value) || 0,
+                          manual.exp
+                        )
+                      }
+                    />
+                    <Input
+                      label="经验"
+                      type="number"
+                      value={manual.exp.toString()}
+                      onChange={(e) =>
+                        handleUpdateManualLevel(
+                          type,
+                          manual.id,
+                          manual.level,
+                          parseInt(e.target.value) || 0
+                        )
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+
+  const handleCultivate = async () => {
+    if (!selectedManualId) {
+      alert('请选择功法');
       return;
     }
 
@@ -289,34 +413,12 @@ export default function CultivationPage() {
       setCultivating(true);
       setCultivationResult(null);
 
-      // 转换为CharacterPanel
-      const characterPanel = convertCharacterToPanel(selectedCharacter);
-
       // 执行修行
-      const result = await executeCultivation(characterPanel, selectedManualId, manualType);
+      const result = await executeCultivation(tempCharacter, selectedManualId, manualType);
       setCultivationResult(result);
 
-      // 更新角色数据
       const updatedCharacterPanel: CharacterPanel = JSON.parse(result.updated_character);
-      const updatedFullCharacter: Character = {
-        ...selectedCharacter,
-        name: updatedCharacterPanel.name,
-        three_d: updatedCharacterPanel.three_d,
-        traits: updatedCharacterPanel.traits,
-        internals: updatedCharacterPanel.internals,
-        attack_skills: updatedCharacterPanel.attack_skills,
-        defense_skills: updatedCharacterPanel.defense_skills,
-        action_points: selectedCharacter.action_points - 1,
-        max_qi: updatedCharacterPanel.max_qi,
-        qi: updatedCharacterPanel.qi,
-        martial_arts_attainment: updatedCharacterPanel.martial_arts_attainment,
-      };
-
-      // 保存角色
-      await saveCharacter(updatedFullCharacter);
-
-      // 重新加载角色
-      await loadCharacter();
+      setTempCharacter(updatedCharacterPanel);
     } catch (error) {
       console.error('修行失败:', error);
       alert('修行失败: ' + (error as Error).message);
@@ -326,10 +428,10 @@ export default function CultivationPage() {
   };
 
   const getCurrentManualInfo = () => {
-    if (!selectedCharacter || !selectedManualId) return null;
+    if (!selectedManualId) return null;
 
     const field = `${manualType}s` as 'internals' | 'attack_skills' | 'defense_skills';
-    const manual = selectedCharacter[field].owned.find((m) => m.id === selectedManualId);
+    const manual = tempCharacter[field].owned.find((m) => m.id === selectedManualId);
     return manual;
   };
 
@@ -363,217 +465,215 @@ export default function CultivationPage() {
       <ActivePackStatus message="修行模拟将使用当前可用的模组数据。" />
 
       <div className="space-y-6">
-        {/* 角色选择 */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">选择角色</h2>
+          <h2 className="text-xl font-semibold mb-4">临时角色信息</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                角色
-              </label>
-              <Select
-                options={[
-                  { value: '', label: '请选择...' },
-                  ...characters.map((c) => ({ value: c.id, label: c.name })),
-                ]}
-                value={selectedCharacterId}
-                onChange={(e) => setSelectedCharacterId(e.target.value)}
-              />
-            </div>
-            {selectedCharacter && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  行动点
-                </label>
-                <Input
-                  type="number"
-                  value={selectedCharacter.action_points.toString()}
-                  readOnly
-                  className="bg-gray-50"
-                />
-              </div>
-            )}
+            <Input
+              label="角色名称"
+              value={tempCharacter.name}
+              onChange={(e) => setTempCharacter({ ...tempCharacter, name: e.target.value })}
+              placeholder="临时角色"
+            />
+            <Input
+              label="武学素养"
+              type="number"
+              value={tempCharacter.martial_arts_attainment ?? ''}
+              onChange={(e) =>
+                setTempCharacter({
+                  ...tempCharacter,
+                  martial_arts_attainment: e.target.value === '' ? undefined : Number(e.target.value),
+                })
+              }
+            />
+            <Input
+              label="最大内息量"
+              type="number"
+              value={tempCharacter.max_qi ?? ''}
+              onChange={(e) =>
+                setTempCharacter({
+                  ...tempCharacter,
+                  max_qi: e.target.value === '' ? undefined : Number(e.target.value),
+                })
+              }
+            />
+            <Input
+              label="当前内息量"
+              type="number"
+              value={tempCharacter.qi ?? ''}
+              onChange={(e) =>
+                setTempCharacter({
+                  ...tempCharacter,
+                  qi: e.target.value === '' ? undefined : Number(e.target.value),
+                })
+              }
+            />
           </div>
         </div>
 
-        {/* 人物当前面板 */}
-        {selectedCharacter && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">人物当前面板</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 基本属性 */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-3">基本属性</h3>
-                <div className="space-y-2 text-sm">
-                  <div className="grid grid-cols-2 gap-2">
-                    <div>
-                      <span className="text-gray-600">悟性:</span>
-                      <span className="ml-1 font-medium">{selectedCharacter.three_d.comprehension}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">根骨:</span>
-                      <span className="ml-1 font-medium">{selectedCharacter.three_d.bone_structure}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">体魄:</span>
-                      <span className="ml-1 font-medium">{selectedCharacter.three_d.physique}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">武学素养:</span>
-                      <span className="ml-1 font-medium">{(selectedCharacter.martial_arts_attainment || 0).toFixed(1)}</span>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">内息量:</span>
-                      <span className="ml-1 font-medium">
-                        {(selectedCharacter.qi || 0).toFixed(1)}/{(selectedCharacter.max_qi || 0).toFixed(1)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">基础三维</h2>
+          <div className="grid grid-cols-3 gap-4">
+            <Input
+              label="悟性"
+              type="number"
+              value={tempCharacter.three_d.comprehension.toString()}
+              onChange={(e) =>
+                setTempCharacter({
+                  ...tempCharacter,
+                  three_d: {
+                    ...tempCharacter.three_d,
+                    comprehension: parseInt(e.target.value) || 0,
+                  },
+                })
+              }
+            />
+            <Input
+              label="根骨"
+              type="number"
+              value={tempCharacter.three_d.bone_structure.toString()}
+              onChange={(e) =>
+                setTempCharacter({
+                  ...tempCharacter,
+                  three_d: {
+                    ...tempCharacter.three_d,
+                    bone_structure: parseInt(e.target.value) || 0,
+                  },
+                })
+              }
+            />
+            <Input
+              label="体魄"
+              type="number"
+              value={tempCharacter.three_d.physique.toString()}
+              onChange={(e) =>
+                setTempCharacter({
+                  ...tempCharacter,
+                  three_d: {
+                    ...tempCharacter.three_d,
+                    physique: parseInt(e.target.value) || 0,
+                  },
+                })
+              }
+            />
+          </div>
+        </div>
 
-              {/* 装备的功法 */}
-              <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-3">装备的功法</h3>
-                <div className="space-y-2 text-sm">
-                  {selectedCharacter.internals.equipped && (
-                    <div>
-                      <span className="text-gray-600">内功:</span>
-                      <span className="ml-1 font-medium">
-                        {manualNameMap[selectedCharacter.internals.equipped] || selectedCharacter.internals.equipped}
-                        {selectedCharacter.internals.owned.find(m => m.id === selectedCharacter.internals.equipped) && (
-                          <span className="ml-1 text-xs text-gray-500">
-                            (Lv.{selectedCharacter.internals.owned.find(m => m.id === selectedCharacter.internals.equipped)?.level || 0})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {selectedCharacter.attack_skills.equipped && (
-                    <div>
-                      <span className="text-gray-600">攻击武技:</span>
-                      <span className="ml-1 font-medium">
-                        {manualNameMap[selectedCharacter.attack_skills.equipped] || selectedCharacter.attack_skills.equipped}
-                        {selectedCharacter.attack_skills.owned.find(m => m.id === selectedCharacter.attack_skills.equipped) && (
-                          <span className="ml-1 text-xs text-gray-500">
-                            (Lv.{selectedCharacter.attack_skills.owned.find(m => m.id === selectedCharacter.attack_skills.equipped)?.level || 0})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                  {selectedCharacter.defense_skills.equipped && (
-                    <div>
-                      <span className="text-gray-600">防御武技:</span>
-                      <span className="ml-1 font-medium">
-                        {manualNameMap[selectedCharacter.defense_skills.equipped] || selectedCharacter.defense_skills.equipped}
-                        {selectedCharacter.defense_skills.owned.find(m => m.id === selectedCharacter.defense_skills.equipped) && (
-                          <span className="ml-1 text-xs text-gray-500">
-                            (Lv.{selectedCharacter.defense_skills.owned.find(m => m.id === selectedCharacter.defense_skills.equipped)?.level || 0})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">特性</h2>
+          {traits.length === 0 ? (
+            <p className="text-sm text-gray-500">暂无特性数据</p>
+          ) : (
+            <div className="space-y-2 max-h-64 overflow-y-auto">
+              {traits.map((trait) => (
+                <label
+                  key={trait.id}
+                  className="flex items-center p-3 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={tempCharacter.traits.includes(trait.id)}
+                    onChange={() => handleToggleTrait(trait.id)}
+                    className="w-4 h-4 mr-3"
+                  />
+                  <span className="text-sm font-medium">{trait.name}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
 
-              {/* 特性 */}
-              {selectedCharacter.traits.length > 0 && (
-                <div className="md:col-span-2">
-                  <h3 className="text-sm font-medium text-gray-700 mb-2">特性</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {selectedCharacter.traits.map((traitId) => (
-                      <span
-                        key={traitId}
-                        className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
-                      >
-                        {traitNameMap[traitId] || traitId}
-                      </span>
-                    ))}
-                  </div>
-                </div>
+        {renderManualSection(
+          '内功',
+          'internal',
+          internals,
+          tempCharacter.internals.owned,
+          tempCharacter.internals.equipped
+        )}
+        {renderManualSection(
+          '攻击武技',
+          'attack_skill',
+          attackSkills,
+          tempCharacter.attack_skills.owned,
+          tempCharacter.attack_skills.equipped
+        )}
+        {renderManualSection(
+          '防御武技',
+          'defense_skill',
+          defenseSkills,
+          tempCharacter.defense_skills.owned,
+          tempCharacter.defense_skills.equipped
+        )}
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">选择功法</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                功法类型
+              </label>
+              <Select
+                options={[
+                  { value: 'internal', label: '内功' },
+                  { value: 'attack_skill', label: '攻击武技' },
+                  { value: 'defense_skill', label: '防御武技' },
+                ]}
+                value={manualType}
+                onChange={(e) => {
+                  setManualType(e.target.value as ManualType);
+                  setSelectedManualId('');
+                }}
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                {manualTypeNames[manualType]}
+              </label>
+              {availableManuals.length === 0 ? (
+                <p className="text-sm text-gray-500">临时角色未拥有任何{manualTypeNames[manualType]}</p>
+              ) : (
+                <Select
+                  options={availableManuals.map((m) => ({
+                    value: m.id,
+                    label: m.name,
+                  }))}
+                  value={selectedManualId}
+                  onChange={(e) => setSelectedManualId(e.target.value)}
+                />
               )}
             </div>
           </div>
-        )}
 
-        {/* 功法选择 */}
-        {selectedCharacter && (
-          <div className="bg-white rounded-lg shadow p-6">
-            <h2 className="text-xl font-semibold mb-4">选择功法</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  功法类型
-                </label>
-                <Select
-                  options={[
-                    { value: 'internal', label: '内功' },
-                    { value: 'attack_skill', label: '攻击武技' },
-                    { value: 'defense_skill', label: '防御武技' },
-                  ]}
-                  value={manualType}
-                  onChange={(e) => {
-                    setManualType(e.target.value as ManualType);
-                    setSelectedManualId('');
-                  }}
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {manualTypeNames[manualType]}
-                </label>
-                {availableManuals.length === 0 ? (
-                  <p className="text-sm text-gray-500">该角色未拥有任何{manualTypeNames[manualType]}</p>
-                ) : (
-                  <Select
-                    options={availableManuals.map((m) => ({
-                      value: m.id,
-                      label: m.name,
-                    }))}
-                    value={selectedManualId}
-                    onChange={(e) => setSelectedManualId(e.target.value)}
-                  />
-                )}
-              </div>
-            </div>
-
-            {/* 当前功法信息 */}
-            {currentManual && (
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <h3 className="text-sm font-medium text-gray-700 mb-2">当前状态</h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="text-sm text-gray-600">等级: </span>
-                    <span className="text-sm font-medium">{currentManual.level}</span>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600">经验: </span>
-                    <span className="text-sm font-medium">{currentManual.exp.toFixed(2)}</span>
-                  </div>
+          {currentManual && (
+            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+              <h3 className="text-sm font-medium text-gray-700 mb-2">当前状态</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-sm text-gray-600">等级: </span>
+                  <span className="text-sm font-medium">{currentManual.level}</span>
+                </div>
+                <div>
+                  <span className="text-sm text-gray-600">经验: </span>
+                  <span className="text-sm font-medium">{currentManual.exp.toFixed(2)}</span>
                 </div>
               </div>
-            )}
-
-            <div className="mt-4">
-              <Button
-                onClick={handleCultivate}
-                disabled={
-                  cultivating ||
-                  !selectedManualId ||
-                  !selectedCharacter ||
-                  selectedCharacter.action_points < 1 ||
-                  (!!currentManual && currentManual.level >= 5)
-                }
-              >
-                {cultivating ? '修行中...' : 
-                 currentManual && currentManual.level >= 5 ? '已满级' : 
-                 '消耗1行动点修行'}
-              </Button>
             </div>
+          )}
+
+          <div className="mt-4">
+            <Button
+              onClick={handleCultivate}
+              disabled={
+                cultivating ||
+                !selectedManualId ||
+                (!!currentManual && currentManual.level >= 5)
+              }
+            >
+              {cultivating ? '修行中...' :
+               currentManual && currentManual.level >= 5 ? '已满级' :
+               '开始修行'}
+            </Button>
           </div>
-        )}
+        </div>
 
         {/* 修行结果 */}
         {cultivationResult && (

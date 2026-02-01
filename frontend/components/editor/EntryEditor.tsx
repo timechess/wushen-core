@@ -7,6 +7,7 @@ import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
 import EffectEditor from './EffectEditor';
 import ConditionEditor from './ConditionEditor';
+import { describeEntry } from '@/lib/utils/entryDescription';
 
 // 根据触发时机获取允许的属性目标
 function getAllowedTargetsForTrigger(trigger: Trigger): AttributeTarget[] {
@@ -88,7 +89,7 @@ export default function EntryEditor({
     
     // 检查并修正现有效果的属性
     const correctedEffects = entry.effects.map(effect => {
-      if (effect.type === 'modify_attribute' && !allowedTargets.includes(effect.target)) {
+      if ((effect.type === 'modify_attribute' || effect.type === 'modify_percentage') && !allowedTargets.includes(effect.target)) {
         // 如果当前属性不在允许列表中，使用第一个允许的属性
         return {
           ...effect,
@@ -144,6 +145,8 @@ export default function EntryEditor({
     (opt) => opt.value === entry.trigger
   )?.label || entry.trigger;
 
+  const entryDescription = describeEntry(entry);
+
   return (
     <div className="border border-gray-200 rounded-xl p-5 mb-4 bg-gradient-to-br from-white to-gray-50 shadow-sm hover:shadow-md transition-shadow">
       <div className="flex items-center justify-between mb-3">
@@ -188,6 +191,11 @@ export default function EntryEditor({
             删除
           </Button>
         )}
+      </div>
+
+      <div className="mt-2 rounded-lg border border-gray-100 bg-white/80 px-3 py-2 text-sm text-gray-700 shadow-sm">
+        <div className="text-[11px] font-medium text-gray-500 mb-1">特效描述</div>
+        <div className="whitespace-pre-wrap leading-relaxed">{entryDescription}</div>
       </div>
 
       {isExpanded && (

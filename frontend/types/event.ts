@@ -26,6 +26,7 @@ export type StoryEventContent =
   | {
       type: 'battle';
       text: string;
+      enemy_id?: string;
       enemy: EnemyTemplate;
       win: StoryBattleBranch;
       lose: StoryBattleBranch;
@@ -69,6 +70,7 @@ export type AdventureEventContent =
   | {
       type: 'battle';
       text: string;
+      enemy_id?: string;
       enemy: EnemyTemplate;
       win: AdventureOutcome;
       lose: AdventureOutcome;
@@ -95,6 +97,7 @@ export type AdventureOptionResult =
   | {
       type: 'battle';
       text: string;
+      enemy_id?: string;
       enemy: EnemyTemplate;
       win: AdventureOutcome;
       lose: AdventureOutcome;
