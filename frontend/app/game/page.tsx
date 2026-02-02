@@ -333,6 +333,14 @@ export default function GamePage() {
     [nameLookup]
   );
 
+  const entryDescriptionResolver = useMemo(
+    () => ({
+      resolveManualName,
+      resolveTraitName,
+    }),
+    [resolveManualName, resolveTraitName]
+  );
+
   const getOwnedManual = useCallback(
     (type: ManualType, id: string) => {
       if (!view || !id) return null;
@@ -535,7 +543,7 @@ export default function GamePage() {
             key={`entry-${index}`}
             className="whitespace-pre-wrap text-sm leading-6 text-gray-700 rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2"
           >
-            {describeEntry(entry)}
+            {describeEntry(entry, entryDescriptionResolver)}
           </pre>
         ))}
       </div>
@@ -1900,7 +1908,9 @@ export default function GamePage() {
                             </div>
                             <div className="flex flex-col gap-3">
                               {decisionOptions.map((option) => {
-                                const conditionText = option.condition ? describeCondition(option.condition) : '';
+                                const conditionText = option.condition
+                                  ? describeCondition(option.condition, undefined, entryDescriptionResolver)
+                                  : '';
                                 const conditionMet =
                                   option.condition && view
                                     ? isConditionMet(option.condition, view.save.current_character, manualMaps)

@@ -125,10 +125,6 @@ impl AttributeModifier {
             AttributeTarget::AttackSpeed => {
                 Some(100.0)
             }
-            // 回气率最大为0.25
-            AttributeTarget::QiRecoveryRate => {
-                Some(0.25)
-            }
             // 减伤上限是动态的
             AttributeTarget::DamageReduction => {
                 Some(panel.max_damage_reduction)

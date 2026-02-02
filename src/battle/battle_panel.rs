@@ -154,8 +154,6 @@ impl BattlePanel {
         match target {
             // 出手速度上限为100
             AttributeTarget::AttackSpeed => Some(100.0),
-            // 回气率最大为0.25
-            AttributeTarget::QiRecoveryRate => Some(0.25),
             // 减伤上限本身是一个属性
             AttributeTarget::DamageReduction => Some(self.max_damage_reduction),
             // 其余不设限制

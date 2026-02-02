@@ -11,6 +11,7 @@ import {
   PanelTarget,
   FormulaValue,
 } from '@/types/trait';
+import type { ManualType } from '@/types/manual';
 import { annotateFormula } from '@/lib/utils/formulaVariables';
 
 const TRIGGER_LABELS: Record<Trigger, string> = {
@@ -95,6 +96,11 @@ const PANEL_TARGET_LABELS: Record<PanelTarget, string> = {
 
 const PERCENT_LIKE_TARGETS = new Set<AttributeTarget>(['qi_loss_rate']);
 
+export interface EntryDescriptionResolver {
+  resolveManualName?: (type: ManualType, id: string) => string;
+  resolveTraitName?: (id: string) => string;
+}
+
 function formatNumber(value: number): string {
   if (Number.isInteger(value)) {
     return value.toString();
@@ -122,12 +128,33 @@ function getTriggerLabel(trigger: Trigger): string {
   return TRIGGER_LABELS[trigger] ?? trigger;
 }
 
-export function describeCondition(condition?: Condition | null, parentOp?: 'and' | 'or'): string {
+function resolveManualLabel(
+  resolver: EntryDescriptionResolver | undefined,
+  type: ManualType,
+  id: string
+): string {
+  if (!resolver?.resolveManualName) return id;
+  return resolver.resolveManualName(type, id);
+}
+
+function resolveTraitLabel(
+  resolver: EntryDescriptionResolver | undefined,
+  id: string
+): string {
+  if (!resolver?.resolveTraitName) return id;
+  return resolver.resolveTraitName(id);
+}
+
+export function describeCondition(
+  condition?: Condition | null,
+  parentOp?: 'and' | 'or',
+  resolver?: EntryDescriptionResolver
+): string {
   if (!condition) return '';
 
   if ('and' in condition) {
     const parts = condition.and
-      .map((cond) => describeCondition(cond, 'and'))
+      .map((cond) => describeCondition(cond, 'and', resolver))
       .filter((part) => part !== '');
     if (parts.length === 0) return '';
     const joined = parts.join(' 且 ');
@@ -139,7 +166,7 @@ export function describeCondition(condition?: Condition | null, parentOp?: 'and'
 
   if ('or' in condition) {
     const parts = condition.or
-      .map((cond) => describeCondition(cond, 'or'))
+      .map((cond) => describeCondition(cond, 'or', resolver))
       .filter((part) => part !== '');
     if (parts.length === 0) return '';
     const joined = parts.join(' 或 ');
@@ -150,25 +177,25 @@ export function describeCondition(condition?: Condition | null, parentOp?: 'and'
   }
 
   if ('internal_is' in condition) {
-    return `内功为「${condition.internal_is}」`;
+    return `内功为「${resolveManualLabel(resolver, 'internal', condition.internal_is)}」`;
   }
   if ('internal_type_is' in condition) {
     return `内功类型为「${condition.internal_type_is}」`;
   }
   if ('attack_skill_is' in condition) {
-    return `攻击武技为「${condition.attack_skill_is}」`;
+    return `攻击武技为「${resolveManualLabel(resolver, 'attack_skill', condition.attack_skill_is)}」`;
   }
   if ('attack_skill_type_is' in condition) {
     return `攻击武技类型为「${condition.attack_skill_type_is}」`;
   }
   if ('defense_skill_is' in condition) {
-    return `防御武技为「${condition.defense_skill_is}」`;
+    return `防御武技为「${resolveManualLabel(resolver, 'defense_skill', condition.defense_skill_is)}」`;
   }
   if ('defense_skill_type_is' in condition) {
     return `防御武技类型为「${condition.defense_skill_type_is}」`;
   }
   if ('has_trait' in condition) {
-    return `拥有特性「${condition.has_trait}」`;
+    return `拥有特性「${resolveTraitLabel(resolver, condition.has_trait)}」`;
   }
   if ('attribute_comparison' in condition) {
     const { attribute, op, value } = condition.attribute_comparison;
@@ -190,13 +217,13 @@ export function describeCondition(condition?: Condition | null, parentOp?: 'and'
     return `对手${attrLabel} ${opLabel} ${formatFormulaValueText(value).text}`;
   }
   if ('opponent_internal_is' in condition) {
-    return `对手内功为「${condition.opponent_internal_is}」`;
+    return `对手内功为「${resolveManualLabel(resolver, 'internal', condition.opponent_internal_is)}」`;
   }
   if ('opponent_attack_skill_is' in condition) {
-    return `对手攻击武技为「${condition.opponent_attack_skill_is}」`;
+    return `对手攻击武技为「${resolveManualLabel(resolver, 'attack_skill', condition.opponent_attack_skill_is)}」`;
   }
   if ('opponent_defense_skill_is' in condition) {
-    return `对手防御武技为「${condition.opponent_defense_skill_is}」`;
+    return `对手防御武技为「${resolveManualLabel(resolver, 'defense_skill', condition.opponent_defense_skill_is)}」`;
   }
   if ('opponent_internal_type_is' in condition) {
     return `对手内功类型为「${condition.opponent_internal_type_is}」`;
@@ -244,11 +271,11 @@ function describeEffect(effect: Effect): string {
   return `${panelLabel}${targetLabel}${operationLabel}${valueText}${temporaryLabel}`;
 }
 
-export function describeEntry(entry: Entry): string {
+export function describeEntry(entry: Entry, resolver?: EntryDescriptionResolver): string {
   const parts: string[] = [];
   parts.push(`触发：${getTriggerLabel(entry.trigger)}`);
 
-  const conditionText = describeCondition(entry.condition);
+  const conditionText = describeCondition(entry.condition, undefined, resolver);
   if (conditionText) {
     parts.push(`条件：${conditionText}`);
   }

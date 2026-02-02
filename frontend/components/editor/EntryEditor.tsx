@@ -1,13 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Entry, Effect, Trigger, AttributeTarget } from '@/types/trait';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
 import Input from '@/components/ui/Input';
 import EffectEditor from './EffectEditor';
 import ConditionEditor from './ConditionEditor';
-import { describeEntry } from '@/lib/utils/entryDescription';
+import { describeEntry, type EntryDescriptionResolver } from '@/lib/utils/entryDescription';
+import { useActivePack } from '@/lib/mods/active-pack';
+import { listAttackSkills, listDefenseSkills, listInternals, listTraits } from '@/lib/tauri/commands';
 
 // 根据触发时机获取允许的属性目标
 function getAllowedTargetsForTrigger(trigger: Trigger): AttributeTarget[] {
@@ -57,6 +59,15 @@ interface EntryEditorProps {
   onDelete?: () => void;
 }
 
+type NameLookup = {
+  internals: Map<string, string>;
+  attackSkills: Map<string, string>;
+  defenseSkills: Map<string, string>;
+  traits: Map<string, string>;
+};
+
+const nameCache = new Map<string, NameLookup>();
+
 const TRIGGER_OPTIONS = [
   { value: 'game_start', label: '开局' },
   { value: 'trait_acquired', label: '获得特性时' },
@@ -82,6 +93,59 @@ export default function EntryEditor({
   onDelete,
 }: EntryEditorProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [nameLookup, setNameLookup] = useState<NameLookup | null>(null);
+  const { activePack } = useActivePack();
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadNames = async () => {
+      if (!activePack) {
+        setNameLookup(null);
+        return;
+      }
+      const cached = nameCache.get(activePack.id);
+      if (cached) {
+        setNameLookup(cached);
+        return;
+      }
+      try {
+        const [internals, attackSkills, defenseSkills, traits] = await Promise.all([
+          listInternals(activePack.id),
+          listAttackSkills(activePack.id),
+          listDefenseSkills(activePack.id),
+          listTraits(activePack.id),
+        ]);
+        const lookup: NameLookup = {
+          internals: new Map(internals.map((item) => [item.id, item.name])),
+          attackSkills: new Map(attackSkills.map((item) => [item.id, item.name])),
+          defenseSkills: new Map(defenseSkills.map((item) => [item.id, item.name])),
+          traits: new Map(traits.map((item) => [item.id, item.name])),
+        };
+        nameCache.set(activePack.id, lookup);
+        if (!cancelled) setNameLookup(lookup);
+      } catch (error) {
+        console.error('加载词条名称失败:', error);
+        if (!cancelled) setNameLookup(null);
+      }
+    };
+    loadNames();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePack]);
+
+  const descriptionResolver = useMemo<EntryDescriptionResolver | undefined>(() => {
+    if (!nameLookup) return undefined;
+    return {
+      resolveManualName: (type, id) => {
+        if (!id) return id;
+        if (type === 'internal') return nameLookup.internals.get(id) ?? '未命名内功';
+        if (type === 'attack_skill') return nameLookup.attackSkills.get(id) ?? '未命名攻击武技';
+        return nameLookup.defenseSkills.get(id) ?? '未命名防御武技';
+      },
+      resolveTraitName: (id) => (id ? nameLookup.traits.get(id) ?? '未命名特性' : id),
+    };
+  }, [nameLookup]);
 
   const handleTriggerChange = (trigger: Trigger) => {
     const allowedTargets = getAllowedTargetsForTrigger(trigger);
@@ -145,7 +209,7 @@ export default function EntryEditor({
     (opt) => opt.value === entry.trigger
   )?.label || entry.trigger;
 
-  const entryDescription = describeEntry(entry);
+  const entryDescription = describeEntry(entry, descriptionResolver);
 
   return (
     <div className="border border-gray-200 rounded-xl p-5 mb-4 bg-gradient-to-br from-white to-gray-50 shadow-sm hover:shadow-md transition-shadow">
