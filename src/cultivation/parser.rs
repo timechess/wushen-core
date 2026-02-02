@@ -1,15 +1,14 @@
-/// 功法 JSON 解析器
-
-use serde::Deserialize;
 use crate::cultivation::{
-    formula::CultivationFormula,
-    manual::{Manual, Rarity},
-    internal::Internal,
     attack_skill::AttackSkill,
     defense_skill::DefenseSkill,
-    realm::{InternalRealm, AttackSkillRealm, DefenseSkillRealm},
+    formula::CultivationFormula,
+    internal::Internal,
+    manual::{Manual, Rarity},
+    realm::{AttackSkillRealm, DefenseSkillRealm, InternalRealm},
 };
 use crate::effect::entry::Entry;
+/// 功法 JSON 解析器
+use serde::Deserialize;
 
 /// 内功 JSON 结构
 #[derive(Debug, Deserialize)]
@@ -108,15 +107,15 @@ pub struct DefenseSkillsData {
 
 /// 解析内功数据
 pub fn parse_internals(json: &str) -> Result<Vec<Internal>, String> {
-    let data: InternalsData = serde_json::from_str(json)
-        .map_err(|e| format!("解析内功数据失败: {}", e))?;
-    
+    let data: InternalsData =
+        serde_json::from_str(json).map_err(|e| format!("解析内功数据失败: {}", e))?;
+
     let mut internals = Vec::new();
     for internal_json in data.internals {
         let formula = CultivationFormula::new(&internal_json.cultivation_formula)?;
         let rarity = Rarity::new(internal_json.rarity)
             .map_err(|e| format!("内功 {} 稀有度无效: {}", internal_json.id, e))?;
-        
+
         let manual = Manual::new(
             internal_json.id.clone(),
             internal_json.name,
@@ -125,8 +124,9 @@ pub fn parse_internals(json: &str) -> Result<Vec<Internal>, String> {
             internal_json.manual_type,
             formula,
         );
-        
-        let realms: Result<Vec<InternalRealm>, String> = internal_json.realms
+
+        let realms: Result<Vec<InternalRealm>, String> = internal_json
+            .realms
             .into_iter()
             .map(|r| {
                 Ok(InternalRealm::new(
@@ -141,11 +141,11 @@ pub fn parse_internals(json: &str) -> Result<Vec<Internal>, String> {
                 ))
             })
             .collect();
-        
+
         let internal = Internal::new(manual, realms?)?;
         internals.push(internal);
     }
-    
+
     Ok(internals)
 }
 
@@ -153,7 +153,7 @@ pub fn parse_internals(json: &str) -> Result<Vec<Internal>, String> {
 pub fn parse_attack_skills(json: &str) -> Result<Vec<AttackSkill>, String> {
     let data: AttackSkillsData = serde_json::from_str(json)
         .map_err(|e| format!("解析攻击武技数据失败: {}。请检查JSON格式是否正确，确保包含必需的字段：id, name, description, rarity, type, cultivation_formula, realms", e))?;
-    
+
     let mut skills = Vec::new();
     for (idx, skill_json) in data.attack_skills.into_iter().enumerate() {
         let skill_id = skill_json.id.clone();
@@ -161,7 +161,7 @@ pub fn parse_attack_skills(json: &str) -> Result<Vec<AttackSkill>, String> {
             .map_err(|e| format!("攻击武技 {} (索引 {}) 的修行公式无效: {}", skill_id, idx, e))?;
         let rarity = Rarity::new(skill_json.rarity)
             .map_err(|e| format!("攻击武技 {} (索引 {}) 稀有度无效: {}", skill_id, idx, e))?;
-        
+
         let manual = Manual::new(
             skill_json.id.clone(),
             skill_json.name,
@@ -170,8 +170,9 @@ pub fn parse_attack_skills(json: &str) -> Result<Vec<AttackSkill>, String> {
             skill_json.manual_type,
             formula,
         );
-        
-        let realms: Vec<AttackSkillRealm> = skill_json.realms
+
+        let realms: Vec<AttackSkillRealm> = skill_json
+            .realms
             .into_iter()
             .map(|r| {
                 AttackSkillRealm::new(
@@ -184,13 +185,13 @@ pub fn parse_attack_skills(json: &str) -> Result<Vec<AttackSkill>, String> {
                 )
             })
             .collect();
-        
+
         let mut skill = AttackSkill::new(manual, realms)
             .map_err(|e| format!("攻击武技 {} (索引 {}) 创建失败: {}", skill_id, idx, e))?;
         skill.log_template = skill_json.log_template;
         skills.push(skill);
     }
-    
+
     Ok(skills)
 }
 
@@ -198,7 +199,7 @@ pub fn parse_attack_skills(json: &str) -> Result<Vec<AttackSkill>, String> {
 pub fn parse_defense_skills(json: &str) -> Result<Vec<DefenseSkill>, String> {
     let data: DefenseSkillsData = serde_json::from_str(json)
         .map_err(|e| format!("解析防御武技数据失败: {}。请检查JSON格式是否正确，确保包含必需的字段：id, name, description, rarity, type, cultivation_formula, realms", e))?;
-    
+
     let mut skills = Vec::new();
     for (idx, skill_json) in data.defense_skills.into_iter().enumerate() {
         let skill_id = skill_json.id.clone();
@@ -206,7 +207,7 @@ pub fn parse_defense_skills(json: &str) -> Result<Vec<DefenseSkill>, String> {
             .map_err(|e| format!("防御武技 {} (索引 {}) 的修行公式无效: {}", skill_id, idx, e))?;
         let rarity = Rarity::new(skill_json.rarity)
             .map_err(|e| format!("防御武技 {} (索引 {}) 稀有度无效: {}", skill_id, idx, e))?;
-        
+
         let manual = Manual::new(
             skill_json.id.clone(),
             skill_json.name,
@@ -215,8 +216,9 @@ pub fn parse_defense_skills(json: &str) -> Result<Vec<DefenseSkill>, String> {
             skill_json.manual_type,
             formula,
         );
-        
-        let realms: Vec<DefenseSkillRealm> = skill_json.realms
+
+        let realms: Vec<DefenseSkillRealm> = skill_json
+            .realms
             .into_iter()
             .map(|r| {
                 DefenseSkillRealm::new(
@@ -228,20 +230,20 @@ pub fn parse_defense_skills(json: &str) -> Result<Vec<DefenseSkill>, String> {
                 )
             })
             .collect();
-        
+
         let mut skill = DefenseSkill::new(manual, realms)
             .map_err(|e| format!("防御武技 {} (索引 {}) 创建失败: {}", skill_id, idx, e))?;
         skill.log_template = skill_json.log_template;
         skills.push(skill);
     }
-    
+
     Ok(skills)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_parse_internals_from_data_file() {
         // 测试数据文件格式（使用小写 a）
@@ -264,12 +266,15 @@ mod tests {
                 }
             ]
         }"#;
-        
+
         let result = parse_internals(json);
         assert!(result.is_ok(), "解析应该成功: {:?}", result.err());
         let internals = result.unwrap();
         assert_eq!(internals.len(), 1);
         assert_eq!(internals[0].manual.id, "test_internal");
-        assert_eq!(internals[0].manual.cultivation_formula.formula_str(), "x * 10 + a * 2");
+        assert_eq!(
+            internals[0].manual.cultivation_formula.formula_str(),
+            "x * 10 + a * 2"
+        );
     }
 }

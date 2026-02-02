@@ -1,28 +1,15 @@
-pub mod types;
+pub mod manager;
 pub mod parser;
 pub mod reward;
-pub mod manager;
+pub mod types;
 
 pub use types::{
-    Storyline,
-    StoryEvent,
-    StoryEventContent,
-    StoryNodeType,
-    StoryOption,
-    StoryBattleBranch,
-    AdventureEvent,
-    AdventureEventContent,
-    AdventureOption,
-    AdventureOptionResult,
-    AdventureOutcome,
-    EnemyTemplate,
-    Reward,
-    RewardTarget,
-    ManualKind,
-    OwnedManualTemplate,
+    AdventureEvent, AdventureEventContent, AdventureOption, AdventureOptionResult,
+    AdventureOutcome, EnemyTemplate, ManualKind, OwnedManualTemplate, Reward, RewardTarget,
+    StoryBattleBranch, StoryEvent, StoryEventContent, StoryNodeType, StoryOption, Storyline,
     ThreeDimensionalTemplate,
 };
 
-pub use parser::{parse_storylines, parse_adventure_events};
-pub use reward::apply_rewards;
 pub use manager::EventManager;
+pub use parser::{parse_adventure_events, parse_storylines};
+pub use reward::apply_rewards;

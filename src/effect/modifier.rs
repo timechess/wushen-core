@@ -1,12 +1,11 @@
+use super::effect::{AttributeTarget, Effect, Operation, PanelTarget};
 /// 属性修改器系统
 /// 支持增加/减少/设置、突破上限
 /// 注意：战斗时的所有效果都是临时的，不会改变基础面板；只有修行时能改变基础面板
-
 use crate::character::panel::CharacterPanel;
-use super::effect::{AttributeTarget, Effect, Operation, PanelTarget};
 
 /// 属性修改器
-/// 
+///
 /// 这个结构主要用于修行系统，直接修改角色面板。
 /// 战斗系统现在直接通过 BattleEngine.apply_effect() 应用效果到 BattlePanel。
 #[derive(Debug, Clone)]
@@ -44,12 +43,9 @@ impl AttributeModifier {
             is_temporary,
         }
     }
-    
+
     /// 从效果创建修改器（使用计算后的值）
-    pub fn from_effect_with_value(
-        effect: &Effect,
-        calculated_value: f64,
-    ) -> Option<Self> {
+    pub fn from_effect_with_value(effect: &Effect, calculated_value: f64) -> Option<Self> {
         match effect {
             Effect::ModifyAttribute {
                 target,
@@ -58,7 +54,8 @@ impl AttributeModifier {
                 can_exceed_limit,
                 is_temporary,
                 ..
-            } | Effect::ModifyPercentage {
+            }
+            | Effect::ModifyPercentage {
                 target,
                 operation,
                 target_panel,
@@ -76,7 +73,7 @@ impl AttributeModifier {
             _ => None,
         }
     }
-    
+
     /// 从效果创建修改器（仅用于固定值）
     pub fn from_effect(effect: &Effect) -> Option<Self> {
         match effect {
@@ -88,7 +85,8 @@ impl AttributeModifier {
                 can_exceed_limit,
                 is_temporary,
                 ..
-            } | Effect::ModifyPercentage {
+            }
+            | Effect::ModifyPercentage {
                 target,
                 value,
                 operation,
@@ -113,75 +111,83 @@ impl AttributeModifier {
             _ => None,
         }
     }
-    
+
     /// 获取属性的上限值
     fn get_attribute_limit(&self, target: AttributeTarget, panel: &CharacterPanel) -> Option<f64> {
         match target {
             // 悟性、根骨、体魄上限为100
-            AttributeTarget::Comprehension | AttributeTarget::BoneStructure | AttributeTarget::Physique => {
-                Some(100.0)
-            }
+            AttributeTarget::Comprehension
+            | AttributeTarget::BoneStructure
+            | AttributeTarget::Physique => Some(100.0),
             // 出手速度上限为100
-            AttributeTarget::AttackSpeed => {
-                Some(100.0)
-            }
+            AttributeTarget::AttackSpeed => Some(100.0),
             // 减伤上限是动态的
-            AttributeTarget::DamageReduction => {
-                Some(panel.max_damage_reduction)
-            }
+            AttributeTarget::DamageReduction => Some(panel.max_damage_reduction),
             _ => None,
         }
     }
-    
+
     /// 检查是否应该跳过（已达到上限）
-    fn should_skip_due_to_limit(&self, target: AttributeTarget, current_value: f64, new_value: f64, panel: &CharacterPanel) -> bool {
+    fn should_skip_due_to_limit(
+        &self,
+        target: AttributeTarget,
+        current_value: f64,
+        new_value: f64,
+        panel: &CharacterPanel,
+    ) -> bool {
         if self.can_exceed_limit {
             return false;
         }
-        
+
         if let Some(limit) = self.get_attribute_limit(target, panel) {
             if current_value >= limit && new_value > limit {
                 return true;
             }
         }
-        
+
         false
     }
-    
+
     /// 应用修改到角色面板（用于修行系统）
     pub fn apply_to_panel(&self, panel: &mut CharacterPanel) {
         match self.target {
             AttributeTarget::Comprehension => {
                 let current = panel.three_d.comprehension as f64;
                 let new_value = self.apply_operation(current);
-                
+
                 if self.should_skip_due_to_limit(self.target, current, new_value, panel) {
                     return;
                 }
-                
-                let limit = self.get_attribute_limit(self.target, panel).unwrap_or(f64::INFINITY);
+
+                let limit = self
+                    .get_attribute_limit(self.target, panel)
+                    .unwrap_or(f64::INFINITY);
                 panel.three_d.comprehension = new_value.max(0.0).min(limit) as u32;
             }
             AttributeTarget::BoneStructure => {
                 let current = panel.three_d.bone_structure as f64;
                 let new_value = self.apply_operation(current);
-                
+
                 if self.should_skip_due_to_limit(self.target, current, new_value, panel) {
                     return;
                 }
-                
-                let limit = self.get_attribute_limit(self.target, panel).unwrap_or(f64::INFINITY);
+
+                let limit = self
+                    .get_attribute_limit(self.target, panel)
+                    .unwrap_or(f64::INFINITY);
                 panel.three_d.bone_structure = new_value.max(0.0).min(limit) as u32;
             }
             AttributeTarget::Physique => {
                 let current = panel.three_d.physique as f64;
                 let new_value = self.apply_operation(current);
-                
+
                 if self.should_skip_due_to_limit(self.target, current, new_value, panel) {
                     return;
                 }
-                
-                let limit = self.get_attribute_limit(self.target, panel).unwrap_or(f64::INFINITY);
+
+                let limit = self
+                    .get_attribute_limit(self.target, panel)
+                    .unwrap_or(f64::INFINITY);
                 panel.three_d.physique = new_value.max(0.0).min(limit) as u32;
             }
             AttributeTarget::MaxHp => {
@@ -214,23 +220,27 @@ impl AttributeModifier {
             AttributeTarget::AttackSpeed => {
                 let current = panel.attack_speed;
                 let new_value = self.apply_operation(current);
-                
+
                 if self.should_skip_due_to_limit(self.target, current, new_value, panel) {
                     return;
                 }
-                
-                let limit = self.get_attribute_limit(self.target, panel).unwrap_or(f64::INFINITY);
+
+                let limit = self
+                    .get_attribute_limit(self.target, panel)
+                    .unwrap_or(f64::INFINITY);
                 panel.attack_speed = new_value.max(0.0).min(limit);
             }
             AttributeTarget::QiRecoveryRate => {
                 let current = panel.qi_recovery_rate;
                 let new_value = self.apply_operation(current);
-                
+
                 if self.should_skip_due_to_limit(self.target, current, new_value, panel) {
                     return;
                 }
-                
-                let limit = self.get_attribute_limit(self.target, panel).unwrap_or(f64::INFINITY);
+
+                let limit = self
+                    .get_attribute_limit(self.target, panel)
+                    .unwrap_or(f64::INFINITY);
                 panel.qi_recovery_rate = new_value.max(0.0).min(limit);
             }
             AttributeTarget::ChargeTime => {
@@ -242,25 +252,28 @@ impl AttributeModifier {
             AttributeTarget::DamageReduction => {
                 let current = panel.damage_reduction;
                 let new_value = self.apply_operation(current);
-                
+
                 if self.should_skip_due_to_limit(self.target, current, new_value, panel) {
                     return;
                 }
-                
-                let limit = self.get_attribute_limit(self.target, panel).unwrap_or(f64::INFINITY);
+
+                let limit = self
+                    .get_attribute_limit(self.target, panel)
+                    .unwrap_or(f64::INFINITY);
                 panel.damage_reduction = new_value.max(0.0).min(limit);
             }
             AttributeTarget::MaxDamageReduction => {
-                panel.max_damage_reduction = self.apply_operation(panel.max_damage_reduction).max(0.0);
+                panel.max_damage_reduction =
+                    self.apply_operation(panel.max_damage_reduction).max(0.0);
             }
             // 以下属性在修行时使用，不直接修改面板
-            AttributeTarget::MartialArtsAttainmentGain |
-            AttributeTarget::CultivationExpGain |
-            AttributeTarget::QiGain |
-            AttributeTarget::QiLossRate => {}
+            AttributeTarget::MartialArtsAttainmentGain
+            | AttributeTarget::CultivationExpGain
+            | AttributeTarget::QiGain
+            | AttributeTarget::QiLossRate => {}
         }
     }
-    
+
     /// 应用操作
     fn apply_operation(&self, current_value: f64) -> f64 {
         match self.operation {
@@ -276,7 +289,7 @@ impl AttributeModifier {
 mod tests {
     use super::*;
     use crate::character::panel::ThreeDimensional;
-    
+
     #[test]
     fn test_attribute_modifier_creation() {
         let modifier = AttributeModifier::new(
@@ -287,17 +300,17 @@ mod tests {
             false,
             false,
         );
-        
+
         assert_eq!(modifier.target, AttributeTarget::BaseAttack);
         assert_eq!(modifier.value, 10.0);
     }
-    
+
     #[test]
     fn test_apply_to_panel() {
         let three_d = ThreeDimensional::new(10, 10, 10);
         let mut panel = CharacterPanel::new("测试".to_string(), three_d);
         panel.base_attack = 100.0;
-        
+
         let modifier = AttributeModifier::new(
             AttributeTarget::BaseAttack,
             20.0,
@@ -306,7 +319,7 @@ mod tests {
             false,
             false,
         );
-        
+
         modifier.apply_to_panel(&mut panel);
         assert_eq!(panel.base_attack, 120.0);
     }

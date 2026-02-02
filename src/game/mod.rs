@@ -215,7 +215,11 @@ pub struct SimpleRng {
 
 impl SimpleRng {
     pub fn from_state(state: u64) -> Self {
-        let seeded = if state == 0 { 0x9E3779B97F4A7C15 } else { state };
+        let seeded = if state == 0 {
+            0x9E3779B97F4A7C15
+        } else {
+            state
+        };
         Self { state: seeded }
     }
 

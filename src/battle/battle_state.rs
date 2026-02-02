@@ -1,6 +1,5 @@
 /// 战斗状态机
 /// 战斗的状态和流程控制
-
 use super::battle_calculator::BattleCalculationResult;
 
 /// 战斗双方标识
@@ -72,7 +71,7 @@ impl BattleState {
     pub fn is_finished(&self) -> bool {
         matches!(self, BattleState::Finished(_))
     }
-    
+
     /// 获取战斗结果（如果已结束）
     pub fn get_result(&self) -> Option<BattleResult> {
         match self {
@@ -85,13 +84,13 @@ impl BattleState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_side_opposite() {
         assert_eq!(Side::A.opposite(), Side::B);
         assert_eq!(Side::B.opposite(), Side::A);
     }
-    
+
     #[test]
     fn test_is_finished() {
         assert!(!BattleState::Initializing.is_finished());
@@ -99,7 +98,7 @@ mod tests {
         assert!(BattleState::Finished(BattleResult::SideAWin).is_finished());
         assert!(BattleState::Finished(BattleResult::Draw).is_finished());
     }
-    
+
     #[test]
     fn test_get_result() {
         assert_eq!(BattleState::Initializing.get_result(), None);

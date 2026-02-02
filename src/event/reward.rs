@@ -1,12 +1,11 @@
 /// 事件奖励应用逻辑
-
 use crate::character::panel::CharacterPanel;
 use crate::character::trait_manager::TraitManager;
-use crate::cultivation::manual_manager::ManualManager;
-use crate::event::types::{Reward, RewardTarget, ManualKind};
-use crate::effect::effect::Operation;
 use crate::cultivation::manual::Rarity;
+use crate::cultivation::manual_manager::ManualManager;
+use crate::effect::effect::Operation;
 use crate::effect::executor::EntryExecutor;
+use crate::event::types::{ManualKind, Reward, RewardTarget};
 
 /// 应用奖励到角色面板
 pub fn apply_rewards(
@@ -17,7 +16,12 @@ pub fn apply_rewards(
 ) -> Result<(), String> {
     for reward in rewards {
         match reward {
-            Reward::Attribute { target, value, operation, can_exceed_limit } => {
+            Reward::Attribute {
+                target,
+                value,
+                operation,
+                can_exceed_limit,
+            } => {
                 apply_attribute_reward(panel, *target, *value, *operation, *can_exceed_limit)?;
             }
             Reward::Trait { id } => {
@@ -67,8 +71,14 @@ pub fn apply_rewards(
                     return Err("未提供 ManualManager，无法发放防御武技奖励".to_string());
                 }
             }
-            Reward::RandomManual { manual_kind, rarity, manual_type, count } => {
-                let manager = manual_manager.ok_or_else(|| "未提供 ManualManager，无法发放随机功法奖励".to_string())?;
+            Reward::RandomManual {
+                manual_kind,
+                rarity,
+                manual_type,
+                count,
+            } => {
+                let manager = manual_manager
+                    .ok_or_else(|| "未提供 ManualManager，无法发放随机功法奖励".to_string())?;
                 let mut remaining = *count;
                 while remaining > 0 {
                     let candidate = match draw_random_manual(
@@ -89,11 +99,19 @@ pub fn apply_rewards(
                         }
                         ManualCandidate::AttackSkill(id) => {
                             let mut executor = executor_for_reading(trait_manager, panel);
-                            manager.acquire_attack_skill_with_reading(&id, panel, executor.as_mut())?;
+                            manager.acquire_attack_skill_with_reading(
+                                &id,
+                                panel,
+                                executor.as_mut(),
+                            )?;
                         }
                         ManualCandidate::DefenseSkill(id) => {
                             let mut executor = executor_for_reading(trait_manager, panel);
-                            manager.acquire_defense_skill_with_reading(&id, panel, executor.as_mut())?;
+                            manager.acquire_defense_skill_with_reading(
+                                &id,
+                                panel,
+                                executor.as_mut(),
+                            )?;
                         }
                     }
 
@@ -322,7 +340,12 @@ pub fn count_available_manuals(
                 if panel.has_internal(id) {
                     continue;
                 }
-                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                if matches_filters(
+                    rarity,
+                    manual_type,
+                    manual.manual.rarity.level(),
+                    &manual.manual.manual_type,
+                ) {
                     count += 1;
                 }
             }
@@ -333,7 +356,12 @@ pub fn count_available_manuals(
                 if panel.has_attack_skill(id) {
                     continue;
                 }
-                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                if matches_filters(
+                    rarity,
+                    manual_type,
+                    manual.manual.rarity.level(),
+                    &manual.manual.manual_type,
+                ) {
                     count += 1;
                 }
             }
@@ -344,7 +372,12 @@ pub fn count_available_manuals(
                 if panel.has_defense_skill(id) {
                     continue;
                 }
-                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                if matches_filters(
+                    rarity,
+                    manual_type,
+                    manual.manual.rarity.level(),
+                    &manual.manual.manual_type,
+                ) {
                     count += 1;
                 }
             }
@@ -355,7 +388,12 @@ pub fn count_available_manuals(
                 if panel.has_internal(id) {
                     continue;
                 }
-                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                if matches_filters(
+                    rarity,
+                    manual_type,
+                    manual.manual.rarity.level(),
+                    &manual.manual.manual_type,
+                ) {
                     count += 1;
                 }
             }
@@ -364,7 +402,12 @@ pub fn count_available_manuals(
                 if panel.has_attack_skill(id) {
                     continue;
                 }
-                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                if matches_filters(
+                    rarity,
+                    manual_type,
+                    manual.manual.rarity.level(),
+                    &manual.manual.manual_type,
+                ) {
                     count += 1;
                 }
             }
@@ -373,7 +416,12 @@ pub fn count_available_manuals(
                 if panel.has_defense_skill(id) {
                     continue;
                 }
-                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                if matches_filters(
+                    rarity,
+                    manual_type,
+                    manual.manual.rarity.level(),
+                    &manual.manual.manual_type,
+                ) {
                     count += 1;
                 }
             }
@@ -391,7 +439,12 @@ fn try_add_manual(
     rarity: Rarity,
     manual_type: &str,
 ) {
-    if !matches_filters(rarity_filter, manual_type_filter, rarity.level(), manual_type) {
+    if !matches_filters(
+        rarity_filter,
+        manual_type_filter,
+        rarity.level(),
+        manual_type,
+    ) {
         return;
     }
     pool.push(candidate);

@@ -1,6 +1,5 @@
 /// 战斗结算计算器
 /// 实现战斗文档中的6步结算流程
-
 use super::battle_panel::BattlePanel;
 
 /// 战斗结算结果
@@ -32,16 +31,17 @@ impl BattleCalculator {
         panel.qi += recovery;
         panel.clamp_qi();
     }
-    
+
     /// 2. 计算攻击者输出
     /// 公式：总输出 = (基础攻击力 + min(当前内息, 内息量 × 内息输出)) × 内息质量 × 威能 × 增伤
     pub fn calculate_attack_output(attacker: &BattlePanel) -> f64 {
         let qi_used = attacker.qi.min(attacker.max_qi * attacker.qi_output_rate);
         let base_with_qi = attacker.base_attack + qi_used;
-        let output = base_with_qi * attacker.qi_quality * attacker.power * (1.0 + attacker.damage_bonus);
+        let output =
+            base_with_qi * attacker.qi_quality * attacker.power * (1.0 + attacker.damage_bonus);
         output.max(0.0)
     }
-    
+
     /// 3. 计算防御者防御力
     /// 公式：总防御力 = (基础防御力 + min(当前内息, 内息量 × 内息输出)) × 内息质量 × 守御
     pub fn calculate_defense(defender: &BattlePanel) -> f64 {
@@ -50,7 +50,7 @@ impl BattleCalculator {
         let defense = base_with_qi * defender.qi_quality * defender.defense_power;
         defense.max(0.0)
     }
-    
+
     /// 完整战斗结算流程（步骤2-6，步骤1回气在攻击前阶段完成）
     /// 注意：回气应在攻击前阶段进行，不在此处
     pub fn calculate_battle(
@@ -59,23 +59,23 @@ impl BattleCalculator {
     ) -> BattleCalculationResult {
         // 步骤2: 计算攻击者输出（回气已在攻击前阶段完成）
         let total_output = Self::calculate_attack_output(attacker);
-        
+
         // 步骤3: 计算防御者防御力
         let total_defense = Self::calculate_defense(defender);
-        
+
         // 步骤4: 计算减伤后输出
         // 减伤后输出 = 总输出 × (1 - 防御者减伤)
         let damage_reduction = defender.damage_reduction.min(defender.max_damage_reduction);
         let reduced_output = total_output * (1.0 - damage_reduction);
-        
+
         // 步骤5: 比较减伤后输出与防御者防御力
         let defender_qi_output = defender.qi.min(defender.max_qi * defender.qi_output_rate);
         let attacker_qi_output = attacker.qi.min(attacker.max_qi * attacker.qi_output_rate);
-        
+
         let broke_qi_defense = reduced_output > total_defense;
         let hp_damage;
         let defender_qi_consumed;
-        
+
         if broke_qi_defense {
             // 输出大于防御力：扣除生命值差值，扣除防御者此次消耗的内息量
             hp_damage = reduced_output - total_defense;
@@ -90,21 +90,21 @@ impl BattleCalculator {
                 defender_qi_consumed = 0.0;
             }
         }
-        
+
         // 无论是否击破内息防御，攻击者均要消耗内息
         let attacker_qi_consumed = attacker_qi_output;
-        
+
         // 应用消耗
         attacker.qi -= attacker_qi_consumed;
         attacker.clamp_qi();
-        
+
         defender.qi -= defender_qi_consumed;
         defender.clamp_qi();
-        
+
         // 应用伤害
         defender.hp -= hp_damage;
         defender.clamp_hp();
-        
+
         BattleCalculationResult {
             total_output,
             total_defense,
@@ -121,7 +121,7 @@ impl BattleCalculator {
 mod tests {
     use super::*;
     use crate::character::panel::{CharacterPanel, ThreeDimensional};
-    
+
     #[test]
     fn test_recover_qi() {
         let three_d = ThreeDimensional::new(10, 8, 12);
@@ -130,15 +130,15 @@ mod tests {
         battle_panel.max_qi = 1000.0;
         battle_panel.qi = 500.0;
         battle_panel.qi_recovery_rate = 0.1;
-        
+
         BattleCalculator::recover_qi(&mut battle_panel);
         assert_eq!(battle_panel.qi, 600.0); // 500 + 1000 * 0.1
-        
+
         battle_panel.qi = 950.0;
         BattleCalculator::recover_qi(&mut battle_panel);
         assert_eq!(battle_panel.qi, 1000.0); // 不超过上限
     }
-    
+
     #[test]
     fn test_calculate_attack_output() {
         let three_d = ThreeDimensional::new(10, 8, 12);
@@ -151,7 +151,7 @@ mod tests {
         battle_panel.qi_quality = 1.5;
         battle_panel.power = 2.0;
         battle_panel.damage_bonus = 0.1;
-        
+
         let output = BattleCalculator::calculate_attack_output(&battle_panel);
         // (100 + min(500, 1000*0.3)) * 1.5 * 2.0 * 1.1 = (100 + 300) * 3.3 = 1320
         assert!((output - 1320.0).abs() < 0.01);

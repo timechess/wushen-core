@@ -1,9 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { CharacterPanel } from '@/types/character';
-import { BattleResult, PanelDelta, BattlePanel } from '@/types/game';
+import { BattleResult, PanelDelta, BattlePanel, BattleRecord } from '@/types/game';
 import { initCore, loadTraits, loadInternals, loadAttackSkills, loadDefenseSkills, calculateBattle } from '@/lib/tauri/wushen-core';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
@@ -24,8 +24,15 @@ import {
   getEnemy,
 } from '@/lib/tauri/commands';
 
+const BATTLE_SPEEDS = [
+  { label: '慢', value: 900 },
+  { label: '中', value: 600 },
+  { label: '快', value: 300 },
+];
+
 // 应用面板变化量
-function applyPanelDelta(panel: BattlePanel, delta: PanelDelta, reverse: boolean = false) {
+function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse: boolean = false) {
+  if (!delta) return;
   const multiplier = reverse ? -1 : 1;
   
   if (delta.hp_delta !== undefined) {
@@ -69,155 +76,7 @@ function applyPanelDelta(panel: BattlePanel, delta: PanelDelta, reverse: boolean
   }
 }
 
-// 敌人面板显示组件
-function CharacterPanelDisplay({ 
-  character, 
-  battlePanel,
-  manualNameMap,
-  traitNameMap
-}: { 
-  character: CharacterPanel;
-  battlePanel?: import('@/types/game').BattlePanel;
-  manualNameMap: Record<string, string>;
-  traitNameMap: Record<string, string>;
-}) {
-  const getManualName = (id: string) => {
-    if (!id) return '未指定功法';
-    return manualNameMap[id] || '未命名功法';
-  };
-  const getTraitName = (id: string) => {
-    if (!id) return '未指定特性';
-    return traitNameMap[id] || '未命名特性';
-  };
-  
-  return (
-    <div className="space-y-2 text-sm">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <span className="text-gray-600">悟性:</span>
-          <span className="ml-1 font-medium">{character.three_d.comprehension}</span>
-        </div>
-        <div>
-          <span className="text-gray-600">根骨:</span>
-          <span className="ml-1 font-medium">{character.three_d.bone_structure}</span>
-        </div>
-        <div>
-          <span className="text-gray-600">体魄:</span>
-          <span className="ml-1 font-medium">{character.three_d.physique}</span>
-        </div>
-      </div>
-      
-      {battlePanel && (
-        <>
-          <div className="mt-3 pt-2 border-t border-gray-300">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <span className="text-gray-600">生命值:</span>
-                <span className="ml-1 font-medium">{battlePanel.hp.toFixed(1)}/{battlePanel.max_hp.toFixed(1)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">内息量:</span>
-                <span className="ml-1 font-medium">{battlePanel.qi.toFixed(1)}/{battlePanel.max_qi.toFixed(1)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">基础攻击:</span>
-                <span className="ml-1 font-medium">{battlePanel.base_attack.toFixed(1)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">基础防御:</span>
-                <span className="ml-1 font-medium">{battlePanel.base_defense.toFixed(1)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">内息输出:</span>
-                <span className="ml-1 font-medium">{(battlePanel.qi_output_rate * 100).toFixed(1)}%</span>
-              </div>
-              <div>
-                <span className="text-gray-600">内息质量:</span>
-                <span className="ml-1 font-medium">{battlePanel.qi_quality.toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">增伤:</span>
-                <span className="ml-1 font-medium">{(battlePanel.damage_bonus * 100).toFixed(1)}%</span>
-              </div>
-              <div>
-                <span className="text-gray-600">减伤:</span>
-                <span className="ml-1 font-medium">{(battlePanel.damage_reduction * 100).toFixed(1)}%</span>
-              </div>
-              <div>
-                <span className="text-gray-600">威能:</span>
-                <span className="ml-1 font-medium">{battlePanel.power.toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">守御:</span>
-                <span className="ml-1 font-medium">{battlePanel.defense_power.toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">出手速度:</span>
-                <span className="ml-1 font-medium">{battlePanel.attack_speed.toFixed(2)}</span>
-              </div>
-              <div>
-                <span className="text-gray-600">回气率:</span>
-                <span className="ml-1 font-medium">{(battlePanel.qi_recovery_rate * 100).toFixed(1)}%</span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
-      
-      {character.internals.equipped && (
-        <div className="mt-3 pt-2 border-t border-gray-300">
-          <div className="text-xs text-gray-500 mb-1">内功</div>
-          <div className="font-medium">
-            {getManualName(character.internals.equipped)}
-            {character.internals.owned.find(m => m.id === character.internals.equipped) && (
-              <span className="ml-1 text-xs text-gray-500">
-                (Lv.{character.internals.owned.find(m => m.id === character.internals.equipped)?.level || 0})
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {character.attack_skills.equipped && (
-        <div className="pt-2">
-          <div className="text-xs text-gray-500 mb-1">攻击武技</div>
-          <div className="font-medium">
-            {getManualName(character.attack_skills.equipped)}
-            {character.attack_skills.owned.find(m => m.id === character.attack_skills.equipped) && (
-              <span className="ml-1 text-xs text-gray-500">
-                (Lv.{character.attack_skills.owned.find(m => m.id === character.attack_skills.equipped)?.level || 0})
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {character.defense_skills.equipped && (
-        <div className="pt-2">
-          <div className="text-xs text-gray-500 mb-1">防御武技</div>
-          <div className="font-medium">
-            {getManualName(character.defense_skills.equipped)}
-            {character.defense_skills.owned.find(m => m.id === character.defense_skills.equipped) && (
-              <span className="ml-1 text-xs text-gray-500">
-                (Lv.{character.defense_skills.owned.find(m => m.id === character.defense_skills.equipped)?.level || 0})
-              </span>
-            )}
-          </div>
-        </div>
-      )}
-      
-      {character.traits.length > 0 && (
-        <div className="mt-3 pt-2 border-t border-gray-300">
-          <div className="text-xs text-gray-500 mb-1">特性 ({character.traits.length})</div>
-          <div className="text-xs text-gray-700">
-            {character.traits.slice(0, 3).map(id => getTraitName(id)).join(', ')}
-            {character.traits.length > 3 && '...'}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+ 
 
 export default function BattlePage() {
   const router = useRouter();
@@ -230,17 +89,15 @@ export default function BattlePage() {
   const [defender, setDefender] = useState<CharacterPanel | null>(null);
   const [battleResult, setBattleResult] = useState<BattleResult | null>(null);
   const [battling, setBattling] = useState(false);
-  const [manualNameMap, setManualNameMap] = useState<Record<string, string>>({});
-  const [traitNameMap, setTraitNameMap] = useState<Record<string, string>>({});
-  const [displayedRecords, setDisplayedRecords] = useState<import('@/types/game').BattleRecord[]>([]);
-  const [isDisplaying, setIsDisplaying] = useState(false);
-  const [waitingForContinue, setWaitingForContinue] = useState(false);
-  const [continueResolve, setContinueResolve] = useState<(() => void) | null>(null);
+  const [battleStep, setBattleStep] = useState(0);
+  const [battleAuto, setBattleAuto] = useState(false);
+  const [battleSpeedIndex, setBattleSpeedIndex] = useState(1);
+  const [battleTypingIndex, setBattleTypingIndex] = useState<number | null>(null);
+  const [battleTypedText, setBattleTypedText] = useState('');
+  const [battleStickToBottom, setBattleStickToBottom] = useState(true);
   const [attackerQiOutputRate, setAttackerQiOutputRate] = useState<number | undefined>(undefined);
   const [defenderQiOutputRate, setDefenderQiOutputRate] = useState<number | undefined>(undefined);
-  // 当前面板状态（根据变化量动态更新）
-  const [currentAttackerPanel, setCurrentAttackerPanel] = useState<import('@/types/game').BattlePanel | null>(null);
-  const [currentDefenderPanel, setCurrentDefenderPanel] = useState<import('@/types/game').BattlePanel | null>(null);
+  const battleLogRef = useRef<HTMLDivElement>(null);
   const { activePack } = useActivePack();
 
   useEffect(() => {
@@ -251,8 +108,6 @@ export default function BattlePage() {
       setAttacker(null);
       setDefender(null);
       setBattleResult(null);
-      setManualNameMap({});
-      setTraitNameMap({});
       setCoreReady(false);
       setLoading(false);
       return;
@@ -326,22 +181,6 @@ export default function BattlePage() {
         attack: attackJson.length,
         defense: defenseJson.length,
       });
-
-      // 先从列表数据构建名称映射（列表数据已包含name字段）
-      const nameMap: Record<string, string> = {};
-      [...internalsJson, ...attackJson, ...defenseJson].forEach((m: { id: string; name: string }) => {
-        nameMap[m.id] = m.name;
-      });
-      setManualNameMap(nameMap);
-      console.log('功法名称映射构建完成（从列表数据）');
-      
-      // 构建特性名称映射
-      const traitMap: Record<string, string> = {};
-      traitsJson.forEach((t: { id: string; name: string }) => {
-        traitMap[t.id] = t.name;
-      });
-      setTraitNameMap(traitMap);
-      console.log('特性名称映射构建完成');
 
       // 检查是否已取消
       if (isCancelled()) {
@@ -556,6 +395,132 @@ export default function BattlePage() {
     };
   };
 
+  const battleRecords = useMemo<BattleRecord[]>(() => {
+    if (!battleResult) return [];
+    return battleResult.records.filter((record) => record.text && record.text.trim().length > 0);
+  }, [battleResult]);
+
+  const battleInitialPanels = useMemo(() => {
+    if (!battleResult) return null;
+    let attacker: BattlePanel = { ...battleResult.attacker_panel };
+    let defender: BattlePanel = { ...battleResult.defender_panel };
+    for (let i = battleRecords.length - 1; i >= 0; i -= 1) {
+      const record = battleRecords[i];
+      applyPanelDelta(attacker, record.attacker_panel_delta, true);
+      applyPanelDelta(defender, record.defender_panel_delta, true);
+    }
+    return { attacker, defender };
+  }, [battleResult, battleRecords]);
+
+  const battleCurrentPanels = useMemo(() => {
+    if (!battleInitialPanels) return null;
+    let attacker: BattlePanel = { ...battleInitialPanels.attacker };
+    let defender: BattlePanel = { ...battleInitialPanels.defender };
+    const limit = Math.min(battleStep, battleRecords.length);
+    for (let i = 0; i < limit; i += 1) {
+      const record = battleRecords[i];
+      applyPanelDelta(attacker, record.attacker_panel_delta, false);
+      applyPanelDelta(defender, record.defender_panel_delta, false);
+    }
+    return { attacker, defender };
+  }, [battleInitialPanels, battleRecords, battleStep]);
+
+  const battleSpeed = BATTLE_SPEEDS[battleSpeedIndex]?.value ?? 600;
+  const battleSpeedLabel = BATTLE_SPEEDS[battleSpeedIndex]?.label ?? '中';
+
+  const battleVisibleRecords = battleRecords.slice(0, battleStep);
+  const battleFinished = battleStep >= battleRecords.length;
+  const currentAttackerPanel = battleCurrentPanels?.attacker ?? battleResult?.attacker_panel ?? null;
+  const currentDefenderPanel = battleCurrentPanels?.defender ?? battleResult?.defender_panel ?? null;
+
+  const handleBattleNextRecord = () => {
+    setBattleStep((prev) => Math.min(prev + 1, battleRecords.length));
+  };
+
+  const handleBattleReset = () => {
+    setBattleStep(0);
+    setBattleAuto(false);
+    setBattleTypingIndex(null);
+    setBattleTypedText('');
+  };
+
+  const handleBattleSpeedCycle = () => {
+    setBattleSpeedIndex((prev) => (prev + 1) % BATTLE_SPEEDS.length);
+  };
+
+  const handleBattleLogScroll = useCallback(() => {
+    if (!battleLogRef.current) return;
+    const { scrollTop, scrollHeight, clientHeight } = battleLogRef.current;
+    const nearBottom = scrollHeight - scrollTop - clientHeight < 32;
+    setBattleStickToBottom(nearBottom);
+  }, []);
+
+  useEffect(() => {
+    if (!battleResult || !battleLogRef.current || !battleStickToBottom) return;
+    battleLogRef.current.scrollTop = battleLogRef.current.scrollHeight;
+  }, [battleResult, battleStep, battleTypedText, battleStickToBottom]);
+
+  useEffect(() => {
+    if (!battleResult || !battleAuto) return;
+    if (battleTypingIndex !== null) return;
+    if (battleStep >= battleRecords.length) {
+      setBattleAuto(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setBattleStep((prev) => Math.min(prev + 1, battleRecords.length));
+    }, battleSpeed);
+    return () => clearTimeout(timer);
+  }, [battleAuto, battleResult, battleStep, battleRecords.length, battleSpeed, battleTypingIndex]);
+
+  const battleStepRef = useRef(0);
+  useEffect(() => {
+    if (!battleResult) {
+      setBattleTypingIndex(null);
+      setBattleTypedText('');
+      battleStepRef.current = 0;
+      return;
+    }
+    if (battleStep <= 0 || battleStep > battleRecords.length) {
+      setBattleTypingIndex(null);
+      setBattleTypedText('');
+      battleStepRef.current = battleStep;
+      return;
+    }
+    if (battleStep <= battleStepRef.current) {
+      setBattleTypingIndex(null);
+      setBattleTypedText('');
+      battleStepRef.current = battleStep;
+      return;
+    }
+    const record = battleRecords[battleStep - 1];
+    if (!record || !record.text) {
+      setBattleTypingIndex(null);
+      setBattleTypedText('');
+      battleStepRef.current = battleStep;
+      return;
+    }
+    battleStepRef.current = battleStep;
+    setBattleTypingIndex(battleStep - 1);
+    setBattleTypedText('');
+    let index = 0;
+    const text = record.text;
+    const interval = setInterval(() => {
+      index += 1;
+      setBattleTypedText(text.slice(0, index));
+      if (index >= text.length) {
+        clearInterval(interval);
+        setBattleTypingIndex(null);
+      }
+    }, 18);
+    return () => clearInterval(interval);
+  }, [battleResult, battleRecords, battleStep]);
+
+  useEffect(() => {
+    if (battleResult) return;
+    setBattleAuto(false);
+  }, [battleResult]);
+
   const handleBattle = async () => {
     if (!activePack) {
       alert('请先选择模组包');
@@ -574,8 +539,6 @@ export default function BattlePage() {
     try {
       setBattling(true);
       setBattleResult(null);
-      setDisplayedRecords([]);
-      setIsDisplaying(false);
       
       // 加载两个敌人
       const [attackerData, defenderData] = await Promise.all([
@@ -602,6 +565,11 @@ export default function BattlePage() {
         defenderQiOutputRate
       );
       setBattleResult(result);
+      setBattleStep(0);
+      setBattleAuto(false);
+      setBattleTypingIndex(null);
+      setBattleTypedText('');
+      setBattleStickToBottom(true);
       
       // 在console打印战斗日志
       console.log('========== 战斗日志 ==========');
@@ -613,79 +581,6 @@ export default function BattlePage() {
         }
       });
       console.log('============================');
-      
-      // 过滤空记录并逐条显示日志
-      const filteredRecords = result.records.filter(r => r.text && r.text.trim().length > 0);
-      
-      // 重置面板到初始状态（战斗开始时的状态）
-      // 我们需要从第一条记录开始应用变化量
-      let currentAttackerPanelState: BattlePanel = { ...result.attacker_panel };
-      let currentDefenderPanelState: BattlePanel = { ...result.defender_panel };
-      
-      // 反向应用所有变化量，得到初始状态
-      for (let i = filteredRecords.length - 1; i >= 0; i--) {
-        const record = filteredRecords[i];
-        if (record.attacker_panel_delta) {
-          applyPanelDelta(currentAttackerPanelState, record.attacker_panel_delta, true);
-        }
-        if (record.defender_panel_delta) {
-          applyPanelDelta(currentDefenderPanelState, record.defender_panel_delta, true);
-        }
-      }
-      
-      setCurrentAttackerPanel(currentAttackerPanelState);
-      setCurrentDefenderPanel(currentDefenderPanelState);
-      
-      setIsDisplaying(true);
-      for (let i = 0; i < filteredRecords.length; i++) {
-        const record = filteredRecords[i];
-        
-        // 检查是否是回合开始标记
-        const isRoundStart = record.text && record.text.includes('【第') && record.text.includes('回合开始】');
-        
-        if (isRoundStart) {
-          // 应用当前记录的变化量（回合开始时的面板状态）
-          if (record.attacker_panel_delta) {
-            currentAttackerPanelState = { ...currentAttackerPanelState };
-            applyPanelDelta(currentAttackerPanelState, record.attacker_panel_delta, false);
-            setCurrentAttackerPanel(currentAttackerPanelState);
-          }
-          if (record.defender_panel_delta) {
-            currentDefenderPanelState = { ...currentDefenderPanelState };
-            applyPanelDelta(currentDefenderPanelState, record.defender_panel_delta, false);
-            setCurrentDefenderPanel(currentDefenderPanelState);
-          }
-          
-          // 显示当前记录
-          setDisplayedRecords(filteredRecords.slice(0, i + 1));
-          
-          // 暂停，等待用户确认继续
-          setWaitingForContinue(true);
-          await new Promise<void>((resolve) => {
-            setContinueResolve(() => resolve);
-          });
-          setWaitingForContinue(false);
-          setContinueResolve(null);
-        } else {
-          // 普通记录，正常显示
-          await new Promise(resolve => setTimeout(resolve, 600)); // 每条记录间隔600ms
-          
-          // 应用当前记录的变化量
-          if (record.attacker_panel_delta) {
-            currentAttackerPanelState = { ...currentAttackerPanelState };
-            applyPanelDelta(currentAttackerPanelState, record.attacker_panel_delta, false);
-            setCurrentAttackerPanel(currentAttackerPanelState);
-          }
-          if (record.defender_panel_delta) {
-            currentDefenderPanelState = { ...currentDefenderPanelState };
-            applyPanelDelta(currentDefenderPanelState, record.defender_panel_delta, false);
-            setCurrentDefenderPanel(currentDefenderPanelState);
-          }
-          
-          setDisplayedRecords(filteredRecords.slice(0, i + 1));
-        }
-      }
-      setIsDisplaying(false);
     } catch (error) {
       console.error('战斗失败:', error);
       alert('战斗失败: ' + (error as Error).message);
@@ -805,80 +700,127 @@ export default function BattlePage() {
                   ? `${defender.name} 胜利`
                   : '平局'}
             </h2>
-            
-            {/* 三栏布局：左面板 - 日志 - 右面板 */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-6">
-              {/* 左侧：攻击者面板 */}
-              <div className="bg-blue-50 rounded-lg p-4 border-2 border-blue-200">
-                <h3 className="text-lg font-semibold mb-3 text-blue-800">{attacker.name}</h3>
-                <CharacterPanelDisplay 
-                  character={attacker} 
-                  battlePanel={currentAttackerPanel || battleResult.attacker_panel} 
-                  manualNameMap={manualNameMap}
-                  traitNameMap={traitNameMap}
-                />
-              </div>
 
-              {/* 中间：战斗日志 */}
-              <div className="bg-gray-50 rounded-lg p-4 border-2 border-gray-200">
-                <h3 className="text-lg font-semibold mb-3 text-gray-800">战斗日志</h3>
-                <div className="max-h-[600px] overflow-y-auto space-y-1">
-                  {displayedRecords.length === 0 && !isDisplaying && battleResult && (
-                    <div className="text-sm text-gray-400 p-2 text-center">战斗日志将在这里显示</div>
-                  )}
-                  {displayedRecords.map((record, index) => {
-                    const isRoundStart = record.text && record.text.includes('【第') && record.text.includes('回合开始】');
-                    return (
-                      <div
-                        key={index}
-                        className={`text-sm p-2 rounded border ${
-                          isRoundStart
-                            ? 'bg-blue-100 border-blue-300 font-semibold text-blue-800'
-                            : 'text-gray-700 bg-white border-gray-200'
-                        }`}
-                        style={{ animation: 'fadeIn 0.3s ease-in' }}
-                      >
-                        {record.text}
-                      </div>
-                    );
-                  })}
-                  {waitingForContinue && (
-                    <div className="mt-4 p-4 bg-yellow-50 border-2 border-yellow-300 rounded-lg">
-                      <div className="text-sm text-yellow-800 mb-3 text-center">
-                        回合开始，请查看面板变化后继续
-                      </div>
-                      <div className="flex justify-center">
-                        <Button
-                          onClick={() => {
-                            if (continueResolve) {
-                              continueResolve();
-                            }
-                          }}
-                        >
-                          继续战斗
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  {isDisplaying && !waitingForContinue && (
-                    <div className="text-sm text-gray-400 p-2">
-                      <span className="animate-pulse">战斗中...</span>
-                    </div>
-                  )}
-                </div>
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="text-xs text-gray-500">
+                进度 {Math.min(battleStep, battleRecords.length)} / {battleRecords.length}
               </div>
-
-              {/* 右侧：防御者面板 */}
-              <div className="bg-red-50 rounded-lg p-4 border-2 border-red-200">
-                <h3 className="text-lg font-semibold mb-3 text-red-800">{defender.name}</h3>
-                <CharacterPanelDisplay 
-                  character={defender} 
-                  battlePanel={currentDefenderPanel || battleResult.defender_panel} 
-                  manualNameMap={manualNameMap}
-                  traitNameMap={traitNameMap}
-                />
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" size="sm" onClick={handleBattleReset} disabled={battleStep === 0}>
+                  重置
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={handleBattleNextRecord}
+                  disabled={battleFinished || battleTypingIndex !== null}
+                >
+                  下一条
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setBattleAuto((prev) => !prev)}
+                  disabled={battleFinished}
+                >
+                  {battleAuto ? '停止自动' : '自动播放'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleBattleSpeedCycle}>
+                  速度：{battleSpeedLabel}
+                </Button>
+                <Button size="sm" onClick={() => setBattleStep(battleRecords.length)} disabled={battleFinished}>
+                  播放完
+                </Button>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 min-h-[560px] h-[70vh]">
+              <section className="surface-panel p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-gray-800">进攻方</h3>
+                  <span className="text-sm text-gray-500">面板同步</span>
+                </div>
+                {currentAttackerPanel && (
+                  <div className="text-base text-gray-700 space-y-2">
+                    <div className="font-semibold">{currentAttackerPanel.name}</div>
+                    <div>生命值 {currentAttackerPanel.hp.toFixed(1)} / {currentAttackerPanel.max_hp.toFixed(1)}</div>
+                    <div>内息量 {currentAttackerPanel.qi.toFixed(1)} / {currentAttackerPanel.max_qi.toFixed(1)}</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 pt-2 border-t border-gray-200">
+                      <div>基础攻击 {currentAttackerPanel.base_attack.toFixed(1)}</div>
+                      <div>基础防御 {currentAttackerPanel.base_defense.toFixed(1)}</div>
+                      <div>内息输出 {(currentAttackerPanel.qi_output_rate * 100).toFixed(1)}%</div>
+                      <div>内息质量 {currentAttackerPanel.qi_quality.toFixed(2)}</div>
+                      <div>增伤 {(currentAttackerPanel.damage_bonus * 100).toFixed(1)}%</div>
+                      <div>减伤 {(currentAttackerPanel.damage_reduction * 100).toFixed(1)}%</div>
+                      <div>威能 {currentAttackerPanel.power.toFixed(2)}</div>
+                      <div>守御 {currentAttackerPanel.defense_power.toFixed(2)}</div>
+                      <div>出手速度 {currentAttackerPanel.attack_speed.toFixed(2)}</div>
+                      <div>回气率 {(currentAttackerPanel.qi_recovery_rate * 100).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="surface-panel p-4 flex flex-col min-h-0">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-lg font-semibold text-gray-800">战斗日志</h3>
+                  <span className="text-sm text-gray-500">自动聚焦最新</span>
+                </div>
+                <div
+                  ref={battleLogRef}
+                  onScroll={handleBattleLogScroll}
+                  className="space-y-2 text-lg leading-7 text-gray-700 flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-[var(--app-surface-soft)] p-3 pr-4"
+                >
+                  {battleVisibleRecords.length === 0 ? (
+                    <div className="text-gray-400">点击“下一条”开始战斗</div>
+                  ) : (
+                    battleVisibleRecords.map((record, index) => (
+                      <div key={index} className="border-b border-gray-100 pb-2">
+                        {battleTypingIndex === index ? (
+                          <>
+                            {battleTypedText}
+                            <span className="ml-1 animate-pulse">▍</span>
+                          </>
+                        ) : (
+                          record.text
+                        )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </section>
+
+              <section className="surface-panel p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-base font-semibold text-gray-800">防守方</h3>
+                  <span className="text-sm text-gray-500">面板同步</span>
+                </div>
+                {currentDefenderPanel && (
+                  <div className="text-base text-gray-700 space-y-2">
+                    <div className="font-semibold">{currentDefenderPanel.name}</div>
+                    <div>生命值 {currentDefenderPanel.hp.toFixed(1)} / {currentDefenderPanel.max_hp.toFixed(1)}</div>
+                    <div>内息量 {currentDefenderPanel.qi.toFixed(1)} / {currentDefenderPanel.max_qi.toFixed(1)}</div>
+                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 pt-2 border-t border-gray-200">
+                      <div>基础攻击 {currentDefenderPanel.base_attack.toFixed(1)}</div>
+                      <div>基础防御 {currentDefenderPanel.base_defense.toFixed(1)}</div>
+                      <div>内息输出 {(currentDefenderPanel.qi_output_rate * 100).toFixed(1)}%</div>
+                      <div>内息质量 {currentDefenderPanel.qi_quality.toFixed(2)}</div>
+                      <div>增伤 {(currentDefenderPanel.damage_bonus * 100).toFixed(1)}%</div>
+                      <div>减伤 {(currentDefenderPanel.damage_reduction * 100).toFixed(1)}%</div>
+                      <div>威能 {currentDefenderPanel.power.toFixed(2)}</div>
+                      <div>守御 {currentDefenderPanel.defense_power.toFixed(2)}</div>
+                      <div>出手速度 {currentDefenderPanel.attack_speed.toFixed(2)}</div>
+                      <div>回气率 {(currentDefenderPanel.qi_recovery_rate * 100).toFixed(1)}%</div>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
+            {battleFinished && (
+              <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-base text-emerald-700">
+                战斗结束：{battleResult.result === 'attacker_win' ? '进攻方胜利' : battleResult.result === 'defender_win' ? '防守方胜利' : '平局'}
+              </div>
+            )}
           </div>
         )}
       </div>

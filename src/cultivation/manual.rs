@@ -1,6 +1,5 @@
 /// 功法基类
 /// 内功、攻击武技、防御武技的共同基础结构
-
 use super::formula::CultivationFormula;
 
 /// 功法稀有度（1-5级）
@@ -14,7 +13,7 @@ impl Rarity {
         }
         Ok(Self(level))
     }
-    
+
     pub fn level(&self) -> u32 {
         self.0
     }
@@ -62,33 +61,33 @@ impl Manual {
             current_exp: 0.0,
         }
     }
-    
+
     /// 计算一次修行获得的经验
     pub fn calculate_exp_gain(&self, x: f64, y: f64, z: f64, a: f64) -> Result<f64, String> {
         self.cultivation_formula.calculate(x, y, z, a)
     }
-    
+
     /// 检查是否可以升级
-    /// 
+    ///
     /// # 参数
     /// - `exp_required`: 升级所需经验
-    /// 
+    ///
     /// # 返回
     /// 如果可以升级返回 true
     pub fn can_level_up(&self, exp_required: f64) -> bool {
         self.level < 5 && self.current_exp >= exp_required
     }
-    
+
     /// 添加经验
     pub fn add_exp(&mut self, exp: f64) {
         self.current_exp += exp;
     }
-    
+
     /// 升级
-    /// 
+    ///
     /// # 参数
     /// - `exp_required`: 升级所需经验
-    /// 
+    ///
     /// # 返回
     /// 如果成功升级返回 true，否则返回 false
     pub fn level_up(&mut self, exp_required: f64) -> bool {
@@ -106,19 +105,19 @@ impl Manual {
 mod tests {
     use super::*;
     use crate::cultivation::formula::CultivationFormula;
-    
+
     #[test]
     fn test_rarity() {
         let r1 = Rarity::new(1).unwrap();
         assert_eq!(r1.level(), 1);
-        
+
         let r5 = Rarity::new(5).unwrap();
         assert_eq!(r5.level(), 5);
-        
+
         assert!(Rarity::new(0).is_err());
         assert!(Rarity::new(6).is_err());
     }
-    
+
     #[test]
     fn test_manual_level_up() {
         let formula = CultivationFormula::new("x * 10").unwrap();
@@ -130,19 +129,18 @@ mod tests {
             "test".to_string(),
             formula,
         );
-        
+
         assert_eq!(manual.level, 0);
         assert_eq!(manual.current_exp, 0.0);
-        
+
         // 添加经验
         manual.add_exp(100.0);
         assert_eq!(manual.current_exp, 100.0);
-        
+
         // 升级
         assert!(manual.can_level_up(100.0));
         assert!(manual.level_up(100.0));
         assert_eq!(manual.level, 1);
         assert_eq!(manual.current_exp, 0.0);
-        
     }
 }

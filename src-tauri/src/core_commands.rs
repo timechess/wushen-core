@@ -2,8 +2,8 @@ use std::sync::Mutex;
 
 use serde_json::Value;
 use tauri::{AppHandle, State};
-use wushen_core::tauri_api::WushenCore;
 use wushen_core::game::{NewGameRequest, SaveGame};
+use wushen_core::tauri_api::WushenCore;
 
 use crate::commands::read_pack_collection;
 
@@ -19,7 +19,9 @@ impl Default for CoreState {
     }
 }
 
-fn lock_core<'a>(state: &'a State<'a, CoreState>) -> Result<std::sync::MutexGuard<'a, WushenCore>, String> {
+fn lock_core<'a>(
+    state: &'a State<'a, CoreState>,
+) -> Result<std::sync::MutexGuard<'a, WushenCore>, String> {
     state
         .core
         .lock()
@@ -244,16 +246,20 @@ pub fn core_game_load_packs(
         let pack_internals = read_pack_collection(&app, &pack_id, "internals.json", "internals")?;
         merge_by_id(&mut internals, &mut internal_seen, pack_internals);
 
-        let pack_attack = read_pack_collection(&app, &pack_id, "attack_skills.json", "attack_skills")?;
+        let pack_attack =
+            read_pack_collection(&app, &pack_id, "attack_skills.json", "attack_skills")?;
         merge_by_id(&mut attack_skills, &mut attack_seen, pack_attack);
 
-        let pack_defense = read_pack_collection(&app, &pack_id, "defense_skills.json", "defense_skills")?;
+        let pack_defense =
+            read_pack_collection(&app, &pack_id, "defense_skills.json", "defense_skills")?;
         merge_by_id(&mut defense_skills, &mut defense_seen, pack_defense);
 
-        let pack_adventures = read_pack_collection(&app, &pack_id, "adventures.json", "adventures")?;
+        let pack_adventures =
+            read_pack_collection(&app, &pack_id, "adventures.json", "adventures")?;
         merge_by_id(&mut adventures, &mut adventure_seen, pack_adventures);
 
-        let pack_storylines = read_pack_collection(&app, &pack_id, "storylines.json", "storylines")?;
+        let pack_storylines =
+            read_pack_collection(&app, &pack_id, "storylines.json", "storylines")?;
         merge_by_id(&mut storylines, &mut storyline_seen, pack_storylines);
     }
 
@@ -310,8 +316,8 @@ pub fn core_game_resume_save(
     state: State<CoreState>,
     id: String,
 ) -> Result<String, String> {
-    let raw = crate::commands::load_save(app.clone(), id)?
-        .ok_or_else(|| "存档不存在".to_string())?;
+    let raw =
+        crate::commands::load_save(app.clone(), id)?.ok_or_else(|| "存档不存在".to_string())?;
     let save: SaveGame = serde_json::from_value(raw).map_err(|e| e.to_string())?;
     let mut core = lock_core(&state)?;
     let response = core.game_resume(save)?;
@@ -391,10 +397,7 @@ pub fn core_game_story_battle(
 }
 
 #[tauri::command]
-pub fn core_game_story_continue(
-    app: AppHandle,
-    state: State<CoreState>,
-) -> Result<String, String> {
+pub fn core_game_story_continue(app: AppHandle, state: State<CoreState>) -> Result<String, String> {
     let mut core = lock_core(&state)?;
     let response = core.game_story_continue()?;
     persist_game_save(&app, &response.view.save)?;
@@ -410,7 +413,8 @@ pub fn core_game_adventure_option(
     defender_qi_output_rate: Option<f64>,
 ) -> Result<String, String> {
     let mut core = lock_core(&state)?;
-    let response = core.game_adventure_option(option_id, attacker_qi_output_rate, defender_qi_output_rate)?;
+    let response =
+        core.game_adventure_option(option_id, attacker_qi_output_rate, defender_qi_output_rate)?;
     persist_game_save(&app, &response.view.save)?;
     serialize_game_response(response)
 }

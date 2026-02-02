@@ -1,17 +1,16 @@
+use crate::character::panel::CharacterPanel;
+use crate::cultivation::{AttackSkill, DefenseSkill, Internal};
+use crate::effect::{
+    condition::{BattleContext, CultivationContext},
+    effect::{AttributeTarget, Effect, Operation},
+    entry::Entry,
+    formula::{BattleFormulaContext, CultivationFormulaContext, FormulaCalculator},
+    modifier::AttributeModifier,
+    trigger::Trigger,
+};
 /// 词条执行引擎
 /// 处理词条的触发、条件判断和效果应用
-
 use std::collections::HashMap;
-use crate::character::panel::CharacterPanel;
-use crate::effect::{
-    trigger::Trigger,
-    condition::{CultivationContext, BattleContext},
-    entry::Entry,
-    effect::{Effect, Operation, AttributeTarget},
-    modifier::AttributeModifier,
-    formula::{FormulaCalculator, CultivationFormulaContext, BattleFormulaContext},
-};
-use crate::cultivation::{Internal, AttackSkill, DefenseSkill};
 
 /// 词条效果及其来源
 #[derive(Debug, Clone)]
@@ -35,7 +34,7 @@ impl EntryExecutor {
             entries_by_trigger: HashMap::new(),
         }
     }
-    
+
     /// 添加词条（带来源ID）
     pub fn add_entry_with_source(&mut self, entry: Entry, source_id: String) {
         self.entries_by_trigger
@@ -43,26 +42,26 @@ impl EntryExecutor {
             .or_insert_with(Vec::new)
             .push((entry, source_id));
     }
-    
+
     /// 添加词条（向后兼容，使用默认来源ID）
     pub fn add_entry(&mut self, entry: Entry) {
         self.add_entry_with_source(entry, "unknown".to_string());
     }
-    
+
     /// 添加多个词条（带来源ID）
     pub fn add_entries_with_source(&mut self, entries: Vec<Entry>, source_id: String) {
         for entry in entries {
             self.add_entry_with_source(entry, source_id.clone());
         }
     }
-    
+
     /// 添加多个词条（向后兼容）
     pub fn add_entries(&mut self, entries: Vec<Entry>) {
         for entry in entries {
             self.add_entry(entry);
         }
     }
-    
+
     /// 触发指定时机的词条（修行时）
     pub fn trigger_cultivation(
         &mut self,
@@ -71,30 +70,30 @@ impl EntryExecutor {
         context: &CultivationContext,
     ) -> Vec<Effect> {
         let mut triggered_effects = Vec::new();
-        
+
         if let Some(entries) = self.entries_by_trigger.get_mut(&trigger) {
             for (entry, _) in entries.iter_mut() {
                 if !entry.can_trigger() {
                     continue;
                 }
-                
+
                 // 检查条件
                 let condition_met = if let Some(ref condition) = entry.condition {
                     condition.check_cultivation(context)
                 } else {
                     true
                 };
-                
+
                 if condition_met {
                     entry.trigger();
                     triggered_effects.extend(entry.effects.clone());
                 }
             }
         }
-        
+
         triggered_effects
     }
-    
+
     /// 触发指定时机的词条（战斗时）
     pub fn trigger_battle(
         &mut self,
@@ -107,7 +106,7 @@ impl EntryExecutor {
             .map(|e| e.effect)
             .collect()
     }
-    
+
     /// 触发指定时机的词条（战斗时，带来源ID）
     pub fn trigger_battle_with_source(
         &mut self,
@@ -116,20 +115,20 @@ impl EntryExecutor {
         context: &BattleContext,
     ) -> Vec<EntryEffect> {
         let mut triggered_effects = Vec::new();
-        
+
         if let Some(entries) = self.entries_by_trigger.get_mut(&trigger) {
             for (entry, source_id) in entries.iter_mut() {
                 if !entry.can_trigger() {
                     continue;
                 }
-                
+
                 // 检查条件
                 let condition_met = if let Some(ref condition) = entry.condition {
                     condition.check_battle(context)
                 } else {
                     true
                 };
-                
+
                 if condition_met {
                     entry.trigger();
                     for effect in entry.effects.clone() {
@@ -141,12 +140,12 @@ impl EntryExecutor {
                 }
             }
         }
-        
+
         triggered_effects
     }
-    
+
     /// 应用效果到角色面板（修行时，支持公式）
-    /// 
+    ///
     /// 注意：所有效果的计算都基于应用前的原始面板值，计算完所有结果后一次性更新面板
     /// 修行时的效果会直接修改基础面板
     pub fn apply_effects_cultivation(
@@ -160,28 +159,26 @@ impl EntryExecutor {
         let formula_context = CultivationFormulaContext {
             self_panel: original_panel.clone(),
         };
-        
+
         // 收集所有修改器
         let mut modifiers = Vec::new();
-        
+
         for effect in effects {
-            if let Some(modifier) = Self::calculate_modifier_cultivation(
-                &effect,
-                &original_panel,
-                &formula_context,
-            ) {
+            if let Some(modifier) =
+                Self::calculate_modifier_cultivation(&effect, &original_panel, &formula_context)
+            {
                 modifiers.push(modifier);
             }
         }
-        
+
         // 批量应用所有修改器（直接修改基础面板）
         for modifier in modifiers {
             modifier.apply_to_panel(panel);
         }
     }
-    
+
     /// 计算战斗时的修改器（不直接应用）
-    /// 
+    ///
     /// 返回修改器列表，供战斗引擎添加到临时修改器中
     /// 注意：所有效果的计算都基于提供的原始面板值
     pub fn calculate_modifiers_battle(
@@ -196,25 +193,23 @@ impl EntryExecutor {
             opponent_panel: opponent_panel.cloned(),
             attack_result: battle_context.attack_result,
         };
-        
+
         // 收集所有修改器
         let mut modifiers = Vec::new();
-        
+
         for effect in effects {
-            if let Some(modifier) = Self::calculate_modifier_battle(
-                &effect,
-                original_panel,
-                &formula_context,
-            ) {
+            if let Some(modifier) =
+                Self::calculate_modifier_battle(&effect, original_panel, &formula_context)
+            {
                 modifiers.push(modifier);
             }
         }
-        
+
         modifiers
     }
-    
+
     /// 计算修改器（修行时），不直接应用
-    /// 
+    ///
     /// 所有计算都基于提供的原始面板值
     fn calculate_modifier_cultivation(
         effect: &Effect,
@@ -247,7 +242,9 @@ impl EntryExecutor {
                 };
 
                 let adjusted_value = match effect {
-                    Effect::ModifyPercentage { target, operation, .. } => {
+                    Effect::ModifyPercentage {
+                        target, operation, ..
+                    } => {
                         let current_value = Self::get_panel_value(original_panel, *target);
                         match operation {
                             Operation::Multiply => calculated_value,
@@ -266,9 +263,9 @@ impl EntryExecutor {
             }
         }
     }
-    
+
     /// 计算修改器（战斗时），不直接应用
-    /// 
+    ///
     /// 所有计算都基于提供的原始面板值
     fn calculate_modifier_battle(
         effect: &Effect,
@@ -301,7 +298,9 @@ impl EntryExecutor {
                 };
 
                 let adjusted_value = match effect {
-                    Effect::ModifyPercentage { target, operation, .. } => {
+                    Effect::ModifyPercentage {
+                        target, operation, ..
+                    } => {
                         let current_value = Self::get_panel_value(original_panel, *target);
                         match operation {
                             Operation::Multiply => calculated_value,
@@ -343,7 +342,7 @@ impl EntryExecutor {
             _ => 0.0,
         }
     }
-    
+
     /// 重置所有词条的触发次数（每场战斗刷新）
     pub fn reset_battle_triggers(&mut self) {
         for entries in self.entries_by_trigger.values_mut() {
@@ -352,9 +351,9 @@ impl EntryExecutor {
             }
         }
     }
-    
+
     /// 聚合所有词条来源
-    /// 
+    ///
     /// # 参数
     /// - `traits`: 特性词条
     /// - `internal`: 当前内功（如果正在修行）
@@ -367,38 +366,48 @@ impl EntryExecutor {
         defense_skill: Option<&DefenseSkill>,
     ) -> Self {
         let mut executor = Self::new();
-        
+
         // 添加特性词条
         for trait_ in traits {
-            executor.add_entries_with_source(trait_.entries.clone(), format!("trait:{}", trait_.id));
+            executor
+                .add_entries_with_source(trait_.entries.clone(), format!("trait:{}", trait_.id));
         }
-        
+
         // 添加内功当前境界的词条
         if let Some(internal) = internal {
             if let Some(realm) = internal.current_realm() {
-                executor.add_entries_with_source(realm.entries.clone(), format!("internal:{}", internal.manual.id));
+                executor.add_entries_with_source(
+                    realm.entries.clone(),
+                    format!("internal:{}", internal.manual.id),
+                );
             }
         }
-        
+
         // 添加攻击武技当前境界的词条
         if let Some(attack_skill) = attack_skill {
             if let Some(realm) = attack_skill.current_realm() {
-                executor.add_entries_with_source(realm.entries.clone(), format!("attack_skill:{}", attack_skill.manual.id));
+                executor.add_entries_with_source(
+                    realm.entries.clone(),
+                    format!("attack_skill:{}", attack_skill.manual.id),
+                );
             }
         }
-        
+
         // 添加防御武技当前境界的词条
         if let Some(defense_skill) = defense_skill {
             if let Some(realm) = defense_skill.current_realm() {
-                executor.add_entries_with_source(realm.entries.clone(), format!("defense_skill:{}", defense_skill.manual.id));
+                executor.add_entries_with_source(
+                    realm.entries.clone(),
+                    format!("defense_skill:{}", defense_skill.manual.id),
+                );
             }
         }
-        
+
         executor
     }
-    
+
     /// 根据角色拥有的功法等级聚合词条
-    /// 
+    ///
     /// # 参数
     /// - `traits`: 特性列表
     /// - `panel`: 角色面板（包含拥有的功法信息）
@@ -413,51 +422,61 @@ impl EntryExecutor {
         defense_skill: Option<&DefenseSkill>,
     ) -> Self {
         let mut executor = Self::new();
-        
+
         // 添加特性词条
         for trait_ in traits {
-            executor.add_entries_with_source(trait_.entries.clone(), format!("trait:{}", trait_.id));
+            executor
+                .add_entries_with_source(trait_.entries.clone(), format!("trait:{}", trait_.id));
         }
-        
+
         // 添加内功当前境界的词条（根据角色拥有的等级）
         if let Some(internal) = internal {
             if let Some(internal_id) = &panel.current_internal_id {
                 if let Some((level, _)) = panel.get_internal_level_exp(internal_id) {
                     if level > 0 && level <= 5 {
                         if let Some(realm) = internal.realm_at_level(level) {
-                            executor.add_entries_with_source(realm.entries.clone(), format!("internal:{}", internal.manual.id));
+                            executor.add_entries_with_source(
+                                realm.entries.clone(),
+                                format!("internal:{}", internal.manual.id),
+                            );
                         }
                     }
                 }
             }
         }
-        
+
         // 添加攻击武技当前境界的词条（根据角色拥有的等级）
         if let Some(attack_skill) = attack_skill {
             if let Some(skill_id) = &panel.current_attack_skill_id {
                 if let Some((level, _)) = panel.get_attack_skill_level_exp(skill_id) {
                     if level > 0 && level <= 5 {
                         if let Some(realm) = attack_skill.realm_at_level(level) {
-                            executor.add_entries_with_source(realm.entries.clone(), format!("attack_skill:{}", attack_skill.manual.id));
+                            executor.add_entries_with_source(
+                                realm.entries.clone(),
+                                format!("attack_skill:{}", attack_skill.manual.id),
+                            );
                         }
                     }
                 }
             }
         }
-        
+
         // 添加防御武技当前境界的词条（根据角色拥有的等级）
         if let Some(defense_skill) = defense_skill {
             if let Some(skill_id) = &panel.current_defense_skill_id {
                 if let Some((level, _)) = panel.get_defense_skill_level_exp(skill_id) {
                     if level > 0 && level <= 5 {
                         if let Some(realm) = defense_skill.realm_at_level(level) {
-                            executor.add_entries_with_source(realm.entries.clone(), format!("defense_skill:{}", defense_skill.manual.id));
+                            executor.add_entries_with_source(
+                                realm.entries.clone(),
+                                format!("defense_skill:{}", defense_skill.manual.id),
+                            );
                         }
                     }
                 }
             }
         }
-        
+
         executor
     }
 }

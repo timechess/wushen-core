@@ -39,8 +39,8 @@ struct OwnedManualJson {
 }
 
 pub(crate) fn parse_character_panel(json: &str) -> Result<CharacterPanel, String> {
-    let data: CharacterPanelJson = serde_json::from_str(json)
-        .map_err(|e| format!("解析角色数据失败: {}", e))?;
+    let data: CharacterPanelJson =
+        serde_json::from_str(json).map_err(|e| format!("解析角色数据失败: {}", e))?;
 
     let three_d = ThreeDimensional::new(
         data.three_d.comprehension,
@@ -147,6 +147,5 @@ pub(crate) fn serialize_character_panel(panel: &CharacterPanel) -> Result<String
         martial_arts_attainment: Some(panel.martial_arts_attainment),
     };
 
-    serde_json::to_string(&character_json)
-        .map_err(|e| format!("序列化角色数据失败: {}", e))
+    serde_json::to_string(&character_json).map_err(|e| format!("序列化角色数据失败: {}", e))
 }

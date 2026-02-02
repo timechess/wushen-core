@@ -1,5 +1,4 @@
 /// 词条触发时机枚举
-
 use serde::{Deserialize, Serialize};
 
 /// 词条触发时机
@@ -27,7 +26,7 @@ pub enum Trigger {
     DefenseLevelUp,
     /// 转修时
     SwitchingCultivation,
-    
+
     // ========== 战斗相关 ==========
     /// 战斗开始时
     BattleStart,

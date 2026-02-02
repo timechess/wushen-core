@@ -1,8 +1,7 @@
-/// 词条效果定义
-
-use serde::{Deserialize, Serialize};
-use crate::character::panel::CharacterPanel;
 use super::battle_record_template::BattleRecordTemplate;
+use crate::character::panel::CharacterPanel;
+/// 词条效果定义
+use serde::{Deserialize, Serialize};
 
 /// 公式值（可以是固定值或公式字符串）
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,7 +21,7 @@ impl FormulaValue {
             FormulaValue::Formula(_) => None,
         }
     }
-    
+
     /// 如果是公式，返回 Some(formula)，否则返回 None
     pub fn as_formula(&self) -> Option<&str> {
         match self {
@@ -30,7 +29,7 @@ impl FormulaValue {
             FormulaValue::Formula(f) => Some(f),
         }
     }
-    
+
     /// 从 f64 创建固定值（用于向后兼容）
     pub fn from_f64(value: f64) -> Self {
         FormulaValue::Fixed(value)
@@ -45,7 +44,7 @@ pub enum AttributeTarget {
     Comprehension,
     BoneStructure,
     Physique,
-    
+
     // 战斗属性
     MaxHp,
     Hp,
@@ -61,7 +60,7 @@ pub enum AttributeTarget {
     DamageBonus,
     DamageReduction,
     MaxDamageReduction,
-    
+
     // 修行相关
     MartialArtsAttainmentGain,
     CultivationExpGain,
@@ -173,7 +172,7 @@ fn default_panel_target_self() -> PanelTarget {
 
 impl Effect {
     /// 获取修改属性的值（如果是固定值）
-    /// 
+    ///
     /// 注意：如果值是公式，此方法会返回 None，需要先计算公式值
     pub fn get_fixed_value(&self) -> Option<f64> {
         match self {
@@ -183,7 +182,7 @@ impl Effect {
             _ => None,
         }
     }
-    
+
     /// 获取公式字符串（如果是公式）
     pub fn get_formula(&self) -> Option<&str> {
         match self {
@@ -193,21 +192,27 @@ impl Effect {
             _ => None,
         }
     }
-    
+
     /// 应用效果到目标值（使用计算后的值）
-    /// 
+    ///
     /// # 参数
     /// - `current_value`: 当前属性值
     /// - `calculated_value`: 计算后的修改值（从公式或固定值计算得出）
     /// - `can_exceed_limit`: 是否允许突破上限
-    pub fn apply_to(&self, current_value: f64, calculated_value: f64, can_exceed_limit: bool) -> f64 {
+    pub fn apply_to(
+        &self,
+        current_value: f64,
+        calculated_value: f64,
+        can_exceed_limit: bool,
+    ) -> f64 {
         match self {
             Effect::ModifyAttribute {
                 operation,
                 can_exceed_limit: effect_can_exceed,
                 is_temporary: _,
                 ..
-            } | Effect::ModifyPercentage {
+            }
+            | Effect::ModifyPercentage {
                 operation,
                 can_exceed_limit: effect_can_exceed,
                 is_temporary: _,
@@ -219,7 +224,7 @@ impl Effect {
                     Operation::Set => calculated_value,
                     Operation::Multiply => current_value * calculated_value,
                 };
-                
+
                 // 如果不允许突破上限，需要检查（这里简化处理，实际可能需要上下文）
                 if !effect_can_exceed && !can_exceed_limit {
                     new_value.max(0.0) // 至少为 0
@@ -233,16 +238,16 @@ impl Effect {
             }
         }
     }
-    
+
     /// 生成战斗记录文本
-    /// 
+    ///
     /// # 参数
     /// - `entry_id`: 词条ID（用于标识是哪个词条触发的）
     /// - `self_panel`: 自身角色面板
     /// - `opponent_panel`: 可选敌方角色面板
     /// - `battle_result`: 可选战斗攻防结果
     /// - `formula_context`: 公式计算上下文（用于计算公式值）
-    /// 
+    ///
     /// # 返回
     /// 如果该特效需要生成战斗记录，返回描述文本；否则返回 None
     pub fn generate_battle_record_text(
@@ -254,8 +259,24 @@ impl Effect {
         formula_context: Option<&super::formula::BattleFormulaContext>,
     ) -> Option<String> {
         match self {
-            Effect::ModifyAttribute { target, value, operation, target_panel, battle_record_template, is_temporary: _, .. } 
-            | Effect::ModifyPercentage { target, value, operation, target_panel, battle_record_template, is_temporary: _, .. } => {
+            Effect::ModifyAttribute {
+                target,
+                value,
+                operation,
+                target_panel,
+                battle_record_template,
+                is_temporary: _,
+                ..
+            }
+            | Effect::ModifyPercentage {
+                target,
+                value,
+                operation,
+                target_panel,
+                battle_record_template,
+                is_temporary: _,
+                ..
+            } => {
                 let is_percentage = matches!(self, Effect::ModifyPercentage { .. });
                 // 格式化值字符串
                 let value_str = match value {
@@ -284,7 +305,7 @@ impl Effect {
                         }
                     }
                 };
-                
+
                 // 如果提供了模板，使用模板生成
                 if let Some(template) = battle_record_template {
                     return Some(template.generate(
@@ -297,7 +318,7 @@ impl Effect {
                         Some(operation),
                     ));
                 }
-                
+
                 // 否则使用默认格式
                 let target_name = match target {
                     AttributeTarget::Hp => "生命值",
@@ -314,29 +335,31 @@ impl Effect {
                     AttributeTarget::QiLossRate => "转修损失内息量",
                     _ => "属性",
                 };
-                
+
                 let op_str = match operation {
                     Operation::Add => "增加",
                     Operation::Subtract => "减少",
                     Operation::Set => "设置为",
                     Operation::Multiply => "乘以",
                 };
-                
-                // 根据目标面板添加前缀
-                let panel_prefix = match target_panel {
-                    PanelTarget::Own => String::new(),
-                    PanelTarget::Opponent => {
-                        if let Some(opponent) = opponent_panel {
-                            format!("{}的", opponent.name)
-                        } else {
-                            "对手的".to_string()
-                        }
-                    }
+
+                // 标准化为“某角色的某数值如何变化”
+                let target_owner = match target_panel {
+                    PanelTarget::Own => self_panel.name.clone(),
+                    PanelTarget::Opponent => opponent_panel
+                        .map(|opponent| opponent.name.clone())
+                        .unwrap_or_else(|| "对手".to_string()),
                 };
-                
-                Some(format!("{}{} {} {}", panel_prefix, target_name, op_str, value_str))
+
+                Some(format!(
+                    "{}的{}{}{}",
+                    target_owner, target_name, op_str, value_str
+                ))
             }
-            Effect::ExtraAttack { output, battle_record_template } => {
+            Effect::ExtraAttack {
+                output,
+                battle_record_template,
+            } => {
                 // 如果提供了模板，使用模板生成
                 if let Some(template) = battle_record_template {
                     return Some(template.generate(
@@ -349,7 +372,7 @@ impl Effect {
                         None,
                     ));
                 }
-                
+
                 // 否则使用默认格式
                 Some(format!("额外攻击，输出值：{}", output))
             }

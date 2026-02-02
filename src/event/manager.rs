@@ -1,19 +1,12 @@
-/// 事件管理器
-
-use std::collections::{HashMap, HashSet};
 use crate::character::panel::CharacterPanel;
 use crate::cultivation::manual_manager::ManualManager;
 use crate::effect::condition::Condition;
 use crate::event::types::{
-    Storyline,
-    StoryEvent,
-    StoryEventContent,
-    StoryNodeType,
-    StoryOption,
-    AdventureEvent,
-    AdventureEventContent,
-    AdventureOptionResult,
+    AdventureEvent, AdventureEventContent, AdventureOptionResult, StoryEvent, StoryEventContent,
+    StoryNodeType, StoryOption, Storyline,
 };
+/// 事件管理器
+use std::collections::{HashMap, HashSet};
 
 /// 事件管理器
 pub struct EventManager {
@@ -118,13 +111,20 @@ impl EventManager {
         let mut event_map: HashMap<String, &StoryEvent> = HashMap::new();
         for event in &storyline.events {
             if event_map.contains_key(&event.id) {
-                return Err(format!("剧情线 {} 存在重复事件ID: {}", storyline.id, event.id));
+                return Err(format!(
+                    "剧情线 {} 存在重复事件ID: {}",
+                    storyline.id, event.id
+                ));
             }
             event_map.insert(event.id.clone(), event);
         }
 
-        let start_event = event_map.get(&storyline.start_event_id)
-            .ok_or_else(|| format!("剧情线 {} 起始事件不存在: {}", storyline.id, storyline.start_event_id))?;
+        let start_event = event_map.get(&storyline.start_event_id).ok_or_else(|| {
+            format!(
+                "剧情线 {} 起始事件不存在: {}",
+                storyline.id, storyline.start_event_id
+            )
+        })?;
         if start_event.node_type != StoryNodeType::Start {
             return Err(format!("剧情线 {} 起始事件类型必须为 start", storyline.id));
         }
@@ -162,7 +162,13 @@ impl EventManager {
                     if matches!(event.content, StoryEventContent::End { .. }) {
                         return Err(format!("起始事件 {} 不能是 end 类型内容", event.id));
                     }
-                    if matches!(event.content, StoryEventContent::Story { next_event_id: None, .. }) {
+                    if matches!(
+                        event.content,
+                        StoryEventContent::Story {
+                            next_event_id: None,
+                            ..
+                        }
+                    ) {
                         return Err(format!("起始剧情事件 {} 必须指定 next_event_id", event.id));
                     }
                     if event.action_points != 0 {
@@ -184,7 +190,13 @@ impl EventManager {
                     if matches!(event.content, StoryEventContent::End { .. }) {
                         return Err(format!("中间事件 {} 不能是 end 类型内容", event.id));
                     }
-                    if matches!(event.content, StoryEventContent::Story { next_event_id: None, .. }) {
+                    if matches!(
+                        event.content,
+                        StoryEventContent::Story {
+                            next_event_id: None,
+                            ..
+                        }
+                    ) {
                         return Err(format!("剧情事件 {} 必须指定 next_event_id", event.id));
                     }
                 }
@@ -193,7 +205,10 @@ impl EventManager {
             // 检查 next_event_id 是否存在
             for next_id in &next_ids {
                 if !event_map.contains_key(next_id) {
-                    return Err(format!("事件 {} 指向不存在的后续事件 {}", event.id, next_id));
+                    return Err(format!(
+                        "事件 {} 指向不存在的后续事件 {}",
+                        event.id, next_id
+                    ));
                 }
             }
 
@@ -262,12 +277,17 @@ impl EventManager {
                     return Err(format!("奇遇事件 {} 的选项不能为空", event.id));
                 }
                 for option in options {
-                    validate_adventure_option_result(&option.result)
-                        .map_err(|e| format!("奇遇事件 {} 选项 {} 错误: {}", event.id, option.id, e))?;
+                    validate_adventure_option_result(&option.result).map_err(|e| {
+                        format!("奇遇事件 {} 选项 {} 错误: {}", event.id, option.id, e)
+                    })?;
                 }
             }
             AdventureEventContent::Battle { win, lose, .. } => {
-                if win.rewards.is_empty() && lose.rewards.is_empty() && win.text.is_none() && lose.text.is_none() {
+                if win.rewards.is_empty()
+                    && lose.rewards.is_empty()
+                    && win.text.is_none()
+                    && lose.text.is_none()
+                {
                     // 允许空奖励/空文本，但不报错
                 }
             }
@@ -306,7 +326,11 @@ fn validate_adventure_option_result(result: &AdventureOptionResult) -> Result<()
     match result {
         AdventureOptionResult::Story { .. } => Ok(()),
         AdventureOptionResult::Battle { win, lose, .. } => {
-            if win.rewards.is_empty() && lose.rewards.is_empty() && win.text.is_none() && lose.text.is_none() {
+            if win.rewards.is_empty()
+                && lose.rewards.is_empty()
+                && win.text.is_none()
+                && lose.text.is_none()
+            {
                 // 允许空奖励/空文本
             }
             Ok(())

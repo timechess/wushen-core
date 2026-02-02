@@ -1,6 +1,5 @@
 /// 境界定义
 /// 内功、攻击武技、防御武技的境界结构
-
 use crate::effect::entry::Entry;
 
 /// 内功境界

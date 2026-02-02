@@ -1,9 +1,8 @@
-/// 战斗记录系统
-/// 记录战斗过程中的所有信息
-
-use std::collections::VecDeque;
 use super::battle_calculator::BattleCalculationResult;
 use super::battle_panel::BattlePanel;
+/// 战斗记录系统
+/// 记录战斗过程中的所有信息
+use std::collections::VecDeque;
 
 /// 面板变化量（只记录变化的属性）
 #[derive(Debug, Clone, Default)]
@@ -49,11 +48,11 @@ impl PanelDelta {
     pub fn new() -> Self {
         Self::default()
     }
-    
+
     /// 计算两个面板之间的变化量
     pub fn from_panels(old: &BattlePanel, new: &BattlePanel) -> Self {
         let mut delta = Self::new();
-        
+
         if (old.hp - new.hp).abs() > 0.001 {
             delta.hp_delta = Some(new.hp - old.hp);
         }
@@ -73,7 +72,8 @@ impl PanelDelta {
             delta.damage_reduction_delta = Some(new.damage_reduction - old.damage_reduction);
         }
         if (old.max_damage_reduction - new.max_damage_reduction).abs() > 0.001 {
-            delta.max_damage_reduction_delta = Some(new.max_damage_reduction - old.max_damage_reduction);
+            delta.max_damage_reduction_delta =
+                Some(new.max_damage_reduction - old.max_damage_reduction);
         }
         if (old.qi_output_rate - new.qi_output_rate).abs() > 0.001 {
             delta.qi_output_rate_delta = Some(new.qi_output_rate - old.qi_output_rate);
@@ -105,10 +105,10 @@ impl PanelDelta {
         if (old.charge_time - new.charge_time).abs() > 0.001 {
             delta.charge_time_delta = Some(new.charge_time - old.charge_time);
         }
-        
+
         delta
     }
-    
+
     /// 检查是否有任何变化
     pub fn is_empty(&self) -> bool {
         self.hp_delta.is_none()
@@ -271,32 +271,32 @@ impl BattleLog {
             records: VecDeque::new(),
         }
     }
-    
+
     /// 添加记录
     pub fn add_record(&mut self, record: BattleRecord) {
         self.records.push_back(record);
     }
-    
+
     /// 获取所有记录
     pub fn get_all_records(&self) -> &VecDeque<BattleRecord> {
         &self.records
     }
-    
+
     /// 获取记录数量
     pub fn len(&self) -> usize {
         self.records.len()
     }
-    
+
     /// 检查是否为空
     pub fn is_empty(&self) -> bool {
         self.records.is_empty()
     }
-    
+
     /// 清空记录
     pub fn clear(&mut self) {
         self.records.clear();
     }
-    
+
     /// 获取最后一条记录
     pub fn last(&self) -> Option<&BattleRecord> {
         self.records.back()
@@ -306,28 +306,28 @@ impl BattleLog {
 #[cfg(test)]
 mod tests {
     use super::*;
-    
+
     #[test]
     fn test_battle_log() {
         let mut log = BattleLog::new();
         assert!(log.is_empty());
-        
+
         log.add_record(BattleRecord::BattleStart {
             side_a_name: "A".to_string(),
             side_b_name: "B".to_string(),
             side_a_panel_delta: None,
             side_b_panel_delta: None,
         });
-        
+
         assert_eq!(log.len(), 1);
         assert!(!log.is_empty());
     }
-    
+
     #[test]
     fn test_panel_delta_is_empty() {
         let delta = PanelDelta::new();
         assert!(delta.is_empty());
-        
+
         let mut delta2 = PanelDelta::new();
         delta2.hp_delta = Some(-10.0);
         assert!(!delta2.is_empty());

@@ -1,10 +1,9 @@
+use super::effect::FormulaValue;
+use super::formula::{BattleFormulaContext, FormulaCalculator};
+use crate::character::panel::CharacterPanel;
 /// 词条触发条件
 /// 支持复杂的条件表达式（AND/OR 组合）
-
 use serde::{Deserialize, Serialize};
-use crate::character::panel::CharacterPanel;
-use super::effect::FormulaValue;
-use super::formula::{FormulaCalculator, BattleFormulaContext};
 
 /// 比较运算符
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -146,7 +145,7 @@ impl Condition {
             Condition::Or(conds) => conds.iter().any(|c| c.check_cultivation(context)),
         }
     }
-    
+
     /// 检查条件是否满足（战斗时）
     pub fn check_battle(&self, context: &BattleContext) -> bool {
         match self {
@@ -233,18 +232,18 @@ impl CultivationCondition {
             CultivationCondition::AttackSkillIs(id) => {
                 context.attack_skill_id.as_ref().map_or(false, |i| i == id)
             }
-            CultivationCondition::AttackSkillTypeIs(ty) => {
-                context.attack_skill_type.as_ref().map_or(false, |t| t == ty)
-            }
+            CultivationCondition::AttackSkillTypeIs(ty) => context
+                .attack_skill_type
+                .as_ref()
+                .map_or(false, |t| t == ty),
             CultivationCondition::DefenseSkillIs(id) => {
                 context.defense_skill_id.as_ref().map_or(false, |i| i == id)
             }
-            CultivationCondition::DefenseSkillTypeIs(ty) => {
-                context.defense_skill_type.as_ref().map_or(false, |t| t == ty)
-            }
-            CultivationCondition::HasTrait(trait_id) => {
-                context.traits.contains(trait_id)
-            }
+            CultivationCondition::DefenseSkillTypeIs(ty) => context
+                .defense_skill_type
+                .as_ref()
+                .map_or(false, |t| t == ty),
+            CultivationCondition::HasTrait(trait_id) => context.traits.contains(trait_id),
             CultivationCondition::AttributeComparison {
                 attribute,
                 op,
@@ -282,10 +281,12 @@ impl BattleCondition {
                     BattleAttributeType::Comprehension => context.self_comprehension,
                     BattleAttributeType::BoneStructure => context.self_bone_structure,
                     BattleAttributeType::Physique => context.self_physique,
-                    BattleAttributeType::MartialArtsAttainment => context.self_martial_arts_attainment,
+                    BattleAttributeType::MartialArtsAttainment => {
+                        context.self_martial_arts_attainment
+                    }
                     BattleAttributeType::QiQuality => context.self_qi_quality,
                 };
-                
+
                 // 计算公式值或使用固定值
                 let comparison_value = match value {
                     FormulaValue::Fixed(v) => *v,
@@ -294,7 +295,10 @@ impl BattleCondition {
                         let formula_context = BattleFormulaContext {
                             self_panel: context.self_panel.clone().unwrap_or_else(|| {
                                 // 如果没有面板，创建一个最小面板（包含当前HP和Qi）
-                                let mut panel = CharacterPanel::new("".to_string(), crate::character::panel::ThreeDimensional::new(0, 0, 0));
+                                let mut panel = CharacterPanel::new(
+                                    "".to_string(),
+                                    crate::character::panel::ThreeDimensional::new(0, 0, 0),
+                                );
                                 panel.hp = context.self_hp;
                                 panel.qi = context.self_qi;
                                 panel
@@ -302,7 +306,7 @@ impl BattleCondition {
                             opponent_panel: context.opponent_panel.clone(),
                             attack_result: context.attack_result,
                         };
-                        
+
                         // 计算公式值
                         match FormulaCalculator::evaluate_battle(formula, &formula_context) {
                             Ok(v) => v,
@@ -313,7 +317,7 @@ impl BattleCondition {
                         }
                     }
                 };
-                
+
                 match op {
                     ComparisonOp::LessThan => attr_value < comparison_value,
                     ComparisonOp::LessThanOrEqual => attr_value <= comparison_value,
@@ -333,10 +337,12 @@ impl BattleCondition {
                     BattleAttributeType::Comprehension => context.opponent_comprehension,
                     BattleAttributeType::BoneStructure => context.opponent_bone_structure,
                     BattleAttributeType::Physique => context.opponent_physique,
-                    BattleAttributeType::MartialArtsAttainment => context.opponent_martial_arts_attainment,
+                    BattleAttributeType::MartialArtsAttainment => {
+                        context.opponent_martial_arts_attainment
+                    }
                     BattleAttributeType::QiQuality => context.opponent_qi_quality,
                 };
-                
+
                 // 计算公式值或使用固定值
                 let comparison_value = match value {
                     FormulaValue::Fixed(v) => *v,
@@ -345,7 +351,10 @@ impl BattleCondition {
                         let formula_context = BattleFormulaContext {
                             self_panel: context.self_panel.clone().unwrap_or_else(|| {
                                 // 如果没有面板，创建一个最小面板（包含当前HP和Qi）
-                                let mut panel = CharacterPanel::new("".to_string(), crate::character::panel::ThreeDimensional::new(0, 0, 0));
+                                let mut panel = CharacterPanel::new(
+                                    "".to_string(),
+                                    crate::character::panel::ThreeDimensional::new(0, 0, 0),
+                                );
                                 panel.hp = context.self_hp;
                                 panel.qi = context.self_qi;
                                 panel
@@ -353,7 +362,7 @@ impl BattleCondition {
                             opponent_panel: context.opponent_panel.clone(),
                             attack_result: context.attack_result,
                         };
-                        
+
                         // 计算公式值
                         match FormulaCalculator::evaluate_battle(formula, &formula_context) {
                             Ok(v) => v,
@@ -364,7 +373,7 @@ impl BattleCondition {
                         }
                     }
                 };
-                
+
                 match op {
                     ComparisonOp::LessThan => attr_value < comparison_value,
                     ComparisonOp::LessThanOrEqual => attr_value <= comparison_value,
@@ -373,27 +382,31 @@ impl BattleCondition {
                     ComparisonOp::GreaterThanOrEqual => attr_value >= comparison_value,
                 }
             }
-            BattleCondition::OpponentInternalIs(id) => {
-                context.opponent_internal_id.as_ref().map_or(false, |i| i == id)
-            }
-            BattleCondition::OpponentAttackSkillIs(id) => {
-                context.opponent_attack_skill_id.as_ref().map_or(false, |i| i == id)
-            }
-            BattleCondition::OpponentDefenseSkillIs(id) => {
-                context.opponent_defense_skill_id.as_ref().map_or(false, |i| i == id)
-            }
-            BattleCondition::OpponentInternalTypeIs(ty) => {
-                context.opponent_internal_type.as_ref().map_or(false, |t| t == ty)
-            }
-            BattleCondition::OpponentAttackSkillTypeIs(ty) => {
-                context.opponent_attack_skill_type.as_ref().map_or(false, |t| t == ty)
-            }
-            BattleCondition::OpponentDefenseSkillTypeIs(ty) => {
-                context.opponent_defense_skill_type.as_ref().map_or(false, |t| t == ty)
-            }
-            BattleCondition::AttackBrokeQiDefense => {
-                context.attack_broke_qi_defense == Some(true)
-            }
+            BattleCondition::OpponentInternalIs(id) => context
+                .opponent_internal_id
+                .as_ref()
+                .map_or(false, |i| i == id),
+            BattleCondition::OpponentAttackSkillIs(id) => context
+                .opponent_attack_skill_id
+                .as_ref()
+                .map_or(false, |i| i == id),
+            BattleCondition::OpponentDefenseSkillIs(id) => context
+                .opponent_defense_skill_id
+                .as_ref()
+                .map_or(false, |i| i == id),
+            BattleCondition::OpponentInternalTypeIs(ty) => context
+                .opponent_internal_type
+                .as_ref()
+                .map_or(false, |t| t == ty),
+            BattleCondition::OpponentAttackSkillTypeIs(ty) => context
+                .opponent_attack_skill_type
+                .as_ref()
+                .map_or(false, |t| t == ty),
+            BattleCondition::OpponentDefenseSkillTypeIs(ty) => context
+                .opponent_defense_skill_type
+                .as_ref()
+                .map_or(false, |t| t == ty),
+            BattleCondition::AttackBrokeQiDefense => context.attack_broke_qi_defense == Some(true),
             BattleCondition::AttackDidNotBreakQiDefense => {
                 context.attack_broke_qi_defense == Some(false)
             }

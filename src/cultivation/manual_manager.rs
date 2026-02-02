@@ -1,20 +1,16 @@
-/// 功法管理器
-
-use std::collections::HashMap;
-use crate::cultivation::{
-    Internal, AttackSkill, DefenseSkill,
-    switching::calculate_switching_qi,
-};
-use crate::cultivation::manual::Rarity;
 use crate::character::panel::CharacterPanel;
+use crate::cultivation::manual::Rarity;
+use crate::cultivation::{switching::calculate_switching_qi, AttackSkill, DefenseSkill, Internal};
 use crate::effect::{
-    executor::EntryExecutor,
-    trigger::Trigger,
     condition::CultivationContext,
+    effect::{AttributeTarget, Effect, Operation},
     entry::Entry,
-    effect::{Effect, AttributeTarget, Operation},
+    executor::EntryExecutor,
     formula::FormulaCalculator,
+    trigger::Trigger,
 };
+/// 功法管理器
+use std::collections::HashMap;
 
 /// 功法管理器
 pub struct ManualManager {
@@ -48,97 +44,101 @@ impl ManualManager {
             defense_skills: HashMap::new(),
         }
     }
-    
+
     /// 加载内功列表
     pub fn load_internals(&mut self, internals: Vec<Internal>) {
         for internal in internals {
             self.internals.insert(internal.manual.id.clone(), internal);
         }
     }
-    
+
     /// 加载攻击武技列表
     pub fn load_attack_skills(&mut self, skills: Vec<AttackSkill>) {
         for skill in skills {
             self.attack_skills.insert(skill.manual.id.clone(), skill);
         }
     }
-    
+
     /// 加载防御武技列表
     pub fn load_defense_skills(&mut self, skills: Vec<DefenseSkill>) {
         for skill in skills {
             self.defense_skills.insert(skill.manual.id.clone(), skill);
         }
     }
-    
+
     /// 根据 ID 获取内功
     pub fn get_internal(&self, id: &str) -> Option<&Internal> {
         self.internals.get(id)
     }
-    
+
     /// 根据 ID 获取内功（可变）
     pub fn get_internal_mut(&mut self, id: &str) -> Option<&mut Internal> {
         self.internals.get_mut(id)
     }
-    
+
     /// 根据 ID 获取攻击武技
     pub fn get_attack_skill(&self, id: &str) -> Option<&AttackSkill> {
         self.attack_skills.get(id)
     }
-    
+
     /// 根据 ID 获取攻击武技（可变）
     pub fn get_attack_skill_mut(&mut self, id: &str) -> Option<&mut AttackSkill> {
         self.attack_skills.get_mut(id)
     }
-    
+
     /// 根据 ID 获取防御武技
     pub fn get_defense_skill(&self, id: &str) -> Option<&DefenseSkill> {
         self.defense_skills.get(id)
     }
-    
+
     /// 根据 ID 获取防御武技（可变）
     pub fn get_defense_skill_mut(&mut self, id: &str) -> Option<&mut DefenseSkill> {
         self.defense_skills.get_mut(id)
     }
-    
+
     /// 修行内功（只能修行当前装备的内功）
-    /// 
+    ///
     /// # 参数
     /// - `panel`: 角色面板（可变，用于更新拥有的功法状态）
     /// - `executor`: 可选的词条执行器（用于应用特性词条效果）
-    /// 
+    ///
     /// # 返回
     /// 获得的经验值
-    pub fn cultivate_internal(&self, panel: &mut CharacterPanel, mut executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
+    pub fn cultivate_internal(
+        &self,
+        panel: &mut CharacterPanel,
+        mut executor: Option<&mut EntryExecutor>,
+    ) -> Result<f64, String> {
         // 检查是否装备了内功
-        let id = panel.current_internal_id.as_ref()
+        let id = panel
+            .current_internal_id
+            .as_ref()
             .ok_or_else(|| "角色未装备内功，无法修行".to_string())?
             .clone();
-        
+
         // 检查角色是否拥有该内功
         if !panel.has_internal(&id) {
             return Err(format!("角色未拥有内功 {}", id));
         }
-        
-        let internal = self.get_internal(&id)
+
+        let internal = self
+            .get_internal(&id)
             .ok_or_else(|| format!("内功 {} 不存在", id))?;
-        
+
         // 获取角色当前拥有的等级和经验
-        let (current_level, current_exp) = panel.get_internal_level_exp(&id)
-            .unwrap_or((0, 0.0));
-        
+        let (current_level, current_exp) = panel.get_internal_level_exp(&id).unwrap_or((0, 0.0));
+
         // 检查是否已经满级
         if current_level >= 5 {
             return Err("内功已达到最高等级，无法继续修行".to_string());
         }
-        
+
         // 计算基础经验增益
-        let mut exp_gain = internal.manual.calculate_exp_gain(
-            panel.x(),
-            panel.y(),
-            panel.z(),
-            panel.a(),
-        )?;
-        
+        let mut exp_gain =
+            internal
+                .manual
+                .calculate_exp_gain(panel.x(), panel.y(), panel.z(), panel.a())?;
+
         // 触发特性词条并应用经验增益修改
         if let Some(executor) = executor.as_deref_mut() {
             // 创建修行上下文（先克隆需要的值）
@@ -148,7 +148,7 @@ impl ManualManager {
             let bone_structure = panel.three_d.bone_structure as f64;
             let physique = panel.three_d.physique as f64;
             let martial_arts_attainment = panel.martial_arts_attainment;
-            
+
             let context = CultivationContext {
                 internal_id: Some(id.clone()),
                 internal_type: Some(internal_type),
@@ -162,19 +162,16 @@ impl ManualManager {
                 physique,
                 martial_arts_attainment,
             };
-            
+
             // 触发修行内功词条
-            let effects = executor.trigger_cultivation(
-                Trigger::CultivatingInternal,
-                panel,
-                &context,
-            );
-            
+            let effects =
+                executor.trigger_cultivation(Trigger::CultivatingInternal, panel, &context);
+
             // 应用经验增益修改
             let formula_context = crate::effect::formula::CultivationFormulaContext {
                 self_panel: panel.clone(),
             };
-            
+
             for effect in effects {
                 match effect {
                     Effect::ModifyPercentage {
@@ -186,19 +183,20 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue, // 如果公式计算失败，跳过
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
-                        
+
                         // 应用操作到经验增益
                         match operation {
                             Operation::Add => {
@@ -228,17 +226,18 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue, // 如果公式计算失败，跳过
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
 
                         // 应用操作到经验增益（实际数值）
@@ -255,11 +254,11 @@ impl ManualManager {
                 }
             }
         }
-        
+
         // 更新经验值
         let mut new_exp = current_exp + exp_gain;
         let mut new_level = current_level;
-        
+
         // 检查是否可以升级
         while new_level < 5 {
             if let Some(realm) = internal.realm_at_level(new_level + 1) {
@@ -274,10 +273,10 @@ impl ManualManager {
                 break;
             }
         }
-        
+
         // 更新角色拥有的功法状态
         panel.set_internal_level_exp(id.clone(), new_level, new_exp);
-        
+
         // 如果等级提升了，触发升级词条并更新属性
         if new_level > current_level {
             for level in (current_level + 1)..=new_level {
@@ -295,7 +294,7 @@ impl ManualManager {
                         physique: panel.three_d.physique as f64,
                         martial_arts_attainment: panel.martial_arts_attainment,
                     };
-                    
+
                     let (qi_gain, martial_arts_gain) = self.apply_level_up_effects(
                         panel,
                         Trigger::InternalLevelUp,
@@ -305,47 +304,50 @@ impl ManualManager {
                         &realm.entries,
                         context,
                     );
-                    
+
                     if let Some(qi_gain) = qi_gain {
                         panel.max_qi += qi_gain;
                         panel.qi = panel.max_qi;
                     }
-                    
+
                     panel.martial_arts_attainment += martial_arts_gain;
                 }
             }
         }
-        
+
         Ok(exp_gain)
     }
-    
+
     /// 修行攻击武技
-    pub fn cultivate_attack_skill(&self, id: &str, panel: &mut CharacterPanel, mut executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
+    pub fn cultivate_attack_skill(
+        &self,
+        id: &str,
+        panel: &mut CharacterPanel,
+        mut executor: Option<&mut EntryExecutor>,
+    ) -> Result<f64, String> {
         // 检查角色是否拥有该攻击武技
         if !panel.has_attack_skill(id) {
             return Err(format!("角色未拥有攻击武技 {}", id));
         }
-        
-        let skill = self.get_attack_skill(id)
+
+        let skill = self
+            .get_attack_skill(id)
             .ok_or_else(|| format!("攻击武技 {} 不存在", id))?;
-        
+
         // 获取角色当前拥有的等级和经验
-        let (current_level, current_exp) = panel.get_attack_skill_level_exp(id)
-            .unwrap_or((0, 0.0));
-        
+        let (current_level, current_exp) = panel.get_attack_skill_level_exp(id).unwrap_or((0, 0.0));
+
         // 检查是否已经满级
         if current_level >= 5 {
             return Err("攻击武技已达到最高等级，无法继续修行".to_string());
         }
-        
+
         // 计算基础经验增益
-        let mut exp_gain = skill.manual.calculate_exp_gain(
-            panel.x(),
-            panel.y(),
-            panel.z(),
-            panel.a(),
-        )?;
-        
+        let mut exp_gain =
+            skill
+                .manual
+                .calculate_exp_gain(panel.x(), panel.y(), panel.z(), panel.a())?;
+
         // 触发特性词条并应用经验增益修改
         if let Some(executor) = executor.as_deref_mut() {
             // 创建修行上下文
@@ -362,19 +364,15 @@ impl ManualManager {
                 physique: panel.three_d.physique as f64,
                 martial_arts_attainment: panel.martial_arts_attainment,
             };
-            
+
             // 触发修行攻击武技词条
-            let effects = executor.trigger_cultivation(
-                Trigger::CultivatingAttack,
-                panel,
-                &context,
-            );
-            
+            let effects = executor.trigger_cultivation(Trigger::CultivatingAttack, panel, &context);
+
             // 应用经验增益修改
             let formula_context = crate::effect::formula::CultivationFormulaContext {
                 self_panel: panel.clone(),
             };
-            
+
             for effect in effects {
                 match effect {
                     Effect::ModifyPercentage {
@@ -386,19 +384,20 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue,
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
-                        
+
                         // 应用操作到经验增益
                         match operation {
                             Operation::Add => exp_gain *= 1.0 + calculated_value,
@@ -416,17 +415,18 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue,
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
 
                         // 应用操作到经验增益（实际数值）
@@ -441,11 +441,11 @@ impl ManualManager {
                 }
             }
         }
-        
+
         // 更新经验值
         let mut new_exp = current_exp + exp_gain;
         let mut new_level = current_level;
-        
+
         // 检查是否可以升级
         while new_level < 5 {
             if let Some(realm) = skill.realm_at_level(new_level + 1) {
@@ -460,10 +460,10 @@ impl ManualManager {
                 break;
             }
         }
-        
+
         // 更新角色拥有的功法状态
         panel.set_attack_skill_level_exp(id.to_string(), new_level, new_exp);
-        
+
         // 如果等级提升了，触发升级词条并更新武学素养
         if new_level > current_level {
             for level in (current_level + 1)..=new_level {
@@ -481,7 +481,7 @@ impl ManualManager {
                         physique: panel.three_d.physique as f64,
                         martial_arts_attainment: panel.martial_arts_attainment,
                     };
-                    
+
                     let (_qi_gain, martial_arts_gain) = self.apply_level_up_effects(
                         panel,
                         Trigger::AttackLevelUp,
@@ -491,42 +491,46 @@ impl ManualManager {
                         &realm.entries,
                         context,
                     );
-                    
+
                     panel.martial_arts_attainment += martial_arts_gain;
                 }
             }
         }
-        
+
         Ok(exp_gain)
     }
-    
+
     /// 修行防御武技
-    pub fn cultivate_defense_skill(&self, id: &str, panel: &mut CharacterPanel, mut executor: Option<&mut EntryExecutor>) -> Result<f64, String> {
+    pub fn cultivate_defense_skill(
+        &self,
+        id: &str,
+        panel: &mut CharacterPanel,
+        mut executor: Option<&mut EntryExecutor>,
+    ) -> Result<f64, String> {
         // 检查角色是否拥有该防御武技
         if !panel.has_defense_skill(id) {
             return Err(format!("角色未拥有防御武技 {}", id));
         }
-        
-        let skill = self.get_defense_skill(id)
+
+        let skill = self
+            .get_defense_skill(id)
             .ok_or_else(|| format!("防御武技 {} 不存在", id))?;
-        
+
         // 获取角色当前拥有的等级和经验
-        let (current_level, current_exp) = panel.get_defense_skill_level_exp(id)
-            .unwrap_or((0, 0.0));
-        
+        let (current_level, current_exp) =
+            panel.get_defense_skill_level_exp(id).unwrap_or((0, 0.0));
+
         // 检查是否已经满级
         if current_level >= 5 {
             return Err("防御武技已达到最高等级，无法继续修行".to_string());
         }
-        
+
         // 计算基础经验增益
-        let mut exp_gain = skill.manual.calculate_exp_gain(
-            panel.x(),
-            panel.y(),
-            panel.z(),
-            panel.a(),
-        )?;
-        
+        let mut exp_gain =
+            skill
+                .manual
+                .calculate_exp_gain(panel.x(), panel.y(), panel.z(), panel.a())?;
+
         // 触发特性词条并应用经验增益修改
         if let Some(executor) = executor.as_deref_mut() {
             // 创建修行上下文
@@ -543,19 +547,16 @@ impl ManualManager {
                 physique: panel.three_d.physique as f64,
                 martial_arts_attainment: panel.martial_arts_attainment,
             };
-            
+
             // 触发修行防御武技词条
-            let effects = executor.trigger_cultivation(
-                Trigger::CultivatingDefense,
-                panel,
-                &context,
-            );
-            
+            let effects =
+                executor.trigger_cultivation(Trigger::CultivatingDefense, panel, &context);
+
             // 应用经验增益修改
             let formula_context = crate::effect::formula::CultivationFormulaContext {
                 self_panel: panel.clone(),
             };
-            
+
             for effect in effects {
                 match effect {
                     Effect::ModifyPercentage {
@@ -567,19 +568,20 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue,
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
-                        
+
                         // 应用操作到经验增益
                         match operation {
                             Operation::Add => exp_gain *= 1.0 + calculated_value,
@@ -597,17 +599,18 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue,
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
 
                         // 应用操作到经验增益（实际数值）
@@ -622,11 +625,11 @@ impl ManualManager {
                 }
             }
         }
-        
+
         // 更新经验值
         let mut new_exp = current_exp + exp_gain;
         let mut new_level = current_level;
-        
+
         // 检查是否可以升级
         while new_level < 5 {
             if let Some(realm) = skill.realm_at_level(new_level + 1) {
@@ -641,10 +644,10 @@ impl ManualManager {
                 break;
             }
         }
-        
+
         // 更新角色拥有的功法状态
         panel.set_defense_skill_level_exp(id.to_string(), new_level, new_exp);
-        
+
         // 如果等级提升了，触发升级词条并更新武学素养
         if new_level > current_level {
             for level in (current_level + 1)..=new_level {
@@ -662,7 +665,7 @@ impl ManualManager {
                         physique: panel.three_d.physique as f64,
                         martial_arts_attainment: panel.martial_arts_attainment,
                     };
-                    
+
                     let (_qi_gain, martial_arts_gain) = self.apply_level_up_effects(
                         panel,
                         Trigger::DefenseLevelUp,
@@ -672,23 +675,23 @@ impl ManualManager {
                         &realm.entries,
                         context,
                     );
-                    
+
                     panel.martial_arts_attainment += martial_arts_gain;
                 }
             }
         }
-        
+
         Ok(exp_gain)
     }
-    
+
     /// 转修内功
-    /// 
+    ///
     /// # 参数
     /// - `from_id`: 原内功 ID（如果为 None，表示未修行内功）
     /// - `to_id`: 目标内功 ID
     /// - `panel`: 角色面板
     /// - `executor`: 可选的词条执行器（用于应用转修时的词条效果）
-    /// 
+    ///
     /// # 返回
     /// 转修结果（新内息量和亏损量）
     pub fn switch_internal(
@@ -702,18 +705,18 @@ impl ManualManager {
         if !panel.has_internal(to_id) {
             return Err(format!("角色未拥有内功 {}", to_id));
         }
-        
-        let to_internal = self.get_internal(to_id)
+
+        let to_internal = self
+            .get_internal(to_id)
             .ok_or_else(|| format!("内功 {} 不存在", to_id))?;
-        
+
         // 计算损失率修改（从词条效果中获取）
         let mut qi_loss_rate_modifier = 1.0;
-        
+
         if let Some(executor) = executor {
             // 创建转修上下文
-            let from_internal_type = from_id.and_then(|id| {
-                self.get_internal(id).map(|i| i.manual.manual_type.clone())
-            });
+            let from_internal_type =
+                from_id.and_then(|id| self.get_internal(id).map(|i| i.manual.manual_type.clone()));
             let context = CultivationContext {
                 internal_id: from_id.map(|s| s.to_string()),
                 internal_type: from_internal_type,
@@ -727,19 +730,16 @@ impl ManualManager {
                 physique: panel.three_d.physique as f64,
                 martial_arts_attainment: panel.martial_arts_attainment,
             };
-            
+
             // 触发转修词条
-            let effects = executor.trigger_cultivation(
-                Trigger::SwitchingCultivation,
-                panel,
-                &context,
-            );
-            
+            let effects =
+                executor.trigger_cultivation(Trigger::SwitchingCultivation, panel, &context);
+
             // 计算损失率修改
             let formula_context = crate::effect::formula::CultivationFormulaContext {
                 self_panel: panel.clone(),
             };
-            
+
             for effect in effects {
                 match effect {
                     Effect::ModifyAttribute {
@@ -747,7 +747,8 @@ impl ManualManager {
                         value,
                         operation,
                         ..
-                    } | Effect::ModifyPercentage {
+                    }
+                    | Effect::ModifyPercentage {
                         target: AttributeTarget::QiLossRate,
                         value,
                         operation,
@@ -756,19 +757,20 @@ impl ManualManager {
                         // 计算公式值
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                match FormulaCalculator::evaluate_cultivation(&formula, &formula_context) {
+                                match FormulaCalculator::evaluate_cultivation(
+                                    &formula,
+                                    &formula_context,
+                                ) {
                                     Ok(v) => v,
                                     Err(_) => continue, // 如果公式计算失败，跳过
                                 }
                             }
-                            None => {
-                                match value.as_fixed() {
-                                    Some(v) => v,
-                                    None => continue,
-                                }
-                            }
+                            None => match value.as_fixed() {
+                                Some(v) => v,
+                                None => continue,
+                            },
                         };
-                        
+
                         // 应用操作到损失率修改器
                         // 注意：对于 Add/Subtract，calculated_value 是小数形式（如 0.1 表示 10%）
                         // 对于 Set/Multiply，calculated_value 是倍数形式（如 1.5 表示 1.5 倍）
@@ -801,26 +803,28 @@ impl ManualManager {
                 }
             }
         }
-        
+
         if let Some(from_id) = from_id {
-            let from_internal = self.get_internal(from_id)
+            let from_internal = self
+                .get_internal(from_id)
                 .ok_or_else(|| format!("内功 {} 不存在", from_id))?;
-            
+
             let result = calculate_switching_qi(
                 panel.qi,
                 from_internal.manual.rarity,
                 to_internal.manual.rarity,
                 qi_loss_rate_modifier,
             );
-            
+
             panel.qi = result.new_qi;
         }
-        
+
         // 获取角色拥有的目标内功等级
-        let to_level = panel.get_internal_level_exp(to_id)
+        let to_level = panel
+            .get_internal_level_exp(to_id)
             .map(|(level, _)| level)
             .unwrap_or(0);
-        
+
         // 计算新内功的内息上限（根据当前境界的qi_gain累加）
         let mut total_qi_gain = 0.0;
         for level in 1..=to_level {
@@ -833,34 +837,34 @@ impl ManualManager {
         if panel.qi > panel.max_qi {
             panel.qi = panel.max_qi;
         }
-        
+
         // 更新面板中的内功信息
         panel.current_internal_id = Some(to_id.to_string());
-        
+
         Ok(())
     }
-    
+
     /// 获取所有内功的迭代器
     pub fn all_internals(&self) -> impl Iterator<Item = &Internal> {
         self.internals.values()
     }
-    
+
     /// 获取所有攻击武技的迭代器
     pub fn all_attack_skills(&self) -> impl Iterator<Item = &AttackSkill> {
         self.attack_skills.values()
     }
-    
+
     /// 获取所有防御武技的迭代器
     pub fn all_defense_skills(&self) -> impl Iterator<Item = &DefenseSkill> {
         self.defense_skills.values()
     }
-    
+
     /// 获得内功（添加到角色拥有的功法列表）
-    /// 
+    ///
     /// # 参数
     /// - `id`: 内功 ID
     /// - `panel`: 角色面板
-    /// 
+    ///
     /// # 返回
     /// 如果成功获得返回 Ok(())，否则返回错误信息
     pub fn acquire_internal(&self, id: &str, panel: &mut CharacterPanel) -> Result<(), String> {
@@ -868,53 +872,58 @@ impl ManualManager {
         if panel.has_internal(id) {
             return Err(format!("角色已经拥有内功 {}", id));
         }
-        
+
         // 检查内功是否存在
-        let _internal = self.get_internal(id)
+        let _internal = self
+            .get_internal(id)
             .ok_or_else(|| format!("内功 {} 不存在", id))?;
-        
+
         // 添加到拥有的功法列表（初始等级为0，经验为0）
         panel.set_internal_level_exp(id.to_string(), 0, 0.0);
-        
+
         Ok(())
     }
-    
+
     /// 获得攻击武技（添加到角色拥有的功法列表）
     pub fn acquire_attack_skill(&self, id: &str, panel: &mut CharacterPanel) -> Result<(), String> {
         // 检查是否已经拥有
         if panel.has_attack_skill(id) {
             return Err(format!("角色已经拥有攻击武技 {}", id));
         }
-        
+
         // 检查攻击武技是否存在
         self.get_attack_skill(id)
             .ok_or_else(|| format!("攻击武技 {} 不存在", id))?;
-        
+
         // 添加到拥有的功法列表（初始等级为0，经验为0）
         panel.set_attack_skill_level_exp(id.to_string(), 0, 0.0);
-        
+
         Ok(())
     }
-    
+
     /// 获得防御武技（添加到角色拥有的功法列表）
-    pub fn acquire_defense_skill(&self, id: &str, panel: &mut CharacterPanel) -> Result<(), String> {
+    pub fn acquire_defense_skill(
+        &self,
+        id: &str,
+        panel: &mut CharacterPanel,
+    ) -> Result<(), String> {
         // 检查是否已经拥有
         if panel.has_defense_skill(id) {
             return Err(format!("角色已经拥有防御武技 {}", id));
         }
-        
+
         // 检查防御武技是否存在
         self.get_defense_skill(id)
             .ok_or_else(|| format!("防御武技 {} 不存在", id))?;
-        
+
         // 添加到拥有的功法列表（初始等级为0，经验为0）
         panel.set_defense_skill_level_exp(id.to_string(), 0, 0.0);
-        
+
         Ok(())
     }
 
     /// 获得内功并触发阅读增益（可由特性词条修改）
-    /// 
+    ///
     /// 返回获得的武学素养增益
     pub fn acquire_internal_with_reading(
         &self,
@@ -925,7 +934,8 @@ impl ManualManager {
         if panel.has_internal(id) {
             return Ok(0.0);
         }
-        let internal = self.get_internal(id)
+        let internal = self
+            .get_internal(id)
             .ok_or_else(|| format!("内功 {} 不存在", id))?;
         self.acquire_internal(id, panel)?;
         let base_gain = reading_base_gain(internal.manual.rarity);
@@ -953,7 +963,8 @@ impl ManualManager {
         if panel.has_attack_skill(id) {
             return Ok(0.0);
         }
-        let skill = self.get_attack_skill(id)
+        let skill = self
+            .get_attack_skill(id)
             .ok_or_else(|| format!("攻击武技 {} 不存在", id))?;
         self.acquire_attack_skill(id, panel)?;
         let base_gain = reading_base_gain(skill.manual.rarity);
@@ -981,7 +992,8 @@ impl ManualManager {
         if panel.has_defense_skill(id) {
             return Ok(0.0);
         }
-        let skill = self.get_defense_skill(id)
+        let skill = self
+            .get_defense_skill(id)
             .ok_or_else(|| format!("防御武技 {} 不存在", id))?;
         self.acquire_defense_skill(id, panel)?;
         let base_gain = reading_base_gain(skill.manual.rarity);
@@ -998,49 +1010,52 @@ impl ManualManager {
         );
         Ok(gain)
     }
-    
+
     /// 装备内功（只能装备已拥有的内功）
     pub fn equip_internal(&self, id: &str, panel: &mut CharacterPanel) -> Result<(), String> {
         if !panel.has_internal(id) {
             return Err(format!("角色未拥有内功 {}", id));
         }
-        
+
         // 验证内功存在
-        let _internal = self.get_internal(id)
+        let _internal = self
+            .get_internal(id)
             .ok_or_else(|| format!("内功 {} 不存在", id))?;
-        
+
         panel.current_internal_id = Some(id.to_string());
-        
+
         Ok(())
     }
-    
+
     /// 装备攻击武技（只能装备已拥有的攻击武技）
     pub fn equip_attack_skill(&self, id: &str, panel: &mut CharacterPanel) -> Result<(), String> {
         if !panel.has_attack_skill(id) {
             return Err(format!("角色未拥有攻击武技 {}", id));
         }
-        
-        let skill = self.get_attack_skill(id)
+
+        let skill = self
+            .get_attack_skill(id)
             .ok_or_else(|| format!("攻击武技 {} 不存在", id))?;
-        
+
         panel.current_attack_skill_id = Some(id.to_string());
         panel.current_attack_skill_name = Some(skill.manual.name.clone());
-        
+
         Ok(())
     }
-    
+
     /// 装备防御武技（只能装备已拥有的防御武技）
     pub fn equip_defense_skill(&self, id: &str, panel: &mut CharacterPanel) -> Result<(), String> {
         if !panel.has_defense_skill(id) {
             return Err(format!("角色未拥有防御武技 {}", id));
         }
-        
-        let skill = self.get_defense_skill(id)
+
+        let skill = self
+            .get_defense_skill(id)
             .ok_or_else(|| format!("防御武技 {} 不存在", id))?;
-        
+
         panel.current_defense_skill_id = Some(id.to_string());
         panel.current_defense_skill_name = Some(skill.manual.name.clone());
-        
+
         Ok(())
     }
 
@@ -1056,25 +1071,25 @@ impl ManualManager {
         context: CultivationContext,
     ) -> (Option<f64>, f64) {
         let mut effects = Vec::new();
-        
+
         if let Some(exec) = executor.as_deref_mut() {
             effects.extend(exec.trigger_cultivation(trigger, panel, &context));
         }
-        
+
         if !realm_entries.is_empty() {
             let mut realm_executor = EntryExecutor::new();
             realm_executor.add_entries(realm_entries.to_vec());
             effects.extend(realm_executor.trigger_cultivation(trigger, panel, &context));
         }
-        
+
         let mut qi_gain = base_qi_gain.unwrap_or(0.0);
         let mut martial_arts_gain = base_martial_arts_gain;
-        
+
         if !effects.is_empty() {
             let formula_context = crate::effect::formula::CultivationFormulaContext {
                 self_panel: panel.clone(),
             };
-            
+
             for effect in &effects {
                 match effect {
                     Effect::ModifyPercentage {
@@ -1085,9 +1100,11 @@ impl ManualManager {
                     } => {
                         if base_qi_gain.is_some() {
                             let calculated_value = match value.as_formula() {
-                                Some(formula) => {
-                                    FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
-                                }
+                                Some(formula) => FormulaCalculator::evaluate_cultivation(
+                                    formula,
+                                    &formula_context,
+                                )
+                                .unwrap_or(0.0),
                                 None => value.as_fixed().unwrap_or(0.0),
                             };
                             match operation {
@@ -1106,9 +1123,11 @@ impl ManualManager {
                     } => {
                         if base_qi_gain.is_some() {
                             let calculated_value = match value.as_formula() {
-                                Some(formula) => {
-                                    FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
-                                }
+                                Some(formula) => FormulaCalculator::evaluate_cultivation(
+                                    formula,
+                                    &formula_context,
+                                )
+                                .unwrap_or(0.0),
                                 None => value.as_fixed().unwrap_or(0.0),
                             };
                             match operation {
@@ -1127,7 +1146,8 @@ impl ManualManager {
                     } => {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                                FormulaCalculator::evaluate_cultivation(formula, &formula_context)
+                                    .unwrap_or(0.0)
                             }
                             None => value.as_fixed().unwrap_or(0.0),
                         };
@@ -1146,7 +1166,8 @@ impl ManualManager {
                     } => {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                                FormulaCalculator::evaluate_cultivation(formula, &formula_context)
+                                    .unwrap_or(0.0)
                             }
                             None => value.as_fixed().unwrap_or(0.0),
                         };
@@ -1160,7 +1181,7 @@ impl ManualManager {
                     _ => {}
                 }
             }
-            
+
             if let Some(exec) = executor.as_deref_mut() {
                 exec.apply_effects_cultivation(effects, panel, &context);
             } else {
@@ -1168,20 +1189,20 @@ impl ManualManager {
                 exec.apply_effects_cultivation(effects, panel, &context);
             }
         }
-        
+
         if qi_gain < 0.0 {
             qi_gain = 0.0;
         }
         if martial_arts_gain < 0.0 {
             martial_arts_gain = 0.0;
         }
-        
+
         let qi_gain = if base_qi_gain.is_some() {
             Some(qi_gain)
         } else {
             None
         };
-        
+
         (qi_gain, martial_arts_gain)
     }
 
@@ -1215,11 +1236,7 @@ impl ManualManager {
                 martial_arts_attainment: panel.martial_arts_attainment,
             };
 
-            let effects = executor.trigger_cultivation(
-                Trigger::ReadingManual,
-                panel,
-                &context,
-            );
+            let effects = executor.trigger_cultivation(Trigger::ReadingManual, panel, &context);
 
             let formula_context = crate::effect::formula::CultivationFormulaContext {
                 self_panel: panel.clone(),
@@ -1227,10 +1244,16 @@ impl ManualManager {
 
             for effect in effects {
                 match effect {
-                    Effect::ModifyPercentage { target: AttributeTarget::MartialArtsAttainmentGain, value, operation, .. } => {
+                    Effect::ModifyPercentage {
+                        target: AttributeTarget::MartialArtsAttainmentGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                                FormulaCalculator::evaluate_cultivation(formula, &formula_context)
+                                    .unwrap_or(0.0)
                             }
                             None => value.as_fixed().unwrap_or(0.0),
                         };
@@ -1241,10 +1264,16 @@ impl ManualManager {
                             Operation::Multiply => gain *= calculated_value,
                         }
                     }
-                    Effect::ModifyAttribute { target: AttributeTarget::MartialArtsAttainmentGain, value, operation, .. } => {
+                    Effect::ModifyAttribute {
+                        target: AttributeTarget::MartialArtsAttainmentGain,
+                        value,
+                        operation,
+                        ..
+                    } => {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
-                                FormulaCalculator::evaluate_cultivation(formula, &formula_context).unwrap_or(0.0)
+                                FormulaCalculator::evaluate_cultivation(formula, &formula_context)
+                                    .unwrap_or(0.0)
                             }
                             None => value.as_fixed().unwrap_or(0.0),
                         };

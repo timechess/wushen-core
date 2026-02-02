@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use crate::character::panel::{CharacterPanel, ThreeDimensional};
 use crate::effect::condition::Condition;
 use crate::effect::effect::Operation;
-use crate::character::panel::{CharacterPanel, ThreeDimensional};
+use serde::{Deserialize, Serialize};
 
 // ==================== Storyline Events ====================
 
@@ -61,9 +61,7 @@ pub enum StoryEventContent {
         next_event_id: Option<String>,
     },
     /// 结局事件（仅文本）
-    End {
-        text: String,
-    },
+    End { text: String },
 }
 
 /// 剧情选项
@@ -175,25 +173,15 @@ pub enum Reward {
         can_exceed_limit: bool,
     },
     /// 获得特性
-    Trait {
-        id: String,
-    },
+    Trait { id: String },
     /// 将特性加入开局特性池
-    StartTraitPool {
-        id: String,
-    },
+    StartTraitPool { id: String },
     /// 获得内功
-    Internal {
-        id: String,
-    },
+    Internal { id: String },
     /// 获得攻击武技
-    AttackSkill {
-        id: String,
-    },
+    AttackSkill { id: String },
     /// 获得防御武技
-    DefenseSkill {
-        id: String,
-    },
+    DefenseSkill { id: String },
     /// 随机抽取功法（从未获得的功法中抽取）
     RandomManual {
         #[serde(default = "default_manual_kind_any")]

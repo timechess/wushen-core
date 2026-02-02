@@ -1,55 +1,32 @@
+use crate::battle::battle_engine::BattleEngine;
+use crate::battle::battle_record::BattleRecord;
+use crate::battle::battle_state::BattleResult;
+use crate::character::json::{parse_character_panel, serialize_character_panel};
+use crate::character::panel::{CharacterPanel, ThreeDimensional};
+use crate::character::trait_manager::TraitManager;
+use crate::character::traits::parse_traits;
+use crate::cultivation::manual_manager::ManualManager;
+use crate::cultivation::parser::{parse_attack_skills, parse_defense_skills, parse_internals};
+use crate::cultivation::{AttackSkill, DefenseSkill, Internal};
+use crate::effect::condition::CultivationContext;
+use crate::effect::executor::EntryExecutor;
+use crate::effect::trigger::Trigger;
+use crate::event::reward::count_available_manuals;
+use crate::event::{
+    parse_adventure_events, parse_storylines, AdventureEventContent, AdventureOptionResult,
+    EventManager, Reward, StoryEvent, StoryEventContent, StoryNodeType, Storyline,
+};
+use crate::game::{
+    now_timestamp, seed_from_time, AdventureDecisionView, AdventureOptionView, CharacterState,
+    GameOutcome, GamePhase, GameResponse, GameRuntime, GameView, NewGameRequest, SaveGame,
+    SimpleRng, StoryEventContentView, StoryEventSummary, StoryEventView, StoryOptionView,
+    StorylineProgress, StorylineSummary,
+};
 /// Tauri API 模块
 /// 提供桌面端可调用的API接口
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashSet;
-use crate::character::panel::{CharacterPanel, ThreeDimensional};
-use crate::character::json::{parse_character_panel, serialize_character_panel};
-use crate::cultivation::{Internal, AttackSkill, DefenseSkill};
-use crate::cultivation::parser::{parse_internals, parse_attack_skills, parse_defense_skills};
-use crate::character::traits::parse_traits;
-use crate::cultivation::manual_manager::ManualManager;
-use crate::character::trait_manager::TraitManager;
-use crate::battle::battle_engine::BattleEngine;
-use crate::battle::battle_state::BattleResult;
-use crate::battle::battle_record::BattleRecord;
-use crate::effect::condition::CultivationContext;
-use crate::effect::executor::EntryExecutor;
-use crate::effect::trigger::Trigger;
-use crate::event::{
-    AdventureEventContent,
-    AdventureOptionResult,
-    EventManager,
-    StoryEventContent,
-    StoryNodeType,
-    StoryEvent,
-    Storyline,
-    parse_storylines,
-    parse_adventure_events,
-    Reward,
-};
-use crate::event::reward::count_available_manuals;
-use crate::game::{
-    AdventureDecisionView,
-    AdventureOptionView,
-    CharacterState,
-    GameOutcome,
-    GamePhase,
-    GameResponse,
-    GameRuntime,
-    GameView,
-    NewGameRequest,
-    SaveGame,
-    SimpleRng,
-    StoryEventSummary,
-    StoryEventView,
-    StoryEventContentView,
-    StoryOptionView,
-    StorylineProgress,
-    StorylineSummary,
-    now_timestamp,
-    seed_from_time,
-};
 
 /// 核心运行状态
 /// 存储特性和功法数据（从JSON加载）
@@ -78,43 +55,41 @@ impl WushenCore {
         self.event_manager = EventManager::new();
         self.game_runtime = None;
     }
-    
+
     /// 从JSON加载特性数据
     pub fn load_traits(&mut self, json: &str) -> Result<(), String> {
-        let traits = parse_traits(json)
-            .map_err(|e| format!("解析特性数据失败: {}", e))?;
+        let traits = parse_traits(json).map_err(|e| format!("解析特性数据失败: {}", e))?;
         self.trait_manager.load_traits(traits);
         Ok(())
     }
-    
+
     /// 从JSON加载内功数据
     pub fn load_internals(&mut self, json: &str) -> Result<(), String> {
-        let internals = parse_internals(json)
-            .map_err(|e| format!("解析内功数据失败: {}", e))?;
+        let internals = parse_internals(json).map_err(|e| format!("解析内功数据失败: {}", e))?;
         self.manual_manager.load_internals(internals);
         Ok(())
     }
-    
+
     /// 从JSON加载攻击武技数据
     pub fn load_attack_skills(&mut self, json: &str) -> Result<(), String> {
-        let skills = parse_attack_skills(json)
-            .map_err(|e| format!("解析攻击武技数据失败: {}", e))?;
+        let skills =
+            parse_attack_skills(json).map_err(|e| format!("解析攻击武技数据失败: {}", e))?;
         self.manual_manager.load_attack_skills(skills);
         Ok(())
     }
-    
+
     /// 从JSON加载防御武技数据
     pub fn load_defense_skills(&mut self, json: &str) -> Result<(), String> {
-        let skills = parse_defense_skills(json)
-            .map_err(|e| format!("解析防御武技数据失败: {}", e))?;
+        let skills =
+            parse_defense_skills(json).map_err(|e| format!("解析防御武技数据失败: {}", e))?;
         self.manual_manager.load_defense_skills(skills);
         Ok(())
     }
 
     /// 从JSON加载剧情线数据
     pub fn load_storylines(&mut self, json: &str) -> Result<(), String> {
-        let storylines = parse_storylines(json)
-            .map_err(|e| format!("解析剧情线数据失败: {}", e))?;
+        let storylines =
+            parse_storylines(json).map_err(|e| format!("解析剧情线数据失败: {}", e))?;
         for storyline in &storylines {
             EventManager::validate_storyline(storyline)
                 .map_err(|e| format!("剧情线校验失败: {}", e))?;
@@ -125,8 +100,8 @@ impl WushenCore {
 
     /// 从JSON加载奇遇事件数据
     pub fn load_adventure_events(&mut self, json: &str) -> Result<(), String> {
-        let adventures = parse_adventure_events(json)
-            .map_err(|e| format!("解析奇遇事件数据失败: {}", e))?;
+        let adventures =
+            parse_adventure_events(json).map_err(|e| format!("解析奇遇事件数据失败: {}", e))?;
         for event in &adventures {
             EventManager::validate_adventure_event(event)
                 .map_err(|e| format!("奇遇事件校验失败: {}", e))?;
@@ -134,153 +109,175 @@ impl WushenCore {
         self.event_manager.load_adventure_events(adventures);
         Ok(())
     }
-    
+
     /// 获取特性（返回JSON字符串）
     pub fn get_trait(&self, id: &str) -> Result<String, String> {
-        let trait_ = self.trait_manager.get_trait(id)
+        let trait_ = self
+            .trait_manager
+            .get_trait(id)
             .ok_or_else(|| format!("特性 {} 不存在", id))?;
-        
-        let json = serde_json::to_string(trait_)
-            .map_err(|e| format!("序列化特性失败: {}", e))?;
-        
+
+        let json = serde_json::to_string(trait_).map_err(|e| format!("序列化特性失败: {}", e))?;
+
         Ok(json)
     }
-    
+
     /// 列出所有特性（返回JSON数组，包含id和name）
     pub fn list_traits(&self) -> Result<String, String> {
         let traits = self.trait_manager.all_traits();
-        let list: Vec<_> = traits.iter()
+        let list: Vec<_> = traits
+            .iter()
             .map(|t| TraitListItem {
                 id: t.id.clone(),
                 name: t.name.clone(),
             })
             .collect();
-        
-        let json = serde_json::to_string(&list)
-            .map_err(|e| format!("序列化特性列表失败: {}", e))?;
-        
+
+        let json =
+            serde_json::to_string(&list).map_err(|e| format!("序列化特性列表失败: {}", e))?;
+
         Ok(json)
     }
-    
+
     /// 获取内功（返回JSON字符串）
     pub fn get_internal(&self, id: &str) -> Result<String, String> {
-        let internal = self.manual_manager.get_internal(id)
+        let internal = self
+            .manual_manager
+            .get_internal(id)
             .ok_or_else(|| format!("内功 {} 不存在", id))?;
-        
+
         // 序列化为JSON（需要手动构建，因为Internal没有Serialize）
         let json = internal_to_json(internal);
         Ok(json)
     }
-    
+
     /// 列出所有内功（返回JSON数组，包含id和name）
     pub fn list_internals(&self) -> Result<String, String> {
-        let list: Vec<_> = self.manual_manager.all_internals()
+        let list: Vec<_> = self
+            .manual_manager
+            .all_internals()
             .map(|i| ManualListItem {
                 id: i.manual.id.clone(),
                 name: i.manual.name.clone(),
             })
             .collect();
-        
-        let json = serde_json::to_string(&list)
-            .map_err(|e| format!("序列化内功列表失败: {}", e))?;
-        
+
+        let json =
+            serde_json::to_string(&list).map_err(|e| format!("序列化内功列表失败: {}", e))?;
+
         Ok(json)
     }
-    
+
     /// 获取攻击武技（返回JSON字符串）
     pub fn get_attack_skill(&self, id: &str) -> Result<String, String> {
-        let skill = self.manual_manager.get_attack_skill(id)
+        let skill = self
+            .manual_manager
+            .get_attack_skill(id)
             .ok_or_else(|| format!("攻击武技 {} 不存在", id))?;
-        
+
         let json = attack_skill_to_json(skill);
         Ok(json)
     }
-    
+
     /// 列出所有攻击武技（返回JSON数组，包含id和name）
     pub fn list_attack_skills(&self) -> Result<String, String> {
-        let list: Vec<_> = self.manual_manager.all_attack_skills()
+        let list: Vec<_> = self
+            .manual_manager
+            .all_attack_skills()
             .map(|s| ManualListItem {
                 id: s.manual.id.clone(),
                 name: s.manual.name.clone(),
             })
             .collect();
-        
-        let json = serde_json::to_string(&list)
-            .map_err(|e| format!("序列化攻击武技列表失败: {}", e))?;
-        
+
+        let json =
+            serde_json::to_string(&list).map_err(|e| format!("序列化攻击武技列表失败: {}", e))?;
+
         Ok(json)
     }
-    
+
     /// 获取防御武技（返回JSON字符串）
     pub fn get_defense_skill(&self, id: &str) -> Result<String, String> {
-        let skill = self.manual_manager.get_defense_skill(id)
+        let skill = self
+            .manual_manager
+            .get_defense_skill(id)
             .ok_or_else(|| format!("防御武技 {} 不存在", id))?;
-        
+
         let json = defense_skill_to_json(skill);
         Ok(json)
     }
-    
+
     /// 列出所有防御武技（返回JSON数组，包含id和name）
     pub fn list_defense_skills(&self) -> Result<String, String> {
-        let list: Vec<_> = self.manual_manager.all_defense_skills()
+        let list: Vec<_> = self
+            .manual_manager
+            .all_defense_skills()
             .map(|s| ManualListItem {
                 id: s.manual.id.clone(),
                 name: s.manual.name.clone(),
             })
             .collect();
-        
-        let json = serde_json::to_string(&list)
-            .map_err(|e| format!("序列化防御武技列表失败: {}", e))?;
-        
+
+        let json =
+            serde_json::to_string(&list).map_err(|e| format!("序列化防御武技列表失败: {}", e))?;
+
         Ok(json)
     }
 
     /// 列出所有剧情线（返回JSON数组，包含id和name）
     pub fn list_storylines(&self) -> Result<String, String> {
-        let list: Vec<_> = self.event_manager.all_storylines()
+        let list: Vec<_> = self
+            .event_manager
+            .all_storylines()
             .iter()
             .map(|s| StorylineListItem {
                 id: s.id.clone(),
                 name: s.name.clone(),
             })
             .collect();
-        let json = serde_json::to_string(&list)
-            .map_err(|e| format!("序列化剧情线列表失败: {}", e))?;
+        let json =
+            serde_json::to_string(&list).map_err(|e| format!("序列化剧情线列表失败: {}", e))?;
         Ok(json)
     }
 
     /// 获取剧情线（返回JSON字符串）
     pub fn get_storyline(&self, id: &str) -> Result<String, String> {
-        let storyline = self.event_manager.get_storyline(id)
+        let storyline = self
+            .event_manager
+            .get_storyline(id)
             .ok_or_else(|| format!("剧情线 {} 不存在", id))?;
-        let json = serde_json::to_string(storyline)
-            .map_err(|e| format!("序列化剧情线失败: {}", e))?;
+        let json =
+            serde_json::to_string(storyline).map_err(|e| format!("序列化剧情线失败: {}", e))?;
         Ok(json)
     }
 
     /// 列出所有奇遇事件（返回JSON数组，包含id和name）
     pub fn list_adventure_events(&self) -> Result<String, String> {
-        let list: Vec<_> = self.event_manager.all_adventure_events()
+        let list: Vec<_> = self
+            .event_manager
+            .all_adventure_events()
             .iter()
             .map(|e| AdventureListItem {
                 id: e.id.clone(),
                 name: e.name.clone(),
             })
             .collect();
-        let json = serde_json::to_string(&list)
-            .map_err(|e| format!("序列化奇遇事件列表失败: {}", e))?;
+        let json =
+            serde_json::to_string(&list).map_err(|e| format!("序列化奇遇事件列表失败: {}", e))?;
         Ok(json)
     }
 
     /// 获取奇遇事件（返回JSON字符串）
     pub fn get_adventure_event(&self, id: &str) -> Result<String, String> {
-        let event = self.event_manager.get_adventure_event(id)
+        let event = self
+            .event_manager
+            .get_adventure_event(id)
             .ok_or_else(|| format!("奇遇事件 {} 不存在", id))?;
-        let json = serde_json::to_string(event)
-            .map_err(|e| format!("序列化奇遇事件失败: {}", e))?;
+        let json =
+            serde_json::to_string(event).map_err(|e| format!("序列化奇遇事件失败: {}", e))?;
         Ok(json)
     }
-    
+
     /// 计算修行经验
     /// 参数：功法ID，悟性(x)，根骨(y)，体魄(z)，武学素养(a)
     pub fn calculate_cultivation_exp(
@@ -294,33 +291,39 @@ impl WushenCore {
     ) -> Result<f64, String> {
         let exp = match manual_type {
             "internal" => {
-                let internal = self.manual_manager.get_internal(manual_id)
+                let internal = self
+                    .manual_manager
+                    .get_internal(manual_id)
                     .ok_or_else(|| format!("内功 {} 不存在", manual_id))?;
-                internal.manual.calculate_exp_gain(x, y, z, a)
+                internal
+                    .manual
+                    .calculate_exp_gain(x, y, z, a)
                     .map_err(|e| e)?
             }
             "attack_skill" => {
-                let skill = self.manual_manager.get_attack_skill(manual_id)
+                let skill = self
+                    .manual_manager
+                    .get_attack_skill(manual_id)
                     .ok_or_else(|| format!("攻击武技 {} 不存在", manual_id))?;
-                skill.manual.calculate_exp_gain(x, y, z, a)
-                    .map_err(|e| e)?
+                skill.manual.calculate_exp_gain(x, y, z, a).map_err(|e| e)?
             }
             "defense_skill" => {
-                let skill = self.manual_manager.get_defense_skill(manual_id)
+                let skill = self
+                    .manual_manager
+                    .get_defense_skill(manual_id)
                     .ok_or_else(|| format!("防御武技 {} 不存在", manual_id))?;
-                skill.manual.calculate_exp_gain(x, y, z, a)
-                    .map_err(|e| e)?
+                skill.manual.calculate_exp_gain(x, y, z, a).map_err(|e| e)?
             }
             _ => return Err(format!("未知的功法类型: {}", manual_type)),
         };
-        
+
         Ok(exp)
     }
-    
+
     /// 计算战斗
     /// 参数：攻击者角色JSON，防御者角色JSON，攻击者内息输出（可选），防御者内息输出（可选）
     /// 返回：战斗结果JSON（包含战斗日志和结果）
-    /// 
+    ///
     /// 注意：为保持API兼容性，参数名仍使用 attacker/defender，
     /// 但内部映射为 side_a/side_b
     pub fn calculate_battle(
@@ -333,51 +336,70 @@ impl WushenCore {
         // 解析角色JSON（attacker -> side_a, defender -> side_b）
         let mut side_a_panel = parse_character_panel(attacker_json)?;
         let mut side_b_panel = parse_character_panel(defender_json)?;
-        
+
         // 设置内息输出（如果提供了参数）
         if let Some(rate) = attacker_qi_output_rate {
             side_a_panel.qi_output_rate = rate.max(0.0).min(side_a_panel.max_qi_output_rate);
         } else {
             side_a_panel.qi_output_rate = side_a_panel.max_qi_output_rate;
         }
-        
+
         if let Some(rate) = defender_qi_output_rate {
             side_b_panel.qi_output_rate = rate.max(0.0).min(side_b_panel.max_qi_output_rate);
         } else {
             side_b_panel.qi_output_rate = side_b_panel.max_qi_output_rate;
         }
-        
+
         // 获取特性和功法数据以构建词条执行器
-        let side_a_traits: Vec<_> = self.trait_manager.get_traits_by_ids(&side_a_panel.traits)
+        let side_a_traits: Vec<_> = self
+            .trait_manager
+            .get_traits_by_ids(&side_a_panel.traits)
             .into_iter()
             .cloned()
             .collect();
-        
-        let side_b_traits: Vec<_> = self.trait_manager.get_traits_by_ids(&side_b_panel.traits)
+
+        let side_b_traits: Vec<_> = self
+            .trait_manager
+            .get_traits_by_ids(&side_b_panel.traits)
             .into_iter()
             .cloned()
             .collect();
-        
+
         // 获取功法模板
-        let side_a_internal = side_a_panel.current_internal_id.as_ref()
+        let side_a_internal = side_a_panel
+            .current_internal_id
+            .as_ref()
             .and_then(|id| self.manual_manager.get_internal(id));
-        let side_a_attack_skill = side_a_panel.current_attack_skill_id.as_ref()
+        let side_a_attack_skill = side_a_panel
+            .current_attack_skill_id
+            .as_ref()
             .and_then(|id| self.manual_manager.get_attack_skill(id));
-        let side_a_defense_skill = side_a_panel.current_defense_skill_id.as_ref()
+        let side_a_defense_skill = side_a_panel
+            .current_defense_skill_id
+            .as_ref()
             .and_then(|id| self.manual_manager.get_defense_skill(id));
-        
-        let side_b_internal = side_b_panel.current_internal_id.as_ref()
+
+        let side_b_internal = side_b_panel
+            .current_internal_id
+            .as_ref()
             .and_then(|id| self.manual_manager.get_internal(id));
-        let side_b_attack_skill = side_b_panel.current_attack_skill_id.as_ref()
+        let side_b_attack_skill = side_b_panel
+            .current_attack_skill_id
+            .as_ref()
             .and_then(|id| self.manual_manager.get_attack_skill(id));
-        let side_b_defense_skill = side_b_panel.current_defense_skill_id.as_ref()
+        let side_b_defense_skill = side_b_panel
+            .current_defense_skill_id
+            .as_ref()
             .and_then(|id| self.manual_manager.get_defense_skill(id));
-        
+
         // 根据装备的内功和武技设置角色面板属性
         // Side A
         if let Some(internal) = side_a_internal {
-            if let Some((level, _)) = side_a_panel.current_internal_id.as_ref()
-                .and_then(|id| side_a_panel.get_internal_level_exp(id)) {
+            if let Some((level, _)) = side_a_panel
+                .current_internal_id
+                .as_ref()
+                .and_then(|id| side_a_panel.get_internal_level_exp(id))
+            {
                 if let Some(realm) = internal.realm_at_level(level) {
                     side_a_panel.qi_quality = realm.qi_quality;
                     side_a_panel.attack_speed = realm.attack_speed;
@@ -385,8 +407,11 @@ impl WushenCore {
                 }
             }
             // 计算内息上限
-            if let Some((level, _)) = side_a_panel.current_internal_id.as_ref()
-                .and_then(|id| side_a_panel.get_internal_level_exp(id)) {
+            if let Some((level, _)) = side_a_panel
+                .current_internal_id
+                .as_ref()
+                .and_then(|id| side_a_panel.get_internal_level_exp(id))
+            {
                 let mut total_qi_gain = 0.0;
                 for lvl in 1..=level {
                     if let Some(realm) = internal.realm_at_level(lvl) {
@@ -400,8 +425,11 @@ impl WushenCore {
             }
         }
         if let Some(skill) = side_a_attack_skill {
-            if let Some((level, _)) = side_a_panel.current_attack_skill_id.as_ref()
-                .and_then(|id| side_a_panel.get_attack_skill_level_exp(id)) {
+            if let Some((level, _)) = side_a_panel
+                .current_attack_skill_id
+                .as_ref()
+                .and_then(|id| side_a_panel.get_attack_skill_level_exp(id))
+            {
                 if let Some(realm) = skill.realm_at_level(level) {
                     side_a_panel.power = realm.power;
                     side_a_panel.charge_time = realm.charge_time;
@@ -409,26 +437,35 @@ impl WushenCore {
             }
         }
         if let Some(skill) = side_a_defense_skill {
-            if let Some((level, _)) = side_a_panel.current_defense_skill_id.as_ref()
-                .and_then(|id| side_a_panel.get_defense_skill_level_exp(id)) {
+            if let Some((level, _)) = side_a_panel
+                .current_defense_skill_id
+                .as_ref()
+                .and_then(|id| side_a_panel.get_defense_skill_level_exp(id))
+            {
                 if let Some(realm) = skill.realm_at_level(level) {
                     side_a_panel.defense_power = realm.defense_power;
                 }
             }
         }
-        
+
         // Side B
         if let Some(internal) = side_b_internal {
-            if let Some((level, _)) = side_b_panel.current_internal_id.as_ref()
-                .and_then(|id| side_b_panel.get_internal_level_exp(id)) {
+            if let Some((level, _)) = side_b_panel
+                .current_internal_id
+                .as_ref()
+                .and_then(|id| side_b_panel.get_internal_level_exp(id))
+            {
                 if let Some(realm) = internal.realm_at_level(level) {
                     side_b_panel.qi_quality = realm.qi_quality;
                     side_b_panel.attack_speed = realm.attack_speed;
                     side_b_panel.qi_recovery_rate = realm.qi_recovery_rate;
                 }
             }
-            if let Some((level, _)) = side_b_panel.current_internal_id.as_ref()
-                .and_then(|id| side_b_panel.get_internal_level_exp(id)) {
+            if let Some((level, _)) = side_b_panel
+                .current_internal_id
+                .as_ref()
+                .and_then(|id| side_b_panel.get_internal_level_exp(id))
+            {
                 let mut total_qi_gain = 0.0;
                 for lvl in 1..=level {
                     if let Some(realm) = internal.realm_at_level(lvl) {
@@ -442,8 +479,11 @@ impl WushenCore {
             }
         }
         if let Some(skill) = side_b_attack_skill {
-            if let Some((level, _)) = side_b_panel.current_attack_skill_id.as_ref()
-                .and_then(|id| side_b_panel.get_attack_skill_level_exp(id)) {
+            if let Some((level, _)) = side_b_panel
+                .current_attack_skill_id
+                .as_ref()
+                .and_then(|id| side_b_panel.get_attack_skill_level_exp(id))
+            {
                 if let Some(realm) = skill.realm_at_level(level) {
                     side_b_panel.power = realm.power;
                     side_b_panel.charge_time = realm.charge_time;
@@ -451,14 +491,17 @@ impl WushenCore {
             }
         }
         if let Some(skill) = side_b_defense_skill {
-            if let Some((level, _)) = side_b_panel.current_defense_skill_id.as_ref()
-                .and_then(|id| side_b_panel.get_defense_skill_level_exp(id)) {
+            if let Some((level, _)) = side_b_panel
+                .current_defense_skill_id
+                .as_ref()
+                .and_then(|id| side_b_panel.get_defense_skill_level_exp(id))
+            {
                 if let Some(realm) = skill.realm_at_level(level) {
                     side_b_panel.defense_power = realm.defense_power;
                 }
             }
         }
-        
+
         // 创建词条执行器
         let side_a_executor = EntryExecutor::aggregate_entries_from_panel(
             &side_a_traits,
@@ -467,7 +510,7 @@ impl WushenCore {
             side_a_attack_skill,
             side_a_defense_skill,
         );
-        
+
         let side_b_executor = EntryExecutor::aggregate_entries_from_panel(
             &side_b_traits,
             &side_b_panel,
@@ -475,7 +518,7 @@ impl WushenCore {
             side_b_attack_skill,
             side_b_defense_skill,
         );
-        
+
         // 创建战斗引擎
         let mut battle_engine = BattleEngine::new(
             &side_a_panel,
@@ -483,7 +526,7 @@ impl WushenCore {
             side_a_executor,
             side_b_executor,
         );
-        
+
         // 设置日志模板（使用向后兼容的方法）
         if let Some(skill) = side_a_attack_skill {
             battle_engine.set_attacker_attack_log_template(skill.log_template.clone());
@@ -497,18 +540,18 @@ impl WushenCore {
         if let Some(skill) = side_b_defense_skill {
             battle_engine.set_defender_defense_log_template(skill.log_template.clone());
         }
-        
+
         // 执行初始化阶段
         battle_engine.step();
-        
+
         // 继续运行战斗
         let result = battle_engine.run();
         let log = battle_engine.get_log();
-        
+
         // 获取战斗结束后的面板状态
         let side_a_battle_panel = battle_engine.get_side_a_panel().clone();
         let side_b_battle_panel = battle_engine.get_side_b_panel().clone();
-        
+
         // 构建返回结果（保持外部API兼容，使用 attacker/defender 命名）
         let battle_result = BattleResultJson {
             result: match result {
@@ -516,11 +559,13 @@ impl WushenCore {
                 BattleResult::SideBWin => "defender_win".to_string(),
                 BattleResult::Draw => "draw".to_string(),
             },
-            records: log.get_all_records().iter()
+            records: log
+                .get_all_records()
+                .iter()
                 .map(|r| {
                     let text = format_battle_record(r);
                     let (side_a_delta, side_b_delta) = extract_panel_deltas(r);
-                    
+
                     BattleRecordJson {
                         text,
                         // 映射：side_a -> attacker, side_b -> defender
@@ -534,13 +579,13 @@ impl WushenCore {
             attacker_panel: battle_panel_to_json(&side_a_battle_panel),
             defender_panel: battle_panel_to_json(&side_b_battle_panel),
         };
-        
+
         let json = serde_json::to_string(&battle_result)
             .map_err(|e| format!("序列化战斗结果失败: {}", e))?;
-        
+
         Ok(json)
     }
-    
+
     /// 执行修行
     /// 参数：角色JSON，功法ID，功法类型
     /// 返回：修行结果JSON（包含经验增益、新等级、新经验、是否升级，以及更新后的角色JSON）
@@ -552,7 +597,7 @@ impl WushenCore {
     ) -> Result<String, String> {
         // 解析角色JSON
         let mut panel = parse_character_panel(character_json)?;
-        
+
         // 如果内息上限为0且角色有装备的内功，根据内功等级计算内息上限
         if panel.max_qi == 0.0 {
             if let Some(internal_id) = &panel.current_internal_id {
@@ -570,11 +615,11 @@ impl WushenCore {
                 }
             }
         }
-        
+
         // 如果武学素养为0，根据所有已修行的功法等级计算武学素养
         if panel.martial_arts_attainment == 0.0 {
             let mut total_martial_arts_attainment = 0.0;
-            
+
             for (internal_id, (level, _)) in &panel.owned_internals {
                 if let Some(internal) = self.manual_manager.get_internal(internal_id) {
                     for lvl in 1..=*level {
@@ -584,7 +629,7 @@ impl WushenCore {
                     }
                 }
             }
-            
+
             for (skill_id, (level, _)) in &panel.owned_attack_skills {
                 if let Some(skill) = self.manual_manager.get_attack_skill(skill_id) {
                     for lvl in 1..=*level {
@@ -594,7 +639,7 @@ impl WushenCore {
                     }
                 }
             }
-            
+
             for (skill_id, (level, _)) in &panel.owned_defense_skills {
                 if let Some(skill) = self.manual_manager.get_defense_skill(skill_id) {
                     for lvl in 1..=*level {
@@ -604,10 +649,10 @@ impl WushenCore {
                     }
                 }
             }
-            
+
             panel.martial_arts_attainment = total_martial_arts_attainment;
         }
-        
+
         // 获取修行前的状态
         let (old_level, old_exp) = match manual_type {
             "internal" => {
@@ -620,52 +665,65 @@ impl WushenCore {
                 if !panel.has_attack_skill(manual_id) {
                     return Err(format!("角色未拥有攻击武技 {}", manual_id));
                 }
-                panel.get_attack_skill_level_exp(manual_id).unwrap_or((0, 0.0))
+                panel
+                    .get_attack_skill_level_exp(manual_id)
+                    .unwrap_or((0, 0.0))
             }
             "defense_skill" => {
                 if !panel.has_defense_skill(manual_id) {
                     return Err(format!("角色未拥有防御武技 {}", manual_id));
                 }
-                panel.get_defense_skill_level_exp(manual_id).unwrap_or((0, 0.0))
+                panel
+                    .get_defense_skill_level_exp(manual_id)
+                    .unwrap_or((0, 0.0))
             }
             _ => return Err(format!("未知的功法类型: {}", manual_type)),
         };
-        
+
         // 创建特性执行器
         let mut executor = self.trait_manager.create_executor(&panel.traits);
-        
+
         // 执行修行
         let exp_gain = match manual_type {
             "internal" => {
-                if panel.current_internal_id.as_ref().map_or(true, |id| id != manual_id) {
+                if panel
+                    .current_internal_id
+                    .as_ref()
+                    .map_or(true, |id| id != manual_id)
+                {
                     panel.current_internal_id = Some(manual_id.to_string());
                 }
-                self.manual_manager.cultivate_internal(&mut panel, Some(&mut executor))
+                self.manual_manager
+                    .cultivate_internal(&mut panel, Some(&mut executor))
                     .map_err(|e| e)?
             }
-            "attack_skill" => {
-                self.manual_manager.cultivate_attack_skill(manual_id, &mut panel, Some(&mut executor))
-                    .map_err(|e| e)?
-            }
-            "defense_skill" => {
-                self.manual_manager.cultivate_defense_skill(manual_id, &mut panel, Some(&mut executor))
-                    .map_err(|e| e)?
-            }
+            "attack_skill" => self
+                .manual_manager
+                .cultivate_attack_skill(manual_id, &mut panel, Some(&mut executor))
+                .map_err(|e| e)?,
+            "defense_skill" => self
+                .manual_manager
+                .cultivate_defense_skill(manual_id, &mut panel, Some(&mut executor))
+                .map_err(|e| e)?,
             _ => unreachable!(),
         };
-        
+
         // 获取修行后的状态
         let (new_level, new_exp) = match manual_type {
             "internal" => panel.get_internal_level_exp(manual_id).unwrap_or((0, 0.0)),
-            "attack_skill" => panel.get_attack_skill_level_exp(manual_id).unwrap_or((0, 0.0)),
-            "defense_skill" => panel.get_defense_skill_level_exp(manual_id).unwrap_or((0, 0.0)),
+            "attack_skill" => panel
+                .get_attack_skill_level_exp(manual_id)
+                .unwrap_or((0, 0.0)),
+            "defense_skill" => panel
+                .get_defense_skill_level_exp(manual_id)
+                .unwrap_or((0, 0.0)),
             _ => unreachable!(),
         };
-        
+
         let leveled_up = new_level > old_level;
-        
+
         let updated_character_json = serialize_character_panel(&panel)?;
-        
+
         let cultivation_result = CultivationResultJson {
             exp_gain,
             old_level,
@@ -675,7 +733,7 @@ impl WushenCore {
             leveled_up,
             updated_character: updated_character_json,
         };
-        
+
         let json = serde_json::to_string(&cultivation_result)
             .map_err(|e| format!("序列化修行结果失败: {}", e))?;
 
@@ -689,6 +747,12 @@ impl WushenCore {
             .event_manager
             .get_storyline(&request.storyline_id)
             .ok_or_else(|| format!("剧情线 {} 不存在", request.storyline_id))?;
+        if request.three_d.comprehension == 0
+            || request.three_d.bone_structure == 0
+            || request.three_d.physique == 0
+        {
+            return Err("三维最小值为1，不能为0".to_string());
+        }
         let total = request.three_d.comprehension
             + request.three_d.bone_structure
             + request.three_d.physique;
@@ -730,17 +794,13 @@ impl WushenCore {
             save.current_character.traits = picked_traits;
         }
         self.apply_game_start_effects(&mut save.current_character)?;
-        self.game_runtime = Some(GameRuntime {
-            save,
-        });
+        self.game_runtime = Some(GameRuntime { save });
         self.game_view(None)
     }
 
     pub fn game_resume(&mut self, mut save: SaveGame) -> Result<GameResponse, String> {
         ensure_rng_state(&mut save);
-        self.game_runtime = Some(GameRuntime {
-            save,
-        });
+        self.game_runtime = Some(GameRuntime { save });
         self.game_view(None)
     }
 
@@ -770,8 +830,8 @@ impl WushenCore {
             serialize_character_panel(&panel)?
         };
         let result_json = self.execute_cultivation(&character_json, &manual_id, &manual_type)?;
-        let result: CultivationResultJson = serde_json::from_str(&result_json)
-            .map_err(|e| format!("解析修行结果失败: {}", e))?;
+        let result: CultivationResultJson =
+            serde_json::from_str(&result_json).map_err(|e| format!("解析修行结果失败: {}", e))?;
         let updated_panel = parse_character_panel(&result.updated_character)?;
         {
             let runtime = self
@@ -779,8 +839,11 @@ impl WushenCore {
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             update_character_from_panel(&mut runtime.save.current_character, &updated_panel);
-            runtime.save.current_character.action_points =
-                runtime.save.current_character.action_points.saturating_sub(1);
+            runtime.save.current_character.action_points = runtime
+                .save
+                .current_character
+                .action_points
+                .saturating_sub(1);
             runtime.save.current_character.cultivation_history.clear();
         }
 
@@ -874,7 +937,12 @@ impl WushenCore {
                     win: None,
                 }
             }
-            AdventureEventContent::Battle { text, enemy, win, lose } => {
+            AdventureEventContent::Battle {
+                text,
+                enemy,
+                win,
+                lose,
+            } => {
                 let battle_result = self.run_battle(
                     &character,
                     enemy,
@@ -882,7 +950,11 @@ impl WushenCore {
                     defender_qi_output_rate,
                 )?;
                 let win_flag = battle_is_attacker_win(&battle_result);
-                let rewards = if win_flag { &win.rewards } else { &lose.rewards };
+                let rewards = if win_flag {
+                    &win.rewards
+                } else {
+                    &lose.rewards
+                };
                 let panel = character_state_to_panel(&character);
                 let filtered = filter_rewards_for_panel(
                     &panel,
@@ -1036,7 +1108,12 @@ impl WushenCore {
         }
 
         let (text, enemy, win, lose) = match &event.content {
-            StoryEventContent::Battle { text, enemy, win, lose } => (text, enemy, win, lose),
+            StoryEventContent::Battle {
+                text,
+                enemy,
+                win,
+                lose,
+            } => (text, enemy, win, lose),
             _ => return Err("当前事件不是战斗事件".to_string()),
         };
 
@@ -1058,14 +1135,14 @@ impl WushenCore {
             defender_qi_output_rate,
         )?;
         let win_flag = battle_is_attacker_win(&battle_result);
-        let rewards = if win_flag { &win.rewards } else { &lose.rewards };
+        let rewards = if win_flag {
+            &win.rewards
+        } else {
+            &lose.rewards
+        };
         let panel = character_state_to_panel(&character);
-        let filtered = filter_rewards_for_panel(
-            &panel,
-            rewards,
-            &self.manual_manager,
-            &start_trait_pool,
-        );
+        let filtered =
+            filter_rewards_for_panel(&panel, rewards, &self.manual_manager, &start_trait_pool);
         self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
         let next_event_id = if win_flag {
             win.next_event_id.clone()
@@ -1102,9 +1179,11 @@ impl WushenCore {
         }
 
         let (text, rewards, next_event_id) = match &event.content {
-            StoryEventContent::Story { text, rewards, next_event_id } => {
-                (text, rewards, next_event_id)
-            }
+            StoryEventContent::Story {
+                text,
+                rewards,
+                next_event_id,
+            } => (text, rewards, next_event_id),
             _ => return Err("当前事件不是剧情事件".to_string()),
         };
 
@@ -1116,15 +1195,14 @@ impl WushenCore {
                 .game_runtime
                 .as_ref()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
-            (runtime.save.current_character.clone(), runtime.save.start_trait_pool.clone())
+            (
+                runtime.save.current_character.clone(),
+                runtime.save.start_trait_pool.clone(),
+            )
         };
         let panel = character_state_to_panel(&character);
-        let filtered = filter_rewards_for_panel(
-            &panel,
-            rewards,
-            &self.manual_manager,
-            &start_trait_pool,
-        );
+        let filtered =
+            filter_rewards_for_panel(&panel, rewards, &self.manual_manager, &start_trait_pool);
         self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
         {
             let runtime = self
@@ -1178,7 +1256,8 @@ impl WushenCore {
                     .iter()
                     .find(|opt| opt.id == option_id)
                     .ok_or_else(|| "无效的选项".to_string())?;
-                if !EventManager::is_condition_met(&option.condition, &panel, &self.manual_manager) {
+                if !EventManager::is_condition_met(&option.condition, &panel, &self.manual_manager)
+                {
                     return Err("选项条件不满足".to_string());
                 }
                 match &option.result {
@@ -1189,10 +1268,19 @@ impl WushenCore {
                             &self.manual_manager,
                             &start_trait_pool,
                         );
-                        self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
+                        self.apply_rewards_to_character(
+                            &mut character,
+                            &mut start_trait_pool,
+                            &filtered,
+                        )?;
                         (Some(text.clone()), filtered, None, None)
                     }
-                    AdventureOptionResult::Battle { text, enemy, win, lose } => {
+                    AdventureOptionResult::Battle {
+                        text,
+                        enemy,
+                        win,
+                        lose,
+                    } => {
                         let battle_result = self.run_battle(
                             &character,
                             enemy,
@@ -1200,15 +1288,28 @@ impl WushenCore {
                             defender_qi_output_rate,
                         )?;
                         let win_flag = battle_is_attacker_win(&battle_result);
-                        let rewards = if win_flag { &win.rewards } else { &lose.rewards };
+                        let rewards = if win_flag {
+                            &win.rewards
+                        } else {
+                            &lose.rewards
+                        };
                         let filtered = filter_rewards_for_panel(
                             &panel,
                             rewards,
                             &self.manual_manager,
                             &start_trait_pool,
                         );
-                        self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
-                        (Some(text.clone()), filtered, Some(battle_result), Some(win_flag))
+                        self.apply_rewards_to_character(
+                            &mut character,
+                            &mut start_trait_pool,
+                            &filtered,
+                        )?;
+                        (
+                            Some(text.clone()),
+                            filtered,
+                            Some(battle_result),
+                            Some(win_flag),
+                        )
                     }
                 }
             }
@@ -1307,7 +1408,11 @@ impl WushenCore {
                     let panel = character_state_to_panel(&runtime.save.current_character);
                     let mut available = Vec::new();
                     for option in options {
-                        if EventManager::is_condition_met(&option.condition, &panel, &self.manual_manager) {
+                        if EventManager::is_condition_met(
+                            &option.condition,
+                            &panel,
+                            &self.manual_manager,
+                        ) {
                             available.push(AdventureOptionView {
                                 id: option.id.clone(),
                                 text: option.text.clone(),
@@ -1426,10 +1531,7 @@ impl WushenCore {
         Ok(())
     }
 
-    fn apply_game_start_effects(
-        &self,
-        character: &mut CharacterState,
-    ) -> Result<(), String> {
+    fn apply_game_start_effects(&self, character: &mut CharacterState) -> Result<(), String> {
         if character.traits.is_empty() {
             return Ok(());
         }
@@ -1474,8 +1576,7 @@ impl WushenCore {
             attacker_qi_output_rate,
             defender_qi_output_rate,
         )?;
-        serde_json::from_str(&battle_json)
-            .map_err(|e| format!("解析战斗结果失败: {}", e))
+        serde_json::from_str(&battle_json).map_err(|e| format!("解析战斗结果失败: {}", e))
     }
 }
 
@@ -1535,7 +1636,8 @@ fn battle_is_attacker_win(battle: &Value) -> bool {
 }
 
 fn ensure_event_ready(runtime: &GameRuntime, event: &StoryEvent) -> Result<(), String> {
-    if event.node_type == StoryNodeType::Middle && runtime.save.current_character.action_points > 0 {
+    if event.node_type == StoryNodeType::Middle && runtime.save.current_character.action_points > 0
+    {
         return Err("行动点尚未耗尽，无法进入事件".to_string());
     }
     Ok(())
@@ -1569,7 +1671,8 @@ fn build_story_event_view(
             enemy_name: enemy.name.clone(),
         },
         StoryEventContent::Story { text, rewards, .. } => {
-            let filtered = filter_rewards_for_panel(panel, rewards, manual_manager, start_trait_pool);
+            let filtered =
+                filter_rewards_for_panel(panel, rewards, manual_manager, start_trait_pool);
             StoryEventContentView::Story {
                 text: text.clone(),
                 rewards: filtered,
@@ -1612,7 +1715,12 @@ fn filter_rewards_for_panel(
                     filtered.push(reward.clone());
                 }
             }
-            Reward::RandomManual { manual_kind, rarity, manual_type, count } => {
+            Reward::RandomManual {
+                manual_kind,
+                rarity,
+                manual_type,
+                count,
+            } => {
                 let available = count_available_manuals(
                     manual_manager,
                     panel,
@@ -1943,91 +2051,192 @@ fn panel_delta_to_json(delta: crate::battle::battle_record::PanelDelta) -> Panel
     }
 }
 
-fn extract_panel_deltas(record: &BattleRecord) -> (Option<crate::battle::battle_record::PanelDelta>, Option<crate::battle::battle_record::PanelDelta>) {
+fn extract_panel_deltas(
+    record: &BattleRecord,
+) -> (
+    Option<crate::battle::battle_record::PanelDelta>,
+    Option<crate::battle::battle_record::PanelDelta>,
+) {
     match record {
-        BattleRecord::BattleStart { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::ActionBarUpdate { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::EntryTriggered { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::AttackAction { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::DefenseAction { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::QiRecovery { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::CalculationResult { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::ExtraAttack { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::RoundStart { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::RoundEnd { side_a_panel_delta, side_b_panel_delta, .. } |
-        BattleRecord::BattleEnd { side_a_panel_delta, side_b_panel_delta, .. } => {
-            (side_a_panel_delta.clone(), side_b_panel_delta.clone())
+        BattleRecord::BattleStart {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
         }
+        | BattleRecord::ActionBarUpdate {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::EntryTriggered {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::AttackAction {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::DefenseAction {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::QiRecovery {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::CalculationResult {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::ExtraAttack {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::RoundStart {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::RoundEnd {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        }
+        | BattleRecord::BattleEnd {
+            side_a_panel_delta,
+            side_b_panel_delta,
+            ..
+        } => (side_a_panel_delta.clone(), side_b_panel_delta.clone()),
     }
 }
 
 fn format_battle_record(record: &BattleRecord) -> String {
     match record {
-        BattleRecord::BattleStart { side_a_name, side_b_name, .. } => {
+        BattleRecord::BattleStart {
+            side_a_name,
+            side_b_name,
+            ..
+        } => {
             format!("{} 与 {} 的战斗开始了！", side_a_name, side_b_name)
         }
-        BattleRecord::EntryTriggered { description, .. } => {
-            description.clone()
-        }
-        BattleRecord::AttackAction { attacker_name, skill_name, .. } => {
+        BattleRecord::EntryTriggered { description, .. } => description.clone(),
+        BattleRecord::AttackAction {
+            attacker_name,
+            skill_name,
+            ..
+        } => {
             format!("{} 使用 {} 发起攻击！", attacker_name, skill_name)
         }
-        BattleRecord::DefenseAction { defender_name, skill_name, .. } => {
+        BattleRecord::DefenseAction {
+            defender_name,
+            skill_name,
+            ..
+        } => {
             format!("{} 使用 {} 进行防御！", defender_name, skill_name)
         }
-        BattleRecord::QiRecovery { character_name, recovered, current_qi, max_qi, .. } => {
-            format!("{} 回气 {:.1} 点，当前内息 {:.1}/{:.1}", character_name, recovered, current_qi, max_qi)
+        BattleRecord::QiRecovery {
+            character_name,
+            recovered,
+            current_qi,
+            max_qi,
+            ..
+        } => {
+            format!(
+                "{} 回气 {:.1} 点，当前内息 {:.1}/{:.1}",
+                character_name, recovered, current_qi, max_qi
+            )
         }
-        BattleRecord::CalculationResult { attacker_name, defender_name, result, .. } => {
+        BattleRecord::CalculationResult {
+            attacker_name,
+            defender_name,
+            result,
+            ..
+        } => {
             let mut details = Vec::new();
-            
+
             let qi_damage = result.defender_qi_consumed;
-            
+
             if qi_damage > 0.0 && result.hp_damage > 0.0 {
-                details.push(format!("{}对{}造成了{:.1}点内息伤害，{:.1}点生命值伤害", 
-                    attacker_name, defender_name, qi_damage, result.hp_damage));
+                details.push(format!(
+                    "{}对{}造成了{:.1}点内息伤害，{:.1}点生命值伤害",
+                    attacker_name, defender_name, qi_damage, result.hp_damage
+                ));
             } else if qi_damage > 0.0 {
-                details.push(format!("{}对{}造成了{:.1}点内息伤害", 
-                    attacker_name, defender_name, qi_damage));
+                details.push(format!(
+                    "{}对{}造成了{:.1}点内息伤害",
+                    attacker_name, defender_name, qi_damage
+                ));
             } else if result.hp_damage > 0.0 {
-                details.push(format!("{}对{}造成了{:.1}点生命值伤害", 
-                    attacker_name, defender_name, result.hp_damage));
+                details.push(format!(
+                    "{}对{}造成了{:.1}点生命值伤害",
+                    attacker_name, defender_name, result.hp_damage
+                ));
             }
-            
+
             if result.hp_damage > 0.0 {
                 details.push("击破内息防御".to_string());
             } else {
                 details.push("未击破内息防御".to_string());
             }
-            
-            details.push(format!("{}消耗了{:.1}点内息，{}消耗了{:.1}点内息", 
-                attacker_name, result.attacker_qi_consumed, defender_name, result.defender_qi_consumed));
-            
+
+            details.push(format!(
+                "{}消耗了{:.1}点内息，{}消耗了{:.1}点内息",
+                attacker_name,
+                result.attacker_qi_consumed,
+                defender_name,
+                result.defender_qi_consumed
+            ));
+
             details.join("，")
         }
-        BattleRecord::ExtraAttack { source_name, target_name, output, reduced_damage, description, .. } => {
+        BattleRecord::ExtraAttack {
+            source_name,
+            target_name,
+            output,
+            reduced_damage,
+            description,
+            ..
+        } => {
             if description.is_empty() {
-                format!("{}发动额外攻击，对{}造成{:.1}点伤害（减伤后{:.1}）", 
-                    source_name, target_name, output, reduced_damage)
+                format!(
+                    "{}发动额外攻击，对{}造成{:.1}点伤害（减伤后{:.1}）",
+                    source_name, target_name, output, reduced_damage
+                )
             } else {
                 description.clone()
             }
         }
-        BattleRecord::RoundStart { round, attacker_name, defender_name, .. } => {
-            format!("【第{}回合开始】{} 攻击，{} 防御", round, attacker_name, defender_name)
+        BattleRecord::RoundStart {
+            round,
+            attacker_name,
+            defender_name,
+            ..
+        } => {
+            format!(
+                "【第{}回合开始】{} 攻击，{} 防御",
+                round, attacker_name, defender_name
+            )
         }
         BattleRecord::RoundEnd { round, .. } => {
             format!("第 {} 回合结束", round)
         }
-        BattleRecord::BattleEnd { winner_name, reason, .. } => {
+        BattleRecord::BattleEnd {
+            winner_name,
+            reason,
+            ..
+        } => {
             if winner_name == "平局" {
                 format!("战斗结束：{}", reason)
             } else {
                 format!("{} 获胜！{}", winner_name, reason)
             }
         }
-        BattleRecord::ActionBarUpdate { .. } => {
-            String::new()
-        }
+        BattleRecord::ActionBarUpdate { .. } => String::new(),
     }
 }
