@@ -1,6 +1,7 @@
 /**
  * 修行公式验证工具
  * 验证公式是否有效，支持变量 x（悟性）、y（根骨）、z（体魄）、A（武学素养）
+ * 并兼容后端 meval 支持的函数（如 max/min 等）。
  */
 
 export interface FormulaValidationResult {
@@ -8,6 +9,39 @@ export interface FormulaValidationResult {
   error?: string;
   preview?: number;
 }
+
+const ALLOWED_VARIABLES = ['x', 'y', 'z', 'a', 'A'];
+const ALLOWED_CONSTANTS = ['pi', 'e'];
+const ALLOWED_FUNCTIONS: Record<string, (...args: number[]) => number> = {
+  min: Math.min,
+  max: Math.max,
+  abs: Math.abs,
+  ceil: Math.ceil,
+  floor: Math.floor,
+  round: Math.round,
+  sqrt: Math.sqrt,
+  pow: Math.pow,
+  exp: Math.exp,
+  ln: Math.log,
+  log: Math.log,
+  log10: Math.log10,
+  log2: Math.log2,
+  sin: Math.sin,
+  cos: Math.cos,
+  tan: Math.tan,
+  asin: Math.asin,
+  acos: Math.acos,
+  atan: Math.atan,
+  atan2: Math.atan2,
+  sinh: Math.sinh,
+  cosh: Math.cosh,
+  tanh: Math.tanh,
+  asinh: Math.asinh,
+  acosh: Math.acosh,
+  atanh: Math.atanh,
+  sign: Math.sign,
+  signum: Math.sign,
+};
 
 /**
  * 验证修行公式
@@ -25,7 +59,7 @@ export function validateCultivationFormula(formula: string): FormulaValidationRe
 
   const trimmedFormula = formula.trim();
 
-  // 基本安全检查：不允许函数调用和危险操作
+  // 基本安全检查：不允许危险操作
   const dangerousPatterns = [
     /eval\s*\(/i,
     /function\s*\(/i,
@@ -51,36 +85,48 @@ export function validateCultivationFormula(formula: string): FormulaValidationRe
   try {
     // 将公式中的变量替换为测试值来验证语法
     // 使用 meval 库的语法规则
-    const normalizedFormula = trimmedFormula.replace(/A/g, 'a');
+    const normalizedFormula = trimmedFormula.replace(/\*\*/g, '^');
     
-    // 检查是否包含未定义的变量（除了 x, y, z, a）
-    const variablePattern = /[a-zA-Z_][a-zA-Z0-9_]*/g;
-    const variables = trimmedFormula.match(variablePattern) || [];
-    const allowedVariables = ['x', 'y', 'z', 'a', 'A'];
-    const invalidVariables = variables.filter(
-      (v) => !allowedVariables.includes(v.toLowerCase()) && !/^\d+/.test(v)
+    // 检查是否包含未定义的变量/函数
+    const identifierPattern = /\b[a-zA-Z_][a-zA-Z0-9_]*\b/g;
+    const identifiers = trimmedFormula.match(identifierPattern) || [];
+    const allowedIdentifiers = new Set(
+      [
+        ...ALLOWED_VARIABLES,
+        ...ALLOWED_CONSTANTS,
+        ...Object.keys(ALLOWED_FUNCTIONS),
+      ].map((name) => name.toLowerCase())
+    );
+    const invalidVariables = identifiers.filter(
+      (v) => !allowedIdentifiers.has(v.toLowerCase()) && !/^\d+/.test(v)
     );
 
     if (invalidVariables.length > 0) {
       return {
         valid: false,
-        error: `公式包含未定义的变量: ${invalidVariables.join(', ')}。只支持 x（悟性）、y（根骨）、z（体魄）、A（武学素养）`,
+        error: `公式包含未定义的变量/函数: ${invalidVariables.join(', ')}。变量仅支持 x/y/z/A，函数需为 meval 支持项（如 max/min 等）`,
       };
     }
 
     // 尝试使用 Function 构造函数来验证语法（安全的方式）
     // 替换变量为数值来测试语法
     const testFormula = normalizedFormula
+      .replace(/\^/g, '**')
+      .replace(/\bpi\b/gi, Math.PI.toString())
+      .replace(/\be\b/gi, Math.E.toString())
       .replace(/\bx\b/g, '1')
       .replace(/\by\b/g, '1')
       .replace(/\bz\b/g, '1')
+      .replace(/\bA\b/g, '1')
       .replace(/\ba\b/g, '1');
 
     // 使用 Function 构造函数来验证语法
     try {
+      const fnNames = Object.keys(ALLOWED_FUNCTIONS);
+      const fnValues = fnNames.map((name) => ALLOWED_FUNCTIONS[name]);
       // eslint-disable-next-line no-new-func
-      const testFn = new Function('return ' + testFormula);
-      const testResult = testFn();
+      const testFn = new Function(...fnNames, 'return ' + testFormula);
+      const testResult = testFn(...fnValues);
       
       // 检查结果是否为数字
       if (typeof testResult !== 'number' || !isFinite(testResult)) {
@@ -91,7 +137,10 @@ export function validateCultivationFormula(formula: string): FormulaValidationRe
       }
 
       // 计算预览值（使用示例值）
-      const previewFormula = trimmedFormula
+      const previewFormula = normalizedFormula
+        .replace(/\^/g, '**')
+        .replace(/\bpi\b/gi, Math.PI.toString())
+        .replace(/\be\b/gi, Math.E.toString())
         .replace(/\bx\b/g, '10')
         .replace(/\by\b/g, '10')
         .replace(/\bz\b/g, '10')
@@ -99,8 +148,8 @@ export function validateCultivationFormula(formula: string): FormulaValidationRe
         .replace(/\ba\b/g, '10');
       
       // eslint-disable-next-line no-new-func
-      const previewFn = new Function('return ' + previewFormula);
-      const preview = previewFn();
+      const previewFn = new Function(...fnNames, 'return ' + previewFormula);
+      const preview = previewFn(...fnValues);
 
       return {
         valid: true,

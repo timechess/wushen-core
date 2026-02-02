@@ -160,7 +160,7 @@ export function annotateFormula(formula: string): { text: string; variables: str
   const text = formula.replace(VARIABLE_PATTERN, (match) => {
     used.add(match);
     const label = FORMULA_VARIABLE_LABELS[match];
-    return label ? `${match}(${label})` : match;
+    return label ?? match;
   });
   return { text, variables: Array.from(used) };
 }

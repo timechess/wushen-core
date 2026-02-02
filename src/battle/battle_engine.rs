@@ -351,12 +351,12 @@ impl BattleEngine {
             side_a_panel_delta: None,
             side_b_panel_delta: None,
         });
-        
+
         // 检查是否有人死亡
         if self.check_battle_end() {
             return;
         }
-        
+
         // 进入攻击者攻击后阶段
         self.state = BattleState::AfterAttack { calculation_result: result };
     }
@@ -384,11 +384,11 @@ impl BattleEngine {
             &mut (),
             &context,
         );
+        
+        // 攻击后先重置蓄力时间，再应用词条特效（便于特效调整重置值）
+        self.reset_charge_time_after_attack(attacker);
         self.apply_effects(effects, attacker, Some(&calculation_result));
 
-        // 攻击后重置蓄力时间
-        self.reset_charge_time_after_attack(attacker);
-        
         // 检查是否有人死亡
         if self.check_battle_end() {
             return;
@@ -423,7 +423,7 @@ impl BattleEngine {
             &context,
         );
         self.apply_effects(effects, defender, Some(&calculation_result));
-        
+
         // 检查是否有人死亡
         if self.check_battle_end() {
             return;
@@ -898,7 +898,7 @@ impl BattleEngine {
             Side::A => self.side_a_base_charge_time,
             Side::B => self.side_b_base_charge_time,
         };
-        let reset_value = base_charge_time.max(100.0);
+        let reset_value = base_charge_time.max(50.0);
 
         if let Some(temp) = self.get_temp_panel_mut_by_side(side) {
             temp.charge_time = reset_value;

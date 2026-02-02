@@ -239,8 +239,9 @@ function describeEffect(effect: Effect): string {
   const valueText = isPercentUnit && !valueMeta.isFormula
     ? `${formatNumber(Number(valueMeta.text) * 100)}%`
     : valueMeta.text;
+  const temporaryLabel = effect.is_temporary ? '（临时）' : '';
 
-  return `${panelLabel}${targetLabel}${operationLabel}${valueText}`;
+  return `${panelLabel}${targetLabel}${operationLabel}${valueText}${temporaryLabel}`;
 }
 
 export function describeEntry(entry: Entry): string {
