@@ -2,13 +2,14 @@ use super::{
     action_bar::ActionBar,
     battle_calculator::{BattleCalculationResult, BattleCalculator},
     battle_panel::BattlePanel,
-    battle_record::{BattleLog, BattleRecord, PanelDelta},
+    battle_record::{BattleLog, BattleLogKind, BattleRecord, PanelDelta},
     battle_state::{BattleResult, BattleState, Side},
 };
 /// 战斗引擎
 /// 主控制器，协调所有系统
 use crate::character::panel::CharacterPanel;
 use crate::effect::{
+    battle_record_template::BattleRecordTemplate,
     condition::{AttackResult, BattleContext},
     effect::{AttributeTarget, Effect, FormulaValue, Operation, PanelTarget},
     executor::{EntryEffect, EntryExecutor},
@@ -70,6 +71,10 @@ pub struct BattleEngine {
     state: BattleState,
     /// 战斗日志
     log: BattleLog,
+    /// 词条效果批次ID（用于日志排序）
+    next_effect_batch_id: u64,
+    /// 当前词条效果批次ID
+    current_effect_batch_id: Option<u64>,
 }
 
 /// 最大战斗轮数
@@ -124,6 +129,8 @@ impl BattleEngine {
             side_b_executor,
             state: BattleState::Initializing,
             log: BattleLog::new(),
+            next_effect_batch_id: 0,
+            current_effect_batch_id: None,
         }
     }
 
@@ -274,6 +281,8 @@ impl BattleEngine {
                 self.record_with_delta(BattleRecord::EntryTriggered {
                     entry_id: "attack_skill_log".to_string(),
                     description: log_text,
+                    log_kind: BattleLogKind::Effect,
+                    batch_id: None,
                     side_a_panel_delta: None,
                     side_b_panel_delta: None,
                 });
@@ -311,6 +320,8 @@ impl BattleEngine {
                 self.record_with_delta(BattleRecord::EntryTriggered {
                     entry_id: "defense_skill_log".to_string(),
                     description: log_text,
+                    log_kind: BattleLogKind::Effect,
+                    batch_id: None,
                     side_a_panel_delta: None,
                     side_b_panel_delta: None,
                 });
@@ -517,6 +528,10 @@ impl BattleEngine {
         source_side: Side,
         battle_result: Option<&BattleCalculationResult>,
     ) {
+        let batch_id = self.next_effect_batch_id;
+        self.next_effect_batch_id += 1;
+        self.current_effect_batch_id = Some(batch_id);
+
         let mut attribute_effects = Vec::new();
         let mut percentage_effects = Vec::new();
         let mut extra_attacks = Vec::new();
@@ -655,9 +670,24 @@ impl BattleEngine {
                     source_side,
                     battle_result,
                 ) {
+                    let log_kind = match &entry_effect.effect {
+                        Effect::ModifyPercentage {
+                            battle_record_template,
+                            ..
+                        } => {
+                            if battle_record_template.is_some() {
+                                BattleLogKind::Effect
+                            } else {
+                                BattleLogKind::Value
+                            }
+                        }
+                        _ => BattleLogKind::Effect,
+                    };
                     self.record_with_delta(BattleRecord::EntryTriggered {
                         entry_id: entry_effect.source_id.to_string(),
                         description,
+                        log_kind,
+                        batch_id: self.current_effect_batch_id,
                         side_a_panel_delta: None,
                         side_b_panel_delta: None,
                     });
@@ -674,6 +704,8 @@ impl BattleEngine {
                 battle_result,
             );
         }
+
+        self.current_effect_batch_id = None;
     }
 
     /// 应用单个效果
@@ -754,9 +786,28 @@ impl BattleEngine {
                 if let Some(description) =
                     self.generate_effect_description(effect, source_side, battle_result)
                 {
+                    let log_kind = match effect {
+                        Effect::ModifyAttribute {
+                            battle_record_template,
+                            ..
+                        }
+                        | Effect::ModifyPercentage {
+                            battle_record_template,
+                            ..
+                        } => {
+                            if battle_record_template.is_some() {
+                                BattleLogKind::Effect
+                            } else {
+                                BattleLogKind::Value
+                            }
+                        }
+                        _ => BattleLogKind::Effect,
+                    };
                     self.record_with_delta(BattleRecord::EntryTriggered {
                         entry_id: source_id.to_string(),
                         description,
+                        log_kind,
+                        batch_id: self.current_effect_batch_id,
                         side_a_panel_delta: None,
                         side_b_panel_delta: None,
                     });
@@ -764,10 +815,16 @@ impl BattleEngine {
             }
             Effect::ExtraAttack {
                 output,
-                battle_record_template: _,
+                battle_record_template,
             } => {
                 // 额外攻击
-                self.handle_extra_attack(output, source_side, source_id, battle_result);
+                self.handle_extra_attack(
+                    output,
+                    battle_record_template.as_ref(),
+                    source_side,
+                    source_id,
+                    battle_result,
+                );
             }
         }
     }
@@ -796,6 +853,7 @@ impl BattleEngine {
     fn handle_extra_attack(
         &mut self,
         output_formula: &str,
+        battle_record_template: Option<&BattleRecordTemplate>,
         source_side: Side,
         source_id: &str,
         battle_result: Option<&BattleCalculationResult>,
@@ -807,7 +865,7 @@ impl BattleEngine {
         let source_name = self.get_panel(source_side).name.clone();
         let target_name = self.get_panel(target_side).name.clone();
 
-        let (_total_defense, reduced_output, defender_qi_consumed, hp_damage, broke_qi_defense) = {
+        let (total_defense, reduced_output, defender_qi_consumed, hp_damage, broke_qi_defense) = {
             let target_panel = if let Some(temp) = self.get_temp_panel_mut_by_side(target_side) {
                 temp
             } else {
@@ -873,13 +931,46 @@ impl BattleEngine {
             target_name, defender_qi_consumed
         ));
 
+        let extra_result = BattleCalculationResult {
+            total_output: output,
+            total_defense,
+            reduced_output,
+            attacker_qi_consumed: 0.0,
+            defender_qi_consumed,
+            hp_damage,
+            broke_qi_defense,
+        };
+
+        let (description, log_kind) = if let Some(template) = battle_record_template {
+            let self_panel = Self::battle_panel_to_character_panel(self.get_panel(source_side));
+            let opponent_panel = Self::battle_panel_to_character_panel(self.get_panel(target_side));
+            (
+                template.generate(
+                    source_id,
+                    &self_panel,
+                    Some(&opponent_panel),
+                    Some(&extra_result),
+                    None,
+                    Some(&format!("{:.1}", output)),
+                    None,
+                ),
+                BattleLogKind::Effect,
+            )
+        } else {
+            (
+                format!("{}发动额外攻击，{}", source_name, details.join("，")),
+                BattleLogKind::Value,
+            )
+        };
+
         // 记录额外攻击
-        let description = format!("{}发动额外攻击，{}", source_name, details.join("，"));
         self.record_with_delta(BattleRecord::ExtraAttack {
             source_name,
             target_name,
             output,
             reduced_damage: reduced_output,
+            log_kind,
+            batch_id: self.current_effect_batch_id,
             entry_id: source_id.to_string(),
             description,
             side_a_panel_delta: None,
@@ -1296,10 +1387,14 @@ impl BattleEngine {
             BattleRecord::EntryTriggered {
                 entry_id,
                 description,
+                log_kind,
+                batch_id,
                 ..
             } => BattleRecord::EntryTriggered {
                 entry_id,
                 description,
+                log_kind,
+                batch_id,
                 side_a_panel_delta: side_a_opt,
                 side_b_panel_delta: side_b_opt,
             },
@@ -1360,6 +1455,8 @@ impl BattleEngine {
                 target_name,
                 output,
                 reduced_damage,
+                log_kind,
+                batch_id,
                 entry_id,
                 description,
                 ..
@@ -1368,6 +1465,8 @@ impl BattleEngine {
                 target_name,
                 output,
                 reduced_damage,
+                log_kind,
+                batch_id,
                 entry_id,
                 description,
                 side_a_panel_delta: side_a_opt,

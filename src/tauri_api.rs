@@ -1,5 +1,5 @@
 use crate::battle::battle_engine::BattleEngine;
-use crate::battle::battle_record::BattleRecord;
+use crate::battle::battle_record::{BattleLogKind, BattleRecord};
 use crate::battle::battle_state::BattleResult;
 use crate::character::json::{parse_character_panel, serialize_character_panel};
 use crate::character::panel::{CharacterPanel, ThreeDimensional};
@@ -553,28 +553,52 @@ impl WushenCore {
         let side_b_battle_panel = battle_engine.get_side_b_panel().clone();
 
         // 构建返回结果（保持外部API兼容，使用 attacker/defender 命名）
+        let attacker_name = side_a_battle_panel.name.clone();
+        let defender_name = side_b_battle_panel.name.clone();
+        let mut records = Vec::new();
+        let mut pending_batch_id: Option<u64> = None;
+        let mut pending_effects: Vec<BattleRecordJson> = Vec::new();
+        let mut pending_values: Vec<BattleRecordJson> = Vec::new();
+        let flush_pending =
+            |records: &mut Vec<BattleRecordJson>,
+             effects: &mut Vec<BattleRecordJson>,
+             values: &mut Vec<BattleRecordJson>| {
+                if !effects.is_empty() || !values.is_empty() {
+                    records.append(effects);
+                    records.append(values);
+                    effects.clear();
+                    values.clear();
+                }
+            };
+
+        for record in log.get_all_records() {
+            let batch_id = battle_record_batch_id(record);
+            let (effect_logs, value_logs) =
+                build_record_logs(record, &attacker_name, &defender_name);
+
+            if let Some(batch_id) = batch_id {
+                if pending_batch_id != Some(batch_id) {
+                    flush_pending(&mut records, &mut pending_effects, &mut pending_values);
+                    pending_batch_id = Some(batch_id);
+                }
+                pending_effects.extend(effect_logs);
+                pending_values.extend(value_logs);
+            } else {
+                flush_pending(&mut records, &mut pending_effects, &mut pending_values);
+                pending_batch_id = None;
+                records.extend(effect_logs);
+                records.extend(value_logs);
+            }
+        }
+        flush_pending(&mut records, &mut pending_effects, &mut pending_values);
+
         let battle_result = BattleResultJson {
             result: match result {
                 BattleResult::SideAWin => "attacker_win".to_string(),
                 BattleResult::SideBWin => "defender_win".to_string(),
                 BattleResult::Draw => "draw".to_string(),
             },
-            records: log
-                .get_all_records()
-                .iter()
-                .map(|r| {
-                    let text = format_battle_record(r);
-                    let (side_a_delta, side_b_delta) = extract_panel_deltas(r);
-
-                    BattleRecordJson {
-                        text,
-                        // 映射：side_a -> attacker, side_b -> defender
-                        attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
-                        defender_panel_delta: side_b_delta.map(panel_delta_to_json),
-                    }
-                })
-                .filter(|r| !r.text.is_empty())
-                .collect(),
+            records,
             // 映射：side_a -> attacker, side_b -> defender
             attacker_panel: battle_panel_to_json(&side_a_battle_panel),
             defender_panel: battle_panel_to_json(&side_b_battle_panel),
@@ -1916,6 +1940,7 @@ struct PanelDeltaJson {
 #[derive(Serialize)]
 struct BattleRecordJson {
     text: String,
+    log_kind: String,
     attacker_panel_delta: Option<PanelDeltaJson>,
     defender_panel_delta: Option<PanelDeltaJson>,
 }
@@ -2238,5 +2263,349 @@ fn format_battle_record(record: &BattleRecord) -> String {
             }
         }
         BattleRecord::ActionBarUpdate { .. } => String::new(),
+    }
+}
+
+fn battle_record_log_kind(record: &BattleRecord) -> BattleLogKind {
+    match record {
+        BattleRecord::EntryTriggered { log_kind, .. } => *log_kind,
+        BattleRecord::ExtraAttack { log_kind, .. } => *log_kind,
+        BattleRecord::QiRecovery { .. } | BattleRecord::CalculationResult { .. } => {
+            BattleLogKind::Value
+        }
+        _ => BattleLogKind::Effect,
+    }
+}
+
+fn battle_record_batch_id(record: &BattleRecord) -> Option<u64> {
+    match record {
+        BattleRecord::EntryTriggered { batch_id, .. } => *batch_id,
+        BattleRecord::ExtraAttack { batch_id, .. } => *batch_id,
+        _ => None,
+    }
+}
+
+fn build_record_logs(
+    record: &BattleRecord,
+    attacker_name: &str,
+    defender_name: &str,
+) -> (Vec<BattleRecordJson>, Vec<BattleRecordJson>) {
+    let text = format_battle_record(record);
+    let (side_a_delta, side_b_delta) = extract_panel_deltas(record);
+    let log_kind = battle_record_log_kind(record);
+    let value_text = format_panel_delta_log(
+        attacker_name,
+        defender_name,
+        side_a_delta.as_ref(),
+        side_b_delta.as_ref(),
+    );
+
+    let mut effect_logs = Vec::new();
+    let mut value_logs = Vec::new();
+
+    match log_kind {
+        BattleLogKind::Effect => {
+            if !text.is_empty() {
+                effect_logs.push(BattleRecordJson {
+                    text,
+                    log_kind: "effect".to_string(),
+                    attacker_panel_delta: None,
+                    defender_panel_delta: None,
+                });
+            }
+            if let Some(value_text) = value_text {
+                value_logs.push(BattleRecordJson {
+                    text: value_text,
+                    log_kind: "value".to_string(),
+                    attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                    defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                });
+            }
+        }
+        BattleLogKind::Value => {
+            if !text.is_empty() {
+                if let Some(value_text) = value_text {
+                    if value_text == text {
+                        value_logs.push(BattleRecordJson {
+                            text,
+                            log_kind: "value".to_string(),
+                            attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                            defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                        });
+                    } else {
+                        value_logs.push(BattleRecordJson {
+                            text,
+                            log_kind: "value".to_string(),
+                            attacker_panel_delta: None,
+                            defender_panel_delta: None,
+                        });
+                        value_logs.push(BattleRecordJson {
+                            text: value_text,
+                            log_kind: "value".to_string(),
+                            attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                            defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                        });
+                    }
+                } else {
+                    value_logs.push(BattleRecordJson {
+                        text,
+                        log_kind: "value".to_string(),
+                        attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                        defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                    });
+                }
+            } else if let Some(value_text) = value_text {
+                value_logs.push(BattleRecordJson {
+                    text: value_text,
+                    log_kind: "value".to_string(),
+                    attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                    defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                });
+            }
+        }
+    }
+
+    (effect_logs, value_logs)
+}
+
+fn append_delta_text(
+    parts: &mut Vec<String>,
+    owner: &str,
+    label: &str,
+    delta: Option<f64>,
+    is_percent: bool,
+) {
+    let value = match delta {
+        Some(value) if value.abs() > 0.0001 => value,
+        _ => return,
+    };
+
+    let op = if value >= 0.0 { "增加" } else { "减少" };
+    let display = if is_percent {
+        format!("{:.1}%", value.abs() * 100.0)
+    } else {
+        format!("{:.1}", value.abs())
+    };
+    parts.push(format!("{}的{}{}{}", owner, label, op, display));
+}
+
+fn format_panel_delta_log(
+    side_a_name: &str,
+    side_b_name: &str,
+    side_a_delta: Option<&crate::battle::battle_record::PanelDelta>,
+    side_b_delta: Option<&crate::battle::battle_record::PanelDelta>,
+) -> Option<String> {
+    let mut parts = Vec::new();
+    if let Some(delta) = side_a_delta {
+        append_delta_text(&mut parts, side_a_name, "生命值", delta.hp_delta, false);
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "生命值上限",
+            delta.max_hp_delta,
+            false,
+        );
+        append_delta_text(&mut parts, side_a_name, "内息", delta.qi_delta, false);
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "内息上限",
+            delta.max_qi_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "基础攻击力",
+            delta.base_attack_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "基础防御力",
+            delta.base_defense_delta,
+            false,
+        );
+        append_delta_text(&mut parts, side_a_name, "威能", delta.power_delta, false);
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "守御",
+            delta.defense_power_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "内息质量",
+            delta.qi_quality_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "出手速度",
+            delta.attack_speed_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "蓄力时间",
+            delta.charge_time_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "增伤",
+            delta.damage_bonus_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "减伤",
+            delta.damage_reduction_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "减伤上限",
+            delta.max_damage_reduction_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "内息输出",
+            delta.qi_output_rate_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "最大内息输出",
+            delta.max_qi_output_rate_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
+            "回气率",
+            delta.qi_recovery_rate_delta,
+            true,
+        );
+    }
+    if let Some(delta) = side_b_delta {
+        append_delta_text(&mut parts, side_b_name, "生命值", delta.hp_delta, false);
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "生命值上限",
+            delta.max_hp_delta,
+            false,
+        );
+        append_delta_text(&mut parts, side_b_name, "内息", delta.qi_delta, false);
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "内息上限",
+            delta.max_qi_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "基础攻击力",
+            delta.base_attack_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "基础防御力",
+            delta.base_defense_delta,
+            false,
+        );
+        append_delta_text(&mut parts, side_b_name, "威能", delta.power_delta, false);
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "守御",
+            delta.defense_power_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "内息质量",
+            delta.qi_quality_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "出手速度",
+            delta.attack_speed_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "蓄力时间",
+            delta.charge_time_delta,
+            false,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "增伤",
+            delta.damage_bonus_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "减伤",
+            delta.damage_reduction_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "减伤上限",
+            delta.max_damage_reduction_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "内息输出",
+            delta.qi_output_rate_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "最大内息输出",
+            delta.max_qi_output_rate_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "回气率",
+            delta.qi_recovery_rate_delta,
+            true,
+        );
+    }
+
+    if parts.is_empty() {
+        None
+    } else {
+        Some(parts.join("，"))
     }
 }

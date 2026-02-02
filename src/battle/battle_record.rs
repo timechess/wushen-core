@@ -132,6 +132,15 @@ impl PanelDelta {
 }
 
 /// 战斗记录类型
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BattleLogKind {
+    /// 词条特效/叙事类日志
+    Effect,
+    /// 数值变化类日志
+    Value,
+}
+
+/// 战斗记录类型
 #[derive(Debug, Clone)]
 pub enum BattleRecord {
     /// 战斗开始
@@ -160,6 +169,10 @@ pub enum BattleRecord {
         entry_id: String,
         /// 描述文本
         description: String,
+        /// 日志类型（用于前端展示）
+        log_kind: BattleLogKind,
+        /// 批次ID（用于排序日志）
+        batch_id: Option<u64>,
         side_a_panel_delta: Option<PanelDelta>,
         side_b_panel_delta: Option<PanelDelta>,
     },
@@ -221,6 +234,10 @@ pub enum BattleRecord {
         output: f64,
         /// 减伤后伤害
         reduced_damage: f64,
+        /// 日志类型（用于前端展示）
+        log_kind: BattleLogKind,
+        /// 批次ID（用于排序日志）
+        batch_id: Option<u64>,
         /// 触发的词条ID
         entry_id: String,
         /// 描述文本

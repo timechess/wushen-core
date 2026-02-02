@@ -23,10 +23,14 @@ export interface BattlePanel {
 
 export interface PanelDelta {
   hp_delta?: number;
+  max_hp_delta?: number;
   qi_delta?: number;
+  max_qi_delta?: number;
   damage_bonus_delta?: number;
   damage_reduction_delta?: number;
+  max_damage_reduction_delta?: number;
   qi_output_rate_delta?: number;
+  max_qi_output_rate_delta?: number;
   base_attack_delta?: number;
   base_defense_delta?: number;
   power_delta?: number;
@@ -39,6 +43,7 @@ export interface PanelDelta {
 
 export interface BattleRecord {
   text: string;
+  log_kind: 'effect' | 'value';
   attacker_panel_delta?: PanelDelta;
   defender_panel_delta?: PanelDelta;
 }

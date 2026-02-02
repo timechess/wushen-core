@@ -77,7 +77,16 @@ function BattleViewContent() {
                 <div className="text-gray-400">暂无战斗日志</div>
               ) : (
                 records.map((record, index) => (
-                  <div key={index} className="border-b border-gray-100 pb-2">
+                  <div
+                    key={index}
+                    className={`border-b border-gray-100 pb-2 ${
+                      record.log_kind === 'effect'
+                        ? 'text-indigo-700'
+                        : record.log_kind === 'value'
+                        ? 'text-emerald-700'
+                        : 'text-gray-700'
+                    }`}
+                  >
                     {record.text}
                   </div>
                 ))

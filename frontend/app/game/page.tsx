@@ -127,8 +127,16 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
   if (delta.hp_delta !== undefined) {
     panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp + delta.hp_delta * multiplier));
   }
+  if (delta.max_hp_delta !== undefined) {
+    panel.max_hp = Math.max(0, panel.max_hp + delta.max_hp_delta * multiplier);
+    panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp));
+  }
   if (delta.qi_delta !== undefined) {
     panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi + delta.qi_delta * multiplier));
+  }
+  if (delta.max_qi_delta !== undefined) {
+    panel.max_qi = Math.max(0, panel.max_qi + delta.max_qi_delta * multiplier);
+    panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi));
   }
   if (delta.damage_bonus_delta !== undefined) {
     panel.damage_bonus += delta.damage_bonus_delta * multiplier;
@@ -139,11 +147,25 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
       Math.min(panel.max_damage_reduction, panel.damage_reduction + delta.damage_reduction_delta * multiplier)
     );
   }
+  if (delta.max_damage_reduction_delta !== undefined) {
+    panel.max_damage_reduction = Math.max(
+      0,
+      panel.max_damage_reduction + delta.max_damage_reduction_delta * multiplier
+    );
+    panel.damage_reduction = Math.max(0, Math.min(panel.max_damage_reduction, panel.damage_reduction));
+  }
   if (delta.qi_output_rate_delta !== undefined) {
     panel.qi_output_rate = Math.max(
       0,
       Math.min(panel.max_qi_output_rate, panel.qi_output_rate + delta.qi_output_rate_delta * multiplier)
     );
+  }
+  if (delta.max_qi_output_rate_delta !== undefined) {
+    panel.max_qi_output_rate = Math.max(
+      0,
+      panel.max_qi_output_rate + delta.max_qi_output_rate_delta * multiplier
+    );
+    panel.qi_output_rate = Math.max(0, Math.min(panel.max_qi_output_rate, panel.qi_output_rate));
   }
   if (delta.base_attack_delta !== undefined) {
     panel.base_attack = Math.max(0, panel.base_attack + delta.base_attack_delta * multiplier);
@@ -2234,7 +2256,16 @@ export default function GamePage() {
                         <div className="text-gray-400">点击“下一条”开始战斗</div>
                       ) : (
                         battleVisibleRecords.map((record, index) => (
-                          <div key={index} className="border-b border-gray-100 pb-2">
+                          <div
+                            key={index}
+                            className={`border-b border-gray-100 pb-2 ${
+                              record.log_kind === 'effect'
+                                ? 'text-indigo-700'
+                                : record.log_kind === 'value'
+                                ? 'text-emerald-700'
+                                : 'text-gray-700'
+                            }`}
+                          >
                             {battleTypingIndex === index ? (
                               <>
                                 {battleTypedText}

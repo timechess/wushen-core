@@ -80,6 +80,7 @@ impl BattleRecordTemplate {
 
         if let Some(val) = value {
             result = result.replace("{value}", val);
+            result = result.replace("{output}", val);
         }
 
         if let Some(op) = operation {
