@@ -111,6 +111,7 @@ export default function BattlePage() {
   const [battleTypingIndex, setBattleTypingIndex] = useState<number | null>(null);
   const [battleTypedText, setBattleTypedText] = useState('');
   const [battleStickToBottom, setBattleStickToBottom] = useState(true);
+  const [showValueLogs, setShowValueLogs] = useState(true);
   const [attackerQiOutputRate, setAttackerQiOutputRate] = useState<number | undefined>(undefined);
   const [defenderQiOutputRate, setDefenderQiOutputRate] = useState<number | undefined>(undefined);
   const battleLogRef = useRef<HTMLDivElement>(null);
@@ -411,35 +412,63 @@ export default function BattlePage() {
     };
   };
 
-  const battleRecords = useMemo<BattleRecord[]>(() => {
+  const battleRecordsAll = useMemo<BattleRecord[]>(() => {
     if (!battleResult) return [];
     return battleResult.records.filter((record) => record.text && record.text.trim().length > 0);
   }, [battleResult]);
+
+  const battleDisplayIndices = useMemo(() => {
+    if (battleRecordsAll.length === 0) return [];
+    if (showValueLogs) return battleRecordsAll.map((_, index) => index);
+    const indices: number[] = [];
+    for (let i = 0; i < battleRecordsAll.length; i += 1) {
+      if (battleRecordsAll[i].log_kind !== 'value') {
+        indices.push(i);
+      }
+    }
+    return indices;
+  }, [battleRecordsAll, showValueLogs]);
+
+  const battleRecords = useMemo(
+    () => battleDisplayIndices.map((index) => battleRecordsAll[index]),
+    [battleDisplayIndices, battleRecordsAll]
+  );
 
   const battleInitialPanels = useMemo(() => {
     if (!battleResult) return null;
     let attacker: BattlePanel = { ...battleResult.attacker_panel };
     let defender: BattlePanel = { ...battleResult.defender_panel };
-    for (let i = battleRecords.length - 1; i >= 0; i -= 1) {
-      const record = battleRecords[i];
+    for (let i = battleRecordsAll.length - 1; i >= 0; i -= 1) {
+      const record = battleRecordsAll[i];
       applyPanelDelta(attacker, record.attacker_panel_delta, true);
       applyPanelDelta(defender, record.defender_panel_delta, true);
     }
     return { attacker, defender };
-  }, [battleResult, battleRecords]);
+  }, [battleResult, battleRecordsAll]);
+
+  const battleApplyLimit = useMemo(() => {
+    if (battleStep <= 0 || battleDisplayIndices.length === 0) return 0;
+    const visibleIndex = Math.min(battleStep, battleDisplayIndices.length) - 1;
+    const currentFullIndex = battleDisplayIndices[visibleIndex];
+    const nextFullIndex =
+      visibleIndex + 1 < battleDisplayIndices.length
+        ? battleDisplayIndices[visibleIndex + 1]
+        : battleRecordsAll.length;
+    return Math.max(nextFullIndex, currentFullIndex + 1);
+  }, [battleStep, battleDisplayIndices, battleRecordsAll.length]);
 
   const battleCurrentPanels = useMemo(() => {
     if (!battleInitialPanels) return null;
     let attacker: BattlePanel = { ...battleInitialPanels.attacker };
     let defender: BattlePanel = { ...battleInitialPanels.defender };
-    const limit = Math.min(battleStep, battleRecords.length);
+    const limit = Math.min(battleApplyLimit, battleRecordsAll.length);
     for (let i = 0; i < limit; i += 1) {
-      const record = battleRecords[i];
+      const record = battleRecordsAll[i];
       applyPanelDelta(attacker, record.attacker_panel_delta, false);
       applyPanelDelta(defender, record.defender_panel_delta, false);
     }
     return { attacker, defender };
-  }, [battleInitialPanels, battleRecords, battleStep]);
+  }, [battleApplyLimit, battleInitialPanels, battleRecordsAll]);
 
   const battleSpeed = BATTLE_SPEEDS[battleSpeedIndex]?.value ?? 600;
   const battleSpeedLabel = BATTLE_SPEEDS[battleSpeedIndex]?.label ?? '中';
@@ -470,6 +499,14 @@ export default function BattlePage() {
     const nearBottom = scrollHeight - scrollTop - clientHeight < 32;
     setBattleStickToBottom(nearBottom);
   }, []);
+
+  useEffect(() => {
+    if (battleStep > battleRecords.length) {
+      setBattleStep(battleRecords.length);
+      setBattleTypingIndex(null);
+      setBattleTypedText('');
+    }
+  }, [battleRecords.length, battleStep]);
 
   useEffect(() => {
     if (!battleResult || !battleLogRef.current || !battleStickToBottom) return;
@@ -779,9 +816,20 @@ export default function BattlePage() {
 
               <section className="surface-panel p-4 flex flex-col min-h-0">
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="text-lg font-semibold text-gray-800">战斗日志</h3>
-                  <span className="text-sm text-gray-500">自动聚焦最新</span>
-                </div>
+                      <h3 className="text-lg font-semibold text-gray-800">战斗日志</h3>
+                      <div className="flex items-center gap-3 text-sm text-gray-500">
+                        <label className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600"
+                            checked={showValueLogs}
+                            onChange={(event) => setShowValueLogs(event.target.checked)}
+                          />
+                          显示数值变化
+                        </label>
+                        <span className="text-xs text-gray-400">自动聚焦最新</span>
+                      </div>
+                    </div>
                 <div
                   ref={battleLogRef}
                   onScroll={handleBattleLogScroll}

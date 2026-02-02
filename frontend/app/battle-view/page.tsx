@@ -19,6 +19,7 @@ function BattleViewContent() {
   const params = useSearchParams();
   const sessionId = params.get('session');
   const [session, setSession] = useState<BattleSession | null>(null);
+  const [showValueLogs, setShowValueLogs] = useState(true);
 
   useEffect(() => {
     if (!sessionId || typeof window === 'undefined') return;
@@ -34,8 +35,10 @@ function BattleViewContent() {
 
   const records = useMemo(() => {
     if (!session) return [];
-    return session.result.records.filter((record) => record.text && record.text.trim().length > 0);
-  }, [session]);
+    const filtered = session.result.records.filter((record) => record.text && record.text.trim().length > 0);
+    if (showValueLogs) return filtered;
+    return filtered.filter((record) => record.log_kind !== 'value');
+  }, [session, showValueLogs]);
 
   if (!session) {
     return (
@@ -71,7 +74,18 @@ function BattleViewContent() {
           </section>
 
           <section className="surface-panel p-4 lg:col-span-1">
-            <h2 className="text-sm font-semibold text-gray-800 mb-3">战斗日志</h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-gray-800">战斗日志</h2>
+              <label className="flex items-center gap-2 text-xs text-gray-500">
+                <input
+                  type="checkbox"
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600"
+                  checked={showValueLogs}
+                  onChange={(event) => setShowValueLogs(event.target.checked)}
+                />
+                显示数值变化
+              </label>
+            </div>
             <div className="space-y-2 text-sm text-gray-700 max-h-[520px] overflow-y-auto">
               {records.length === 0 ? (
                 <div className="text-gray-400">暂无战斗日志</div>

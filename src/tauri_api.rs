@@ -556,41 +556,12 @@ impl WushenCore {
         let attacker_name = side_a_battle_panel.name.clone();
         let defender_name = side_b_battle_panel.name.clone();
         let mut records = Vec::new();
-        let mut pending_batch_id: Option<u64> = None;
-        let mut pending_effects: Vec<BattleRecordJson> = Vec::new();
-        let mut pending_values: Vec<BattleRecordJson> = Vec::new();
-        let flush_pending =
-            |records: &mut Vec<BattleRecordJson>,
-             effects: &mut Vec<BattleRecordJson>,
-             values: &mut Vec<BattleRecordJson>| {
-                if !effects.is_empty() || !values.is_empty() {
-                    records.append(effects);
-                    records.append(values);
-                    effects.clear();
-                    values.clear();
-                }
-            };
-
         for record in log.get_all_records() {
-            let batch_id = battle_record_batch_id(record);
             let (effect_logs, value_logs) =
                 build_record_logs(record, &attacker_name, &defender_name);
-
-            if let Some(batch_id) = batch_id {
-                if pending_batch_id != Some(batch_id) {
-                    flush_pending(&mut records, &mut pending_effects, &mut pending_values);
-                    pending_batch_id = Some(batch_id);
-                }
-                pending_effects.extend(effect_logs);
-                pending_values.extend(value_logs);
-            } else {
-                flush_pending(&mut records, &mut pending_effects, &mut pending_values);
-                pending_batch_id = None;
-                records.extend(effect_logs);
-                records.extend(value_logs);
-            }
+            records.extend(effect_logs);
+            records.extend(value_logs);
         }
-        flush_pending(&mut records, &mut pending_effects, &mut pending_values);
 
         let battle_result = BattleResultJson {
             result: match result {
@@ -2290,7 +2261,6 @@ fn build_record_logs(
     attacker_name: &str,
     defender_name: &str,
 ) -> (Vec<BattleRecordJson>, Vec<BattleRecordJson>) {
-    let text = format_battle_record(record);
     let (side_a_delta, side_b_delta) = extract_panel_deltas(record);
     let log_kind = battle_record_log_kind(record);
     let value_text = format_panel_delta_log(
@@ -2299,6 +2269,18 @@ fn build_record_logs(
         side_a_delta.as_ref(),
         side_b_delta.as_ref(),
     );
+    let prefer_value_only = matches!(
+        record,
+        BattleRecord::EntryTriggered {
+            log_kind: BattleLogKind::Value,
+            ..
+        }
+    );
+    let text = if prefer_value_only && value_text.is_some() {
+        String::new()
+    } else {
+        format_battle_record(record)
+    };
 
     let mut effect_logs = Vec::new();
     let mut value_logs = Vec::new();
@@ -2323,7 +2305,23 @@ fn build_record_logs(
             }
         }
         BattleLogKind::Value => {
-            if !text.is_empty() {
+            if prefer_value_only {
+                if let Some(value_text) = value_text {
+                    value_logs.push(BattleRecordJson {
+                        text: value_text,
+                        log_kind: "value".to_string(),
+                        attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                        defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                    });
+                } else if !text.is_empty() {
+                    value_logs.push(BattleRecordJson {
+                        text,
+                        log_kind: "value".to_string(),
+                        attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
+                        defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                    });
+                }
+            } else if !text.is_empty() {
                 if let Some(value_text) = value_text {
                     if value_text == text {
                         value_logs.push(BattleRecordJson {
