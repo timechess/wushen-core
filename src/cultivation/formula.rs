@@ -34,6 +34,7 @@ impl CultivationFormula {
         // 验证公式：使用 Expr::from_str 来验证语法
         // 创建一个测试上下文，将所有变量设置为 1 来验证语法
         let mut test_ctx = Context::new();
+        add_common_functions(&mut test_ctx);
         test_ctx.var("x", 1.0)
             .var("y", 1.0)
             .var("z", 1.0)
@@ -67,6 +68,7 @@ impl CultivationFormula {
     pub fn calculate(&self, x: f64, y: f64, z: f64, a: f64) -> Result<f64, String> {
         // 创建上下文并绑定变量值
         let mut ctx = Context::new();
+        add_common_functions(&mut ctx);
         ctx.var("x", x)
             .var("y", y)
             .var("z", z)
@@ -85,6 +87,10 @@ impl CultivationFormula {
     pub fn formula_str(&self) -> &str {
         &self.formula_str
     }
+}
+
+fn add_common_functions(ctx: &mut Context) {
+    ctx.func2("pow", f64::powf);
 }
 
 #[cfg(test)]
@@ -141,5 +147,13 @@ mod tests {
         let formula = CultivationFormula::new("y ^ 2 + a").unwrap();
         let result = formula.calculate(0.0, 3.0, 0.0, 1.0).unwrap();
         assert_eq!(result, 10.0); // 3^2 + 1 = 9 + 1 = 10
+    }
+
+    #[test]
+    fn test_pow_function() {
+        let formula = CultivationFormula::new("pow(x, 2) + pow(y, 1.5)").unwrap();
+        let result = formula.calculate(3.0, 4.0, 0.0, 0.0).unwrap();
+        let expected = 3.0f64.powf(2.0) + 4.0f64.powf(1.5);
+        assert!((result - expected).abs() < 1e-6);
     }
 }

@@ -34,6 +34,7 @@ impl FormulaCalculator {
         context: &CultivationFormulaContext,
     ) -> Result<f64, String> {
         let mut ctx = Context::new();
+        add_common_functions(&mut ctx);
         Self::add_panel_to_context(&mut ctx, "self", &context.self_panel);
         Self::evaluate_with_context(formula, ctx)
     }
@@ -44,6 +45,7 @@ impl FormulaCalculator {
         context: &BattleFormulaContext,
     ) -> Result<f64, String> {
         let mut ctx = Context::new();
+        add_common_functions(&mut ctx);
         
         // 添加自身面板
         Self::add_panel_to_context(&mut ctx, "self", &context.self_panel);
@@ -110,6 +112,10 @@ impl FormulaCalculator {
         expr.eval_with_context(ctx)
             .map_err(|e| format!("公式计算错误: {}", e))
     }
+}
+
+fn add_common_functions(ctx: &mut Context) {
+    ctx.func2("pow", f64::powf);
 }
 
 #[cfg(test)]
@@ -210,5 +216,17 @@ mod tests {
             FormulaCalculator::evaluate_cultivation("self_x ** 2 + self_y * 2", &context).unwrap(),
             10.0  // 2^2 + 3*2 = 4 + 6 = 10
         );
+    }
+
+    #[test]
+    fn test_pow_function() {
+        let panel = CharacterPanel::new("测试".to_string(), ThreeDimensional::new(2, 3, 4));
+        let context = CultivationFormulaContext {
+            self_panel: panel,
+        };
+
+        let result = FormulaCalculator::evaluate_cultivation("pow(self_x, 2) + pow(self_y, 1.5)", &context).unwrap();
+        let expected = 2.0f64.powf(2.0) + 3.0f64.powf(1.5);
+        assert!((result - expected).abs() < 1e-6);
     }
 }
