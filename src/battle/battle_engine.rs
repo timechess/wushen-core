@@ -31,14 +31,13 @@ pub struct BattleEngine {
     /// Side B 攻击武技原始蓄力时间
     side_b_base_charge_time: f64,
 
-    // ========== 基础面板快照（用于重算永久效果） ==========
-    /// Side A 基础面板（战斗开始时的状态）
-    // side_a_base: BattlePanel,
-    /// Side B 基础面板（战斗开始时的状态）
-    // side_b_base: BattlePanel,
+    // ========== 基础面板快照（战斗初始化时的状态） ==========
+    /// Side A 基础面板（战斗初始化时的状态）
+    side_a_base: BattlePanel,
+    /// Side B 基础面板（战斗初始化时的状态）
+    side_b_base: BattlePanel,
 
     // ========== 上次记录的面板状态（用于计算变化量） ==========
-
     /// 上一次 Side A 面板状态
     last_side_a_panel: BattlePanel,
     /// 上一次 Side B 面板状态
@@ -106,8 +105,8 @@ impl BattleEngine {
         let action_bar = ActionBar::new(side_a_panel.charge_time, side_b_panel.charge_time);
 
         // 保存基础面板和上一次面板状态
-        // let side_a_base = side_a_panel.clone();
-        // let side_b_base = side_b_panel.clone();
+        let side_a_base = side_a_panel.clone();
+        let side_b_base = side_b_panel.clone();
         let last_side_a_panel = side_a_panel.clone();
         let last_side_b_panel = side_b_panel.clone();
 
@@ -116,8 +115,8 @@ impl BattleEngine {
             side_b_panel,
             side_a_base_charge_time,
             side_b_base_charge_time,
-            // side_a_base,
-            // side_b_base,
+            side_a_base,
+            side_b_base,
             last_side_a_panel,
             last_side_b_panel,
             attacker_temp: None,
@@ -280,6 +279,7 @@ impl BattleEngine {
                 let log_text = Self::replace_log_template(template, &attacker_name, &defender_name);
                 self.record_with_delta(BattleRecord::EntryTriggered {
                     entry_id: "attack_skill_log".to_string(),
+                    entry_order: 0,
                     description: log_text,
                     log_kind: BattleLogKind::Effect,
                     batch_id: None,
@@ -310,6 +310,7 @@ impl BattleEngine {
                 let log_text = Self::replace_log_template(template, &defender_name, &attacker_name);
                 self.record_with_delta(BattleRecord::EntryTriggered {
                     entry_id: "defense_skill_log".to_string(),
+                    entry_order: 0,
                     description: log_text,
                     log_kind: BattleLogKind::Effect,
                     batch_id: None,
@@ -544,22 +545,57 @@ impl BattleEngine {
             }
         }
 
-        // 先应用基础数值变化（非百分比）
+        let (base_battle_a, base_battle_b) = if percentage_effects.is_empty() {
+            (None, None)
+        } else {
+            (
+                Some(self.side_a_base.clone()),
+                Some(self.side_b_base.clone()),
+            )
+        };
+
+        let is_max_first_target = |target: AttributeTarget| {
+            matches!(
+                target,
+                AttributeTarget::MaxHp
+                    | AttributeTarget::MaxQi
+                    | AttributeTarget::MaxDamageReduction
+                    | AttributeTarget::MaxQiOutputRate
+            )
+        };
+
+        // 先应用基础数值变化（非百分比），优先上限属性
+        let mut attribute_max_first = Vec::new();
+        let mut attribute_rest = Vec::new();
         for entry_effect in attribute_effects {
+            let is_max_first = matches!(
+                &entry_effect.effect,
+                Effect::ModifyAttribute { target, .. } if is_max_first_target(*target)
+            );
+            if is_max_first {
+                attribute_max_first.push(entry_effect);
+            } else {
+                attribute_rest.push(entry_effect);
+            }
+        }
+        for entry_effect in attribute_max_first
+            .into_iter()
+            .chain(attribute_rest.into_iter())
+        {
             self.apply_single_effect(
                 &entry_effect.effect,
                 source_side,
+                &entry_effect.entry_id,
+                entry_effect.entry_order,
                 &entry_effect.source_id,
                 battle_result,
             );
         }
 
-        // 记录基础数值变化后的面板快照，用于百分比加算
+        // 百分比修改基于基础面板快照（在基础数值变化前）
         if !percentage_effects.is_empty() {
-            let base_battle_a = self.side_a_panel.clone();
-            let base_battle_b = self.side_b_panel.clone();
-            let base_temp_a = self.get_temp_panel_by_side(Side::A).cloned();
-            let base_temp_b = self.get_temp_panel_by_side(Side::B).cloned();
+            let base_battle_a = base_battle_a.expect("base panel snapshot missing");
+            let base_battle_b = base_battle_b.expect("base panel snapshot missing");
             let attack_result = battle_result.map(|r| AttackResult {
                 total_output: r.total_output,
                 total_defense: r.total_defense,
@@ -570,7 +606,24 @@ impl BattleEngine {
                 broke_qi_defense: r.broke_qi_defense,
             });
 
+            let mut percentage_max_first = Vec::new();
+            let mut percentage_rest = Vec::new();
             for entry_effect in percentage_effects {
+                let is_max_first = matches!(
+                    &entry_effect.effect,
+                    Effect::ModifyPercentage { target, .. } if is_max_first_target(*target)
+                );
+                if is_max_first {
+                    percentage_max_first.push(entry_effect);
+                } else {
+                    percentage_rest.push(entry_effect);
+                }
+            }
+
+            for entry_effect in percentage_max_first
+                .into_iter()
+                .chain(percentage_rest.into_iter())
+            {
                 let (target, value, operation, target_panel, can_exceed_limit, is_temporary) =
                     match &entry_effect.effect {
                         Effect::ModifyPercentage {
@@ -623,8 +676,27 @@ impl BattleEngine {
                     PanelTarget::Opponent => source_side.opposite(),
                 };
 
-                let apply_percent_delta = |panel: &mut BattlePanel, base_panel: &BattlePanel| {
-                    let base_value = Self::get_battle_panel_value(base_panel, *target);
+                let base_value_battle = match target_panel {
+                    PanelTarget::Own => {
+                        let base_panel = match target_side {
+                            Side::A => &base_battle_a,
+                            Side::B => &base_battle_b,
+                        };
+                        Some(Self::get_battle_panel_value(base_panel, *target))
+                    }
+                    PanelTarget::Opponent => {
+                        let current_panel = self.get_panel(target_side);
+                        Some(Self::get_battle_panel_value(current_panel, *target))
+                    }
+                };
+                let base_value_temp = match target_panel {
+                    PanelTarget::Own => base_value_battle,
+                    PanelTarget::Opponent => self
+                        .get_temp_panel_by_side(target_side)
+                        .map(|panel| Self::get_battle_panel_value(panel, *target)),
+                };
+
+                let apply_percent_delta = |panel: &mut BattlePanel, base_value: f64| {
                     let delta = base_value * ratio_delta;
                     panel.apply_modifier_with_limit(
                         target,
@@ -636,30 +708,22 @@ impl BattleEngine {
 
                 if *is_temporary {
                     if let Some(temp_panel) = self.get_temp_panel_mut_by_side(target_side) {
-                        let base_panel = match target_side {
-                            Side::A => base_temp_a.as_ref(),
-                            Side::B => base_temp_b.as_ref(),
-                        };
-                        if let Some(base_panel) = base_panel {
-                            apply_percent_delta(temp_panel, base_panel);
+                        if let Some(base_value) = base_value_temp {
+                            apply_percent_delta(temp_panel, base_value);
                         }
                     }
                 } else {
                     {
-                        let base_panel = match target_side {
-                            Side::A => &base_battle_a,
-                            Side::B => &base_battle_b,
-                        };
                         let panel = self.get_panel_mut(target_side);
-                        apply_percent_delta(panel, base_panel);
+                        if let Some(base_value) = base_value_battle {
+                            apply_percent_delta(panel, base_value);
+                        }
                     }
 
                     if let Some(temp_panel) = self.get_temp_panel_mut_by_side(target_side) {
-                        let base_panel = match target_side {
-                            Side::A => &base_battle_a,
-                            Side::B => &base_battle_b,
-                        };
-                        apply_percent_delta(temp_panel, base_panel);
+                        if let Some(base_value) = base_value_temp.or(base_value_battle) {
+                            apply_percent_delta(temp_panel, base_value);
+                        }
                     }
                 }
 
@@ -682,7 +746,8 @@ impl BattleEngine {
                         _ => BattleLogKind::Effect,
                     };
                     self.record_with_delta(BattleRecord::EntryTriggered {
-                        entry_id: entry_effect.source_id.to_string(),
+                        entry_id: entry_effect.entry_id.to_string(),
+                        entry_order: entry_effect.entry_order,
                         description,
                         log_kind,
                         batch_id: self.current_effect_batch_id,
@@ -698,6 +763,8 @@ impl BattleEngine {
             self.apply_single_effect(
                 &entry_effect.effect,
                 source_side,
+                &entry_effect.entry_id,
+                entry_effect.entry_order,
                 &entry_effect.source_id,
                 battle_result,
             );
@@ -711,7 +778,9 @@ impl BattleEngine {
         &mut self,
         effect: &Effect,
         source_side: Side,
-        source_id: &str,
+        entry_id: &str,
+        entry_order: u64,
+        template_entry_id: &str,
         battle_result: Option<&BattleCalculationResult>,
     ) {
         match effect {
@@ -802,7 +871,8 @@ impl BattleEngine {
                         _ => BattleLogKind::Effect,
                     };
                     self.record_with_delta(BattleRecord::EntryTriggered {
-                        entry_id: source_id.to_string(),
+                        entry_id: entry_id.to_string(),
+                        entry_order,
                         description,
                         log_kind,
                         batch_id: self.current_effect_batch_id,
@@ -820,7 +890,9 @@ impl BattleEngine {
                     output,
                     battle_record_template.as_ref(),
                     source_side,
-                    source_id,
+                    entry_id,
+                    entry_order,
+                    template_entry_id,
                     battle_result,
                 );
             }
@@ -853,7 +925,9 @@ impl BattleEngine {
         output_formula: &str,
         battle_record_template: Option<&BattleRecordTemplate>,
         source_side: Side,
-        source_id: &str,
+        entry_id: &str,
+        entry_order: u64,
+        template_entry_id: &str,
         battle_result: Option<&BattleCalculationResult>,
     ) {
         // 计算额外攻击的输出值
@@ -944,7 +1018,7 @@ impl BattleEngine {
             let opponent_panel = Self::battle_panel_to_character_panel(self.get_panel(target_side));
             (
                 template.generate(
-                    source_id,
+                    template_entry_id,
                     &self_panel,
                     Some(&opponent_panel),
                     Some(&extra_result),
@@ -969,7 +1043,8 @@ impl BattleEngine {
             reduced_damage: reduced_output,
             log_kind,
             batch_id: self.current_effect_batch_id,
-            entry_id: source_id.to_string(),
+            entry_id: entry_id.to_string(),
+            entry_order,
             description,
             side_a_panel_delta: None,
             side_b_panel_delta: None,
@@ -1195,6 +1270,12 @@ impl BattleEngine {
             opponent_attack_skill_type: None,
             opponent_defense_skill_id: opponent_panel.defense_skill_id.clone(),
             opponent_defense_skill_type: None,
+            self_internal_id: self_panel.internal_id.clone(),
+            self_internal_type: None,
+            self_attack_skill_id: self_panel.attack_skill_id.clone(),
+            self_attack_skill_type: None,
+            self_defense_skill_id: self_panel.defense_skill_id.clone(),
+            self_defense_skill_type: None,
             attack_broke_qi_defense: None,
             successfully_defended_with_qi: None,
             attack_result: None,
@@ -1384,12 +1465,14 @@ impl BattleEngine {
             },
             BattleRecord::EntryTriggered {
                 entry_id,
+                entry_order,
                 description,
                 log_kind,
                 batch_id,
                 ..
             } => BattleRecord::EntryTriggered {
                 entry_id,
+                entry_order,
                 description,
                 log_kind,
                 batch_id,
@@ -1456,6 +1539,7 @@ impl BattleEngine {
                 log_kind,
                 batch_id,
                 entry_id,
+                entry_order,
                 description,
                 ..
             } => BattleRecord::ExtraAttack {
@@ -1466,6 +1550,7 @@ impl BattleEngine {
                 log_kind,
                 batch_id,
                 entry_id,
+                entry_order,
                 description,
                 side_a_panel_delta: side_a_opt,
                 side_b_panel_delta: side_b_opt,

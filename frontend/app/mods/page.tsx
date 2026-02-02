@@ -196,8 +196,8 @@ export default function ModPacksPage() {
                           : 'border-gray-200 hover:border-blue-300'
                       }`}
                     >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                        <div>
+                      <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
+                        <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
                             <h3 className="text-lg font-semibold text-gray-900">{pack.name}</h3>
                             <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
@@ -208,14 +208,15 @@ export default function ModPacksPage() {
                             {pack.author ? `作者：${pack.author}` : '未填写作者'}
                           </p>
                           {pack.description && (
-                            <p className="text-sm text-gray-500 mt-2">{pack.description}</p>
+                            <p className="text-sm text-gray-500 mt-2 break-words">{pack.description}</p>
                           )}
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 items-center gap-2">
                           <Button
                             size="sm"
                             onClick={() => handleSelectPack(pack)}
                             disabled={loading}
+                            className="whitespace-nowrap"
                           >
                             {activePackId === pack.id ? '当前使用中' : '设为当前'}
                           </Button>
@@ -224,6 +225,7 @@ export default function ModPacksPage() {
                             size="sm"
                             onClick={() => requestDeletePack(pack)}
                             disabled={loading}
+                            className="whitespace-nowrap"
                           >
                             删除
                           </Button>

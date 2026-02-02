@@ -46,6 +46,7 @@ export interface BattleRecord {
   log_kind: 'effect' | 'value';
   attacker_panel_delta?: PanelDelta;
   defender_panel_delta?: PanelDelta;
+  is_terminal?: boolean;
 }
 
 export interface BattleResult {

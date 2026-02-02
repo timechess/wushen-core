@@ -149,7 +149,22 @@ impl Condition {
     /// 检查条件是否满足（战斗时）
     pub fn check_battle(&self, context: &BattleContext) -> bool {
         match self {
-            Condition::Cultivation(_) => false, // 修行条件在战斗时永远不满足
+            Condition::Cultivation(cond) => {
+                let cult_context = CultivationContext {
+                    internal_id: context.self_internal_id.clone(),
+                    internal_type: context.self_internal_type.clone(),
+                    attack_skill_id: context.self_attack_skill_id.clone(),
+                    attack_skill_type: context.self_attack_skill_type.clone(),
+                    defense_skill_id: context.self_defense_skill_id.clone(),
+                    defense_skill_type: context.self_defense_skill_type.clone(),
+                    traits: Vec::new(),
+                    comprehension: context.self_comprehension,
+                    bone_structure: context.self_bone_structure,
+                    physique: context.self_physique,
+                    martial_arts_attainment: context.self_martial_arts_attainment,
+                };
+                cond.check(&cult_context)
+            }
             Condition::Battle(cond) => cond.check(context),
             Condition::And(conds) => conds.iter().all(|c| c.check_battle(context)),
             Condition::Or(conds) => conds.iter().any(|c| c.check_battle(context)),
@@ -210,6 +225,12 @@ pub struct BattleContext {
     pub opponent_attack_skill_type: Option<String>,
     pub opponent_defense_skill_id: Option<String>,
     pub opponent_defense_skill_type: Option<String>,
+    pub self_internal_id: Option<String>,
+    pub self_internal_type: Option<String>,
+    pub self_attack_skill_id: Option<String>,
+    pub self_attack_skill_type: Option<String>,
+    pub self_defense_skill_id: Option<String>,
+    pub self_defense_skill_type: Option<String>,
     pub attack_broke_qi_defense: Option<bool>,
     pub successfully_defended_with_qi: Option<bool>,
     /// 攻击结果（用于攻击后/防御后的词条）

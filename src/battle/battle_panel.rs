@@ -225,13 +225,27 @@ impl BattlePanel {
                 self.hp = new_value.max(0.0).min(self.max_hp);
             }
             AttributeTarget::MaxHp => {
+                let previous_max = self.max_hp;
                 self.max_hp = new_value.max(0.0);
+                let delta = self.max_hp - previous_max;
+                if delta.abs() > 0.0001 {
+                    self.hp = (self.hp + delta).max(0.0).min(self.max_hp);
+                } else {
+                    self.hp = self.hp.max(0.0).min(self.max_hp);
+                }
             }
             AttributeTarget::Qi => {
                 self.qi = new_value.max(0.0).min(self.max_qi);
             }
             AttributeTarget::MaxQi => {
+                let previous_max = self.max_qi;
                 self.max_qi = new_value.max(0.0);
+                let delta = self.max_qi - previous_max;
+                if delta.abs() > 0.0001 {
+                    self.qi = (self.qi + delta).max(0.0).min(self.max_qi);
+                } else {
+                    self.qi = self.qi.max(0.0).min(self.max_qi);
+                }
             }
             AttributeTarget::BaseAttack => {
                 self.base_attack = new_value.max(0.0);

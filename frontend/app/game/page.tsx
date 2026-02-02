@@ -124,48 +124,89 @@ const BATTLE_SPEEDS = [
 function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false) {
   if (!delta) return;
   const multiplier = reverse ? -1 : 1;
-  if (delta.hp_delta !== undefined) {
-    panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp + delta.hp_delta * multiplier));
-  }
-  if (delta.max_hp_delta !== undefined) {
-    panel.max_hp = Math.max(0, panel.max_hp + delta.max_hp_delta * multiplier);
-    panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp));
-  }
-  if (delta.qi_delta !== undefined) {
-    panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi + delta.qi_delta * multiplier));
-  }
-  if (delta.max_qi_delta !== undefined) {
-    panel.max_qi = Math.max(0, panel.max_qi + delta.max_qi_delta * multiplier);
-    panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi));
+  const applyMaxFirst = !reverse;
+
+  const applyHp = () => {
+    if (delta.hp_delta !== undefined) {
+      panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp + delta.hp_delta * multiplier));
+    }
+  };
+  const applyMaxHp = () => {
+    if (delta.max_hp_delta !== undefined) {
+      panel.max_hp = Math.max(0, panel.max_hp + delta.max_hp_delta * multiplier);
+      panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp));
+    }
+  };
+  const applyQi = () => {
+    if (delta.qi_delta !== undefined) {
+      panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi + delta.qi_delta * multiplier));
+    }
+  };
+  const applyMaxQi = () => {
+    if (delta.max_qi_delta !== undefined) {
+      panel.max_qi = Math.max(0, panel.max_qi + delta.max_qi_delta * multiplier);
+      panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi));
+    }
+  };
+  const applyDamageReduction = () => {
+    if (delta.damage_reduction_delta !== undefined) {
+      panel.damage_reduction = Math.max(
+        0,
+        Math.min(panel.max_damage_reduction, panel.damage_reduction + delta.damage_reduction_delta * multiplier)
+      );
+    }
+  };
+  const applyMaxDamageReduction = () => {
+    if (delta.max_damage_reduction_delta !== undefined) {
+      panel.max_damage_reduction = Math.max(
+        0,
+        panel.max_damage_reduction + delta.max_damage_reduction_delta * multiplier
+      );
+      panel.damage_reduction = Math.max(0, Math.min(panel.max_damage_reduction, panel.damage_reduction));
+    }
+  };
+  const applyQiOutputRate = () => {
+    if (delta.qi_output_rate_delta !== undefined) {
+      panel.qi_output_rate = Math.max(
+        0,
+        Math.min(panel.max_qi_output_rate, panel.qi_output_rate + delta.qi_output_rate_delta * multiplier)
+      );
+    }
+  };
+  const applyMaxQiOutputRate = () => {
+    if (delta.max_qi_output_rate_delta !== undefined) {
+      panel.max_qi_output_rate = Math.max(
+        0,
+        panel.max_qi_output_rate + delta.max_qi_output_rate_delta * multiplier
+      );
+      panel.qi_output_rate = Math.max(0, Math.min(panel.max_qi_output_rate, panel.qi_output_rate));
+    }
+  };
+
+  if (applyMaxFirst) {
+    applyMaxHp();
+    applyHp();
+    applyMaxQi();
+    applyQi();
+  } else {
+    applyHp();
+    applyMaxHp();
+    applyQi();
+    applyMaxQi();
   }
   if (delta.damage_bonus_delta !== undefined) {
     panel.damage_bonus += delta.damage_bonus_delta * multiplier;
   }
-  if (delta.damage_reduction_delta !== undefined) {
-    panel.damage_reduction = Math.max(
-      0,
-      Math.min(panel.max_damage_reduction, panel.damage_reduction + delta.damage_reduction_delta * multiplier)
-    );
-  }
-  if (delta.max_damage_reduction_delta !== undefined) {
-    panel.max_damage_reduction = Math.max(
-      0,
-      panel.max_damage_reduction + delta.max_damage_reduction_delta * multiplier
-    );
-    panel.damage_reduction = Math.max(0, Math.min(panel.max_damage_reduction, panel.damage_reduction));
-  }
-  if (delta.qi_output_rate_delta !== undefined) {
-    panel.qi_output_rate = Math.max(
-      0,
-      Math.min(panel.max_qi_output_rate, panel.qi_output_rate + delta.qi_output_rate_delta * multiplier)
-    );
-  }
-  if (delta.max_qi_output_rate_delta !== undefined) {
-    panel.max_qi_output_rate = Math.max(
-      0,
-      panel.max_qi_output_rate + delta.max_qi_output_rate_delta * multiplier
-    );
-    panel.qi_output_rate = Math.max(0, Math.min(panel.max_qi_output_rate, panel.qi_output_rate));
+  if (applyMaxFirst) {
+    applyMaxDamageReduction();
+    applyDamageReduction();
+    applyMaxQiOutputRate();
+    applyQiOutputRate();
+  } else {
+    applyDamageReduction();
+    applyMaxDamageReduction();
+    applyQiOutputRate();
+    applyMaxQiOutputRate();
   }
   if (delta.base_attack_delta !== undefined) {
     panel.base_attack = Math.max(0, panel.base_attack + delta.base_attack_delta * multiplier);
@@ -674,22 +715,34 @@ export default function GamePage() {
     );
   };
 
-  const battleRecordsAll = useMemo<BattleRecord[]>(() => {
-    if (!battleData) return [];
-    return battleData.records.filter((record) => record.text && record.text.trim().length > 0);
-  }, [battleData]);
+  const battleRecordsAll = useMemo<BattleRecord[]>(
+    () => (battleData ? battleData.records : []),
+    [battleData]
+  );
+
+  const battleCutoffIndex = useMemo(() => {
+    if (battleRecordsAll.length === 0) return -1;
+    for (let i = battleRecordsAll.length - 1; i >= 0; i -= 1) {
+      const record = battleRecordsAll[i];
+      if (record.log_kind === 'effect' && record.text && record.text.trim().length > 0) {
+        return i;
+      }
+    }
+    return battleRecordsAll.length - 1;
+  }, [battleRecordsAll]);
 
   const battleDisplayIndices = useMemo(() => {
     if (battleRecordsAll.length === 0) return [];
-    if (showValueLogs) return battleRecordsAll.map((_, index) => index);
     const indices: number[] = [];
     for (let i = 0; i < battleRecordsAll.length; i += 1) {
-      if (battleRecordsAll[i].log_kind !== 'value') {
-        indices.push(i);
-      }
+      if (i > battleCutoffIndex) continue;
+      const record = battleRecordsAll[i];
+      if (!record.text || record.text.trim().length === 0) continue;
+      if (!showValueLogs && record.log_kind === 'value') continue;
+      indices.push(i);
     }
     return indices;
-  }, [battleRecordsAll, showValueLogs]);
+  }, [battleRecordsAll, battleCutoffIndex, showValueLogs]);
 
   const battleRecords = useMemo(
     () => battleDisplayIndices.map((index) => battleRecordsAll[index]),

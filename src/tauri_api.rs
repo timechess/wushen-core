@@ -1,5 +1,5 @@
 use crate::battle::battle_engine::BattleEngine;
-use crate::battle::battle_record::{BattleLogKind, BattleRecord};
+use crate::battle::battle_record::{BattleLogKind, BattleRecord, PanelDelta};
 use crate::battle::battle_state::BattleResult;
 use crate::character::json::{parse_character_panel, serialize_character_panel};
 use crate::character::panel::{CharacterPanel, ThreeDimensional};
@@ -558,6 +558,7 @@ impl WushenCore {
         let mut records = Vec::new();
         let mut batch_records: Vec<&BattleRecord> = Vec::new();
         let mut current_batch_id: Option<u64> = None;
+        let mut after_battle_end = false;
 
         for record in log.get_all_records() {
             if let Some(batch_id) = battle_record_batch_id(record) {
@@ -567,37 +568,49 @@ impl WushenCore {
                     continue;
                 }
 
+                let batch_contains_battle_end = batch_records
+                    .iter()
+                    .any(|r| matches!(r, BattleRecord::BattleEnd { .. }));
                 records.extend(build_batch_logs(
                     &batch_records,
                     &attacker_name,
                     &defender_name,
+                    after_battle_end,
                 ));
                 batch_records.clear();
                 current_batch_id = Some(batch_id);
+                if batch_contains_battle_end {
+                    after_battle_end = true;
+                }
                 batch_records.push(record);
                 continue;
             }
 
             if !batch_records.is_empty() {
+                let batch_contains_battle_end = batch_records
+                    .iter()
+                    .any(|r| matches!(r, BattleRecord::BattleEnd { .. }));
                 records.extend(build_batch_logs(
                     &batch_records,
                     &attacker_name,
                     &defender_name,
+                    after_battle_end,
                 ));
                 batch_records.clear();
                 current_batch_id = None;
+                if batch_contains_battle_end {
+                    after_battle_end = true;
+                }
             }
 
-            let (effect_logs, mut value_logs) =
-                build_record_logs(record, &attacker_name, &defender_name);
             let is_battle_end = matches!(record, BattleRecord::BattleEnd { .. });
-            if is_battle_end {
-                value_logs.clear();
-            }
+            let record_is_terminal = after_battle_end && !is_battle_end;
+            let (effect_logs, value_logs) =
+                build_record_logs(record, &attacker_name, &defender_name, record_is_terminal);
             records.extend(effect_logs);
             records.extend(value_logs);
             if is_battle_end {
-                break;
+                after_battle_end = true;
             }
         }
 
@@ -606,6 +619,7 @@ impl WushenCore {
                 &batch_records,
                 &attacker_name,
                 &defender_name,
+                after_battle_end,
             ));
         }
 
@@ -1960,6 +1974,7 @@ struct BattleRecordJson {
     log_kind: String,
     attacker_panel_delta: Option<PanelDeltaJson>,
     defender_panel_delta: Option<PanelDeltaJson>,
+    is_terminal: bool,
 }
 
 #[derive(Serialize)]
@@ -2091,6 +2106,49 @@ fn panel_delta_to_json(delta: crate::battle::battle_record::PanelDelta) -> Panel
         qi_recovery_rate_delta: delta.qi_recovery_rate_delta,
         charge_time_delta: delta.charge_time_delta,
     }
+}
+
+fn add_delta_field(acc: &mut Option<f64>, delta: Option<f64>) {
+    if let Some(value) = delta {
+        let new_value = acc.unwrap_or(0.0) + value;
+        if new_value.abs() > 0.0001 {
+            *acc = Some(new_value);
+        } else {
+            *acc = None;
+        }
+    }
+}
+
+fn accumulate_panel_delta(acc: &mut PanelDelta, delta: &PanelDelta) {
+    add_delta_field(&mut acc.hp_delta, delta.hp_delta);
+    add_delta_field(&mut acc.max_hp_delta, delta.max_hp_delta);
+    add_delta_field(&mut acc.qi_delta, delta.qi_delta);
+    add_delta_field(&mut acc.max_qi_delta, delta.max_qi_delta);
+    add_delta_field(&mut acc.damage_bonus_delta, delta.damage_bonus_delta);
+    add_delta_field(
+        &mut acc.damage_reduction_delta,
+        delta.damage_reduction_delta,
+    );
+    add_delta_field(
+        &mut acc.max_damage_reduction_delta,
+        delta.max_damage_reduction_delta,
+    );
+    add_delta_field(&mut acc.qi_output_rate_delta, delta.qi_output_rate_delta);
+    add_delta_field(
+        &mut acc.max_qi_output_rate_delta,
+        delta.max_qi_output_rate_delta,
+    );
+    add_delta_field(&mut acc.base_attack_delta, delta.base_attack_delta);
+    add_delta_field(&mut acc.base_defense_delta, delta.base_defense_delta);
+    add_delta_field(&mut acc.power_delta, delta.power_delta);
+    add_delta_field(&mut acc.defense_power_delta, delta.defense_power_delta);
+    add_delta_field(&mut acc.qi_quality_delta, delta.qi_quality_delta);
+    add_delta_field(&mut acc.attack_speed_delta, delta.attack_speed_delta);
+    add_delta_field(
+        &mut acc.qi_recovery_rate_delta,
+        delta.qi_recovery_rate_delta,
+    );
+    add_delta_field(&mut acc.charge_time_delta, delta.charge_time_delta);
 }
 
 fn extract_panel_deltas(
@@ -2302,56 +2360,112 @@ fn battle_record_entry_id(record: &BattleRecord) -> Option<&str> {
     }
 }
 
+fn battle_record_entry_order(record: &BattleRecord) -> Option<u64> {
+    match record {
+        BattleRecord::EntryTriggered { entry_order, .. } => Some(*entry_order),
+        BattleRecord::ExtraAttack { entry_order, .. } => Some(*entry_order),
+        _ => None,
+    }
+}
+
 fn build_batch_logs(
     batch_records: &[&BattleRecord],
     attacker_name: &str,
     defender_name: &str,
+    after_battle_end: bool,
 ) -> Vec<BattleRecordJson> {
-    struct RecordLogs {
-        entry_id: Option<String>,
-        effect_logs: Vec<BattleRecordJson>,
-        value_logs: Vec<BattleRecordJson>,
+    struct EntryGroup<'a> {
+        entry_order: u64,
+        records: Vec<&'a BattleRecord>,
     }
 
-    let mut pending_effects: HashMap<String, Vec<BattleRecordJson>> = HashMap::new();
-    let mut record_logs = Vec::with_capacity(batch_records.len());
+    let mut groups: HashMap<String, EntryGroup> = HashMap::new();
 
     for record in batch_records {
-        let (effect_logs, value_logs) = build_record_logs(record, attacker_name, defender_name);
-        let entry_id = battle_record_entry_id(record).map(|id| id.to_string());
+        let entry_id = battle_record_entry_id(record)
+            .expect("batch record must have entry_id")
+            .to_string();
+        let entry_order =
+            battle_record_entry_order(record).expect("batch record must have entry_order");
 
-        if let Some(id) = &entry_id {
-            if !effect_logs.is_empty() {
-                pending_effects
-                    .entry(id.clone())
-                    .or_default()
-                    .extend(effect_logs);
-            }
-            record_logs.push(RecordLogs {
-                entry_id,
-                effect_logs: Vec::new(),
-                value_logs,
-            });
-        } else {
-            record_logs.push(RecordLogs {
-                entry_id,
-                effect_logs,
-                value_logs,
-            });
-        }
+        groups
+            .entry(entry_id.clone())
+            .or_insert_with(|| EntryGroup {
+                entry_order,
+                records: Vec::new(),
+            })
+            .records
+            .push(*record);
     }
+
+    let mut ordered_groups: Vec<EntryGroup> = groups.into_values().collect();
+    ordered_groups.sort_by_key(|group| group.entry_order);
 
     let mut output = Vec::new();
 
-    for record_log in record_logs {
-        if let Some(entry_id) = &record_log.entry_id {
-            if let Some(effect_logs) = pending_effects.remove(entry_id) {
-                output.extend(effect_logs);
+    for group in ordered_groups {
+        let mut combined_side_a = PanelDelta::default();
+        let mut combined_side_b = PanelDelta::default();
+        let mut narrative_parts = Vec::new();
+
+        for record in group.records {
+            let record_is_terminal =
+                after_battle_end && !matches!(record, BattleRecord::BattleEnd { .. });
+            let (effect_logs, value_logs) =
+                build_record_logs(record, attacker_name, defender_name, record_is_terminal);
+            output.extend(effect_logs);
+
+            for value_log in value_logs {
+                if value_log.attacker_panel_delta.is_none()
+                    && value_log.defender_panel_delta.is_none()
+                    && !value_log.text.is_empty()
+                {
+                    narrative_parts.push(value_log.text);
+                }
             }
-            output.extend(record_log.value_logs);
+
+            let (side_a_delta, side_b_delta) = extract_panel_deltas(record);
+            if let Some(delta) = side_a_delta.as_ref() {
+                accumulate_panel_delta(&mut combined_side_a, delta);
+            }
+            if let Some(delta) = side_b_delta.as_ref() {
+                accumulate_panel_delta(&mut combined_side_b, delta);
+            }
+        }
+
+        let side_a_opt = if combined_side_a.is_empty() {
+            None
         } else {
-            output.extend(record_log.effect_logs);
-            output.extend(record_log.value_logs);
+            Some(combined_side_a)
+        };
+        let side_b_opt = if combined_side_b.is_empty() {
+            None
+        } else {
+            Some(combined_side_b)
+        };
+        let delta_text = format_panel_delta_log(
+            attacker_name,
+            defender_name,
+            side_a_opt.as_ref(),
+            side_b_opt.as_ref(),
+        );
+
+        let mut parts = Vec::new();
+        if !narrative_parts.is_empty() {
+            parts.push(narrative_parts.join("，"));
+        }
+        if let Some(text) = delta_text {
+            parts.push(text);
+        }
+
+        if !parts.is_empty() {
+            output.push(BattleRecordJson {
+                text: parts.join("，"),
+                log_kind: "value".to_string(),
+                attacker_panel_delta: side_a_opt.map(panel_delta_to_json),
+                defender_panel_delta: side_b_opt.map(panel_delta_to_json),
+                is_terminal: after_battle_end,
+            });
         }
     }
 
@@ -2362,6 +2476,7 @@ fn build_record_logs(
     record: &BattleRecord,
     attacker_name: &str,
     defender_name: &str,
+    is_terminal: bool,
 ) -> (Vec<BattleRecordJson>, Vec<BattleRecordJson>) {
     let (side_a_delta, side_b_delta) = extract_panel_deltas(record);
     let log_kind = battle_record_log_kind(record);
@@ -2399,6 +2514,7 @@ fn build_record_logs(
                     log_kind: "effect".to_string(),
                     attacker_panel_delta: None,
                     defender_panel_delta: None,
+                    is_terminal,
                 });
             }
             if let Some(value_text) = value_text {
@@ -2407,6 +2523,7 @@ fn build_record_logs(
                     log_kind: "value".to_string(),
                     attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                     defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                    is_terminal,
                 });
             }
         }
@@ -2418,6 +2535,7 @@ fn build_record_logs(
                         log_kind: "value".to_string(),
                         attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                         defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                        is_terminal,
                     });
                 } else if !text.is_empty() {
                     value_logs.push(BattleRecordJson {
@@ -2425,6 +2543,7 @@ fn build_record_logs(
                         log_kind: "value".to_string(),
                         attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                         defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                        is_terminal,
                     });
                 }
             } else if !text.is_empty() {
@@ -2435,6 +2554,7 @@ fn build_record_logs(
                             log_kind: "value".to_string(),
                             attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                             defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                            is_terminal,
                         });
                     } else {
                         value_logs.push(BattleRecordJson {
@@ -2442,12 +2562,14 @@ fn build_record_logs(
                             log_kind: "value".to_string(),
                             attacker_panel_delta: None,
                             defender_panel_delta: None,
+                            is_terminal,
                         });
                         value_logs.push(BattleRecordJson {
                             text: value_text,
                             log_kind: "value".to_string(),
                             attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                             defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                            is_terminal,
                         });
                     }
                 } else {
@@ -2456,6 +2578,7 @@ fn build_record_logs(
                         log_kind: "value".to_string(),
                         attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                         defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                        is_terminal,
                     });
                 }
             } else if let Some(value_text) = value_text {
@@ -2464,6 +2587,7 @@ fn build_record_logs(
                     log_kind: "value".to_string(),
                     attacker_panel_delta: side_a_delta.map(panel_delta_to_json),
                     defender_panel_delta: side_b_delta.map(panel_delta_to_json),
+                    is_terminal,
                 });
             }
         }
@@ -2501,7 +2625,6 @@ fn format_panel_delta_log(
 ) -> Option<String> {
     let mut parts = Vec::new();
     if let Some(delta) = side_a_delta {
-        append_delta_text(&mut parts, side_a_name, "生命值", delta.hp_delta, false);
         append_delta_text(
             &mut parts,
             side_a_name,
@@ -2509,7 +2632,7 @@ fn format_panel_delta_log(
             delta.max_hp_delta,
             false,
         );
-        append_delta_text(&mut parts, side_a_name, "内息", delta.qi_delta, false);
+        append_delta_text(&mut parts, side_a_name, "生命值", delta.hp_delta, false);
         append_delta_text(
             &mut parts,
             side_a_name,
@@ -2517,6 +2640,7 @@ fn format_panel_delta_log(
             delta.max_qi_delta,
             false,
         );
+        append_delta_text(&mut parts, side_a_name, "内息", delta.qi_delta, false);
         append_delta_text(
             &mut parts,
             side_a_name,
@@ -2570,13 +2694,6 @@ fn format_panel_delta_log(
         append_delta_text(
             &mut parts,
             side_a_name,
-            "减伤",
-            delta.damage_reduction_delta,
-            true,
-        );
-        append_delta_text(
-            &mut parts,
-            side_a_name,
             "减伤上限",
             delta.max_damage_reduction_delta,
             true,
@@ -2584,8 +2701,8 @@ fn format_panel_delta_log(
         append_delta_text(
             &mut parts,
             side_a_name,
-            "内息输出",
-            delta.qi_output_rate_delta,
+            "减伤",
+            delta.damage_reduction_delta,
             true,
         );
         append_delta_text(
@@ -2598,13 +2715,19 @@ fn format_panel_delta_log(
         append_delta_text(
             &mut parts,
             side_a_name,
+            "内息输出",
+            delta.qi_output_rate_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_a_name,
             "回气率",
             delta.qi_recovery_rate_delta,
             true,
         );
     }
     if let Some(delta) = side_b_delta {
-        append_delta_text(&mut parts, side_b_name, "生命值", delta.hp_delta, false);
         append_delta_text(
             &mut parts,
             side_b_name,
@@ -2612,7 +2735,7 @@ fn format_panel_delta_log(
             delta.max_hp_delta,
             false,
         );
-        append_delta_text(&mut parts, side_b_name, "内息", delta.qi_delta, false);
+        append_delta_text(&mut parts, side_b_name, "生命值", delta.hp_delta, false);
         append_delta_text(
             &mut parts,
             side_b_name,
@@ -2620,6 +2743,7 @@ fn format_panel_delta_log(
             delta.max_qi_delta,
             false,
         );
+        append_delta_text(&mut parts, side_b_name, "内息", delta.qi_delta, false);
         append_delta_text(
             &mut parts,
             side_b_name,
@@ -2673,13 +2797,6 @@ fn format_panel_delta_log(
         append_delta_text(
             &mut parts,
             side_b_name,
-            "减伤",
-            delta.damage_reduction_delta,
-            true,
-        );
-        append_delta_text(
-            &mut parts,
-            side_b_name,
             "减伤上限",
             delta.max_damage_reduction_delta,
             true,
@@ -2687,8 +2804,8 @@ fn format_panel_delta_log(
         append_delta_text(
             &mut parts,
             side_b_name,
-            "内息输出",
-            delta.qi_output_rate_delta,
+            "减伤",
+            delta.damage_reduction_delta,
             true,
         );
         append_delta_text(
@@ -2696,6 +2813,13 @@ fn format_panel_delta_log(
             side_b_name,
             "最大内息输出",
             delta.max_qi_output_rate_delta,
+            true,
+        );
+        append_delta_text(
+            &mut parts,
+            side_b_name,
+            "内息输出",
+            delta.qi_output_rate_delta,
             true,
         );
         append_delta_text(

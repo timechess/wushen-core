@@ -19,12 +19,25 @@ pub struct EntryEffect {
     pub effect: Effect,
     /// 词条来源ID（特性ID、内功ID、武技ID等）
     pub source_id: String,
+    /// 词条唯一ID（用于日志排序）
+    pub entry_id: String,
+    /// 词条触发顺序（用于日志排序）
+    pub entry_order: u64,
+}
+
+#[derive(Debug, Clone)]
+struct EntryWithSource {
+    entry: Entry,
+    source_id: String,
+    entry_id: String,
+    entry_order: u64,
 }
 
 /// 词条执行器
 pub struct EntryExecutor {
     /// 按触发时机索引的词条及其来源
-    entries_by_trigger: HashMap<Trigger, Vec<(Entry, String)>>,
+    entries_by_trigger: HashMap<Trigger, Vec<EntryWithSource>>,
+    next_entry_order: u64,
 }
 
 impl EntryExecutor {
@@ -32,15 +45,24 @@ impl EntryExecutor {
     pub fn new() -> Self {
         Self {
             entries_by_trigger: HashMap::new(),
+            next_entry_order: 0,
         }
     }
 
     /// 添加词条（带来源ID）
     pub fn add_entry_with_source(&mut self, entry: Entry, source_id: String) {
+        let entry_order = self.next_entry_order;
+        self.next_entry_order += 1;
+        let entry_id = format!("{}#{}", source_id, entry_order);
         self.entries_by_trigger
             .entry(entry.trigger)
             .or_insert_with(Vec::new)
-            .push((entry, source_id));
+            .push(EntryWithSource {
+                entry,
+                source_id,
+                entry_id,
+                entry_order,
+            });
     }
 
     /// 添加词条（向后兼容，使用默认来源ID）
@@ -72,21 +94,21 @@ impl EntryExecutor {
         let mut triggered_effects = Vec::new();
 
         if let Some(entries) = self.entries_by_trigger.get_mut(&trigger) {
-            for (entry, _) in entries.iter_mut() {
-                if !entry.can_trigger() {
+            for entry_with_source in entries.iter_mut() {
+                if !entry_with_source.entry.can_trigger() {
                     continue;
                 }
 
                 // 检查条件
-                let condition_met = if let Some(ref condition) = entry.condition {
+                let condition_met = if let Some(ref condition) = entry_with_source.entry.condition {
                     condition.check_cultivation(context)
                 } else {
                     true
                 };
 
                 if condition_met {
-                    entry.trigger();
-                    triggered_effects.extend(entry.effects.clone());
+                    entry_with_source.entry.trigger();
+                    triggered_effects.extend(entry_with_source.entry.effects.clone());
                 }
             }
         }
@@ -117,24 +139,26 @@ impl EntryExecutor {
         let mut triggered_effects = Vec::new();
 
         if let Some(entries) = self.entries_by_trigger.get_mut(&trigger) {
-            for (entry, source_id) in entries.iter_mut() {
-                if !entry.can_trigger() {
+            for entry_with_source in entries.iter_mut() {
+                if !entry_with_source.entry.can_trigger() {
                     continue;
                 }
 
                 // 检查条件
-                let condition_met = if let Some(ref condition) = entry.condition {
+                let condition_met = if let Some(ref condition) = entry_with_source.entry.condition {
                     condition.check_battle(context)
                 } else {
                     true
                 };
 
                 if condition_met {
-                    entry.trigger();
-                    for effect in entry.effects.clone() {
+                    entry_with_source.entry.trigger();
+                    for effect in entry_with_source.entry.effects.clone() {
                         triggered_effects.push(EntryEffect {
                             effect,
-                            source_id: source_id.clone(),
+                            source_id: entry_with_source.source_id.clone(),
+                            entry_id: entry_with_source.entry_id.clone(),
+                            entry_order: entry_with_source.entry_order,
                         });
                     }
                 }
@@ -346,8 +370,8 @@ impl EntryExecutor {
     /// 重置所有词条的触发次数（每场战斗刷新）
     pub fn reset_battle_triggers(&mut self) {
         for entries in self.entries_by_trigger.values_mut() {
-            for (entry, _) in entries.iter_mut() {
-                entry.reset_triggers();
+            for entry_with_source in entries.iter_mut() {
+                entry_with_source.entry.reset_triggers();
             }
         }
     }

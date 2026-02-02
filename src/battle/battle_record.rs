@@ -167,6 +167,8 @@ pub enum BattleRecord {
     EntryTriggered {
         /// 词条 ID
         entry_id: String,
+        /// 词条触发顺序（用于排序）
+        entry_order: u64,
         /// 描述文本
         description: String,
         /// 日志类型（用于前端展示）
@@ -240,6 +242,8 @@ pub enum BattleRecord {
         batch_id: Option<u64>,
         /// 触发的词条ID
         entry_id: String,
+        /// 词条触发顺序（用于排序）
+        entry_order: u64,
         /// 描述文本
         description: String,
         side_a_panel_delta: Option<PanelDelta>,
