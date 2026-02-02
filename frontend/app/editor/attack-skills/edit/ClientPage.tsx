@@ -206,6 +206,15 @@ export default function EditAttackSkillPage() {
                     <p className="mt-2 text-xs text-gray-500">{formulaPreview}</p>
                   )}
                 </div>
+                <Input
+                  label="攻击日志模板（支持 {self} 和 {opponent} 占位符）"
+                  type="text"
+                  value={skill.log_template || ''}
+                  onChange={(e) =>
+                    setSkill({ ...skill, log_template: e.target.value || undefined })
+                  }
+                  placeholder="例如：{self}对{opponent}发起了一次基础拳法攻击"
+                />
               </div>
             </div>
           </div>

@@ -258,8 +258,8 @@ impl BattlePanel {
                 self.qi_recovery_rate = new_value.max(0.0).min(limit);
             }
             AttributeTarget::ChargeTime => {
-                // 武技的蓄力时间至少为100（最小值）
-                self.charge_time = new_value.max(100.0);
+                // 武技的蓄力时间至少为50（最小值）
+                self.charge_time = new_value.max(50.0);
             }
             AttributeTarget::MaxQiOutputRate => {
                 self.max_qi_output_rate = new_value.max(0.0);

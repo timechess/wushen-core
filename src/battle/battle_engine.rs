@@ -298,16 +298,7 @@ impl BattleEngine {
         let attacker = self.current_attacker.expect("回合中必须有攻击者");
         let defender = attacker.opposite();
 
-        // 触发防御者的 BeforeDefense 词条
-        let context = self.create_battle_context(defender);
-        let effects = self.get_executor_mut(defender).trigger_battle_with_source(
-            Trigger::BeforeDefense,
-            &mut (),
-            &context,
-        );
-        self.apply_effects(effects, defender, None);
-
-        // 输出防御武技日志
+        // 输出防御武技日志（保证在数值变化前）
         if let Some(ref temp) = self.defender_temp {
             if let Some(ref template) = temp.defense_skill_log_template {
                 let defender_name = temp.name.clone();
@@ -327,6 +318,15 @@ impl BattleEngine {
                 });
             }
         }
+
+        // 触发防御者的 BeforeDefense 词条
+        let context = self.create_battle_context(defender);
+        let effects = self.get_executor_mut(defender).trigger_battle_with_source(
+            Trigger::BeforeDefense,
+            &mut (),
+            &context,
+        );
+        self.apply_effects(effects, defender, None);
 
         // 进入结算阶段
         self.state = BattleState::Calculating;
@@ -656,12 +656,10 @@ impl BattleEngine {
 
                     if let Some(temp_panel) = self.get_temp_panel_mut_by_side(target_side) {
                         let base_panel = match target_side {
-                            Side::A => base_temp_a.as_ref(),
-                            Side::B => base_temp_b.as_ref(),
+                            Side::A => &base_battle_a,
+                            Side::B => &base_battle_b,
                         };
-                        if let Some(base_panel) = base_panel {
-                            apply_percent_delta(temp_panel, base_panel);
-                        }
+                        apply_percent_delta(temp_panel, base_panel);
                     }
                 }
 

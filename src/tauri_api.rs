@@ -26,7 +26,7 @@ use crate::game::{
 /// 提供桌面端可调用的API接口
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// 核心运行状态
 /// 存储特性和功法数据（从JSON加载）
@@ -556,14 +556,57 @@ impl WushenCore {
         let attacker_name = side_a_battle_panel.name.clone();
         let defender_name = side_b_battle_panel.name.clone();
         let mut records = Vec::new();
+        let mut batch_records: Vec<&BattleRecord> = Vec::new();
+        let mut current_batch_id: Option<u64> = None;
+
         for record in log.get_all_records() {
-            let (effect_logs, value_logs) =
+            if let Some(batch_id) = battle_record_batch_id(record) {
+                if current_batch_id.is_none() || current_batch_id == Some(batch_id) {
+                    current_batch_id = Some(batch_id);
+                    batch_records.push(record);
+                    continue;
+                }
+
+                records.extend(build_batch_logs(
+                    &batch_records,
+                    &attacker_name,
+                    &defender_name,
+                ));
+                batch_records.clear();
+                current_batch_id = Some(batch_id);
+                batch_records.push(record);
+                continue;
+            }
+
+            if !batch_records.is_empty() {
+                records.extend(build_batch_logs(
+                    &batch_records,
+                    &attacker_name,
+                    &defender_name,
+                ));
+                batch_records.clear();
+                current_batch_id = None;
+            }
+
+            let (effect_logs, mut value_logs) =
                 build_record_logs(record, &attacker_name, &defender_name);
+            let is_battle_end = matches!(record, BattleRecord::BattleEnd { .. });
+            if is_battle_end {
+                value_logs.clear();
+            }
             records.extend(effect_logs);
             records.extend(value_logs);
-            if matches!(record, BattleRecord::BattleEnd { .. }) {
+            if is_battle_end {
                 break;
             }
+        }
+
+        if !batch_records.is_empty() {
+            records.extend(build_batch_logs(
+                &batch_records,
+                &attacker_name,
+                &defender_name,
+            ));
         }
 
         let battle_result = BattleResultJson {
@@ -2251,6 +2294,70 @@ fn battle_record_batch_id(record: &BattleRecord) -> Option<u64> {
     }
 }
 
+fn battle_record_entry_id(record: &BattleRecord) -> Option<&str> {
+    match record {
+        BattleRecord::EntryTriggered { entry_id, .. } => Some(entry_id.as_str()),
+        BattleRecord::ExtraAttack { entry_id, .. } => Some(entry_id.as_str()),
+        _ => None,
+    }
+}
+
+fn build_batch_logs(
+    batch_records: &[&BattleRecord],
+    attacker_name: &str,
+    defender_name: &str,
+) -> Vec<BattleRecordJson> {
+    struct RecordLogs {
+        entry_id: Option<String>,
+        effect_logs: Vec<BattleRecordJson>,
+        value_logs: Vec<BattleRecordJson>,
+    }
+
+    let mut pending_effects: HashMap<String, Vec<BattleRecordJson>> = HashMap::new();
+    let mut record_logs = Vec::with_capacity(batch_records.len());
+
+    for record in batch_records {
+        let (effect_logs, value_logs) = build_record_logs(record, attacker_name, defender_name);
+        let entry_id = battle_record_entry_id(record).map(|id| id.to_string());
+
+        if let Some(id) = &entry_id {
+            if !effect_logs.is_empty() {
+                pending_effects
+                    .entry(id.clone())
+                    .or_default()
+                    .extend(effect_logs);
+            }
+            record_logs.push(RecordLogs {
+                entry_id,
+                effect_logs: Vec::new(),
+                value_logs,
+            });
+        } else {
+            record_logs.push(RecordLogs {
+                entry_id,
+                effect_logs,
+                value_logs,
+            });
+        }
+    }
+
+    let mut output = Vec::new();
+
+    for record_log in record_logs {
+        if let Some(entry_id) = &record_log.entry_id {
+            if let Some(effect_logs) = pending_effects.remove(entry_id) {
+                output.extend(effect_logs);
+            }
+            output.extend(record_log.value_logs);
+        } else {
+            output.extend(record_log.effect_logs);
+            output.extend(record_log.value_logs);
+        }
+    }
+
+    output
+}
+
 fn build_record_logs(
     record: &BattleRecord,
     attacker_name: &str,
@@ -2258,12 +2365,16 @@ fn build_record_logs(
 ) -> (Vec<BattleRecordJson>, Vec<BattleRecordJson>) {
     let (side_a_delta, side_b_delta) = extract_panel_deltas(record);
     let log_kind = battle_record_log_kind(record);
-    let value_text = format_panel_delta_log(
-        attacker_name,
-        defender_name,
-        side_a_delta.as_ref(),
-        side_b_delta.as_ref(),
-    );
+    let value_text = if matches!(record, BattleRecord::QiRecovery { .. }) {
+        None
+    } else {
+        format_panel_delta_log(
+            attacker_name,
+            defender_name,
+            side_a_delta.as_ref(),
+            side_b_delta.as_ref(),
+        )
+    };
     let prefer_value_only = matches!(
         record,
         BattleRecord::EntryTriggered {
