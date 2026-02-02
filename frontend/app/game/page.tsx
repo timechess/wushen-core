@@ -120,6 +120,8 @@ const BATTLE_SPEEDS = [
   { label: '中', value: 600 },
   { label: '快', value: 300 },
 ];
+const LOG_TYPING_INTERVAL_MS = 30;
+const BATTLE_LOG_TYPING_INTERVAL_MS = 24;
 
 function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false) {
   if (!delta) return;
@@ -286,6 +288,15 @@ export default function GamePage() {
     message: string;
     confirmText?: string;
     cancelText?: string;
+  }>({
+    open: false,
+    title: '',
+    message: '',
+  });
+  const [noticeDialog, setNoticeDialog] = useState<{
+    open: boolean;
+    title: string;
+    message: string;
   }>({
     open: false,
     title: '',
@@ -1000,7 +1011,7 @@ export default function GamePage() {
         setLogEntries((prev) => [...prev, typingEntry]);
         setTypingEntry(null);
       }
-    }, 22);
+    }, LOG_TYPING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [typingEntry]);
 
@@ -1075,7 +1086,7 @@ export default function GamePage() {
         clearInterval(interval);
         setBattleTypingIndex(null);
       }
-    }, 18);
+    }, BATTLE_LOG_TYPING_INTERVAL_MS);
     return () => clearInterval(interval);
   }, [battleDialogOpen, battleRecords, battleStep]);
 
@@ -1251,6 +1262,18 @@ export default function GamePage() {
     }
   }, [view]);
 
+  const openNoticeDialog = useCallback((message: string, title = '提示') => {
+    setNoticeDialog({
+      open: true,
+      title,
+      message,
+    });
+  }, []);
+
+  const closeNoticeDialog = useCallback(() => {
+    setNoticeDialog((prev) => ({ ...prev, open: false }));
+  }, []);
+
   const openConfirmDialog = useCallback(
     (options: { title: string; message: string; confirmText?: string; cancelText?: string; onConfirm: () => void }) => {
       confirmActionRef.current = options.onConfirm;
@@ -1296,7 +1319,7 @@ export default function GamePage() {
 
   const loadData = async () => {
     if (orderedSelectedPackIds.length === 0) {
-      alert('请至少选择一个模组包');
+      openNoticeDialog('请至少选择一个模组包');
       return;
     }
     try {
@@ -1311,7 +1334,7 @@ export default function GamePage() {
       setGameData(merged);
     } catch (error) {
       console.error('加载数据失败:', error);
-      alert('加载数据失败: ' + (error as Error).message);
+      openNoticeDialog('加载数据失败: ' + (error as Error).message, '错误');
     } finally {
       setDataLoading(false);
     }
@@ -1329,22 +1352,26 @@ export default function GamePage() {
       return res;
     } catch (error) {
       console.error('游戏指令失败:', error);
-      alert('操作失败: ' + (error as Error).message);
+      openNoticeDialog('操作失败: ' + (error as Error).message, '错误');
       return null;
     }
   };
 
   const startNewGame = async () => {
     if (!storylineId) {
-      alert('请选择剧情线');
+      openNoticeDialog('请选择剧情线');
       return;
     }
     if (!characterName.trim()) {
-      alert('请输入角色姓名');
+      openNoticeDialog('请输入角色姓名');
+      return;
+    }
+    if (comprehension === 0 || boneStructure === 0 || physique === 0) {
+      openNoticeDialog('三维最小值为1，不能为0');
       return;
     }
     if (attributeSum > 100) {
-      alert('三维总点数不能超过 100');
+      openNoticeDialog('三维总点数不能超过 100');
       return;
     }
     resetNarrative();
@@ -1389,11 +1416,11 @@ export default function GamePage() {
 
   const handleCultivation = async (type: ManualType, id: string) => {
     if (!id) {
-      alert('当前没有可修行的功法');
+      openNoticeDialog('当前没有可修行的功法');
       return;
     }
     if (type === 'internal' && view?.save.current_character.internals.equipped !== id) {
-      alert('内功修行仅限当前主修，请先转修内功');
+      openNoticeDialog('内功修行仅限当前主修，请先转修内功');
       return;
     }
     lastCultivationRef.current = { id, type };
@@ -1402,7 +1429,7 @@ export default function GamePage() {
 
   const handleEquipManual = async (id: string, type: ManualType) => {
     if (!id) {
-      alert('请选择要装备的功法');
+      openNoticeDialog('请选择要装备的功法');
       return;
     }
     await runGameAction(() => gameEquipManual(id, type));
@@ -2361,7 +2388,7 @@ export default function GamePage() {
                             key={index}
                             className={`border-b border-gray-100 pb-2 ${
                               record.log_kind === 'effect'
-                                ? 'text-indigo-700'
+                                ? 'text-white'
                                 : record.log_kind === 'value'
                                 ? 'text-emerald-700'
                                 : 'text-gray-700'
@@ -2559,6 +2586,23 @@ export default function GamePage() {
             }
           >
             <p className="text-sm text-gray-700">{confirmDialog.message}</p>
+          </Modal>
+        )}
+        {noticeDialog.open && (
+          <Modal
+            isOpen={noticeDialog.open}
+            onClose={closeNoticeDialog}
+            title={noticeDialog.title || '提示'}
+            contentClassName="!max-w-lg"
+            footer={
+              <div className="flex w-full justify-end">
+                <Button size="sm" onClick={closeNoticeDialog}>
+                  知道了
+                </Button>
+              </div>
+            }
+          >
+            <p className="text-sm text-gray-700">{noticeDialog.message}</p>
           </Modal>
         )}
       </div>

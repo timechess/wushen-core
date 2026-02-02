@@ -333,6 +333,9 @@ impl WushenCore {
         attacker_qi_output_rate: Option<f64>,
         defender_qi_output_rate: Option<f64>,
     ) -> Result<String, String> {
+        const LEVEL_ZERO_ATTACK_SPEED: f64 = 5.0;
+        const LEVEL_ZERO_CHARGE_TIME: f64 = 50.0;
+
         // 解析角色JSON（attacker -> side_a, defender -> side_b）
         let mut side_a_panel = parse_character_panel(attacker_json)?;
         let mut side_b_panel = parse_character_panel(defender_json)?;
@@ -400,7 +403,9 @@ impl WushenCore {
                 .as_ref()
                 .and_then(|id| side_a_panel.get_internal_level_exp(id))
             {
-                if let Some(realm) = internal.realm_at_level(level) {
+                if level == 0 {
+                    side_a_panel.attack_speed = LEVEL_ZERO_ATTACK_SPEED;
+                } else if let Some(realm) = internal.realm_at_level(level) {
                     side_a_panel.qi_quality = realm.qi_quality;
                     side_a_panel.attack_speed = realm.attack_speed;
                     side_a_panel.qi_recovery_rate = realm.qi_recovery_rate;
@@ -430,7 +435,9 @@ impl WushenCore {
                 .as_ref()
                 .and_then(|id| side_a_panel.get_attack_skill_level_exp(id))
             {
-                if let Some(realm) = skill.realm_at_level(level) {
+                if level == 0 {
+                    side_a_panel.charge_time = LEVEL_ZERO_CHARGE_TIME;
+                } else if let Some(realm) = skill.realm_at_level(level) {
                     side_a_panel.power = realm.power;
                     side_a_panel.charge_time = realm.charge_time;
                 }
@@ -455,7 +462,9 @@ impl WushenCore {
                 .as_ref()
                 .and_then(|id| side_b_panel.get_internal_level_exp(id))
             {
-                if let Some(realm) = internal.realm_at_level(level) {
+                if level == 0 {
+                    side_b_panel.attack_speed = LEVEL_ZERO_ATTACK_SPEED;
+                } else if let Some(realm) = internal.realm_at_level(level) {
                     side_b_panel.qi_quality = realm.qi_quality;
                     side_b_panel.attack_speed = realm.attack_speed;
                     side_b_panel.qi_recovery_rate = realm.qi_recovery_rate;
@@ -484,7 +493,9 @@ impl WushenCore {
                 .as_ref()
                 .and_then(|id| side_b_panel.get_attack_skill_level_exp(id))
             {
-                if let Some(realm) = skill.realm_at_level(level) {
+                if level == 0 {
+                    side_b_panel.charge_time = LEVEL_ZERO_CHARGE_TIME;
+                } else if let Some(realm) = skill.realm_at_level(level) {
                     side_b_panel.power = realm.power;
                     side_b_panel.charge_time = realm.charge_time;
                 }
