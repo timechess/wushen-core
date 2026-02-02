@@ -7,7 +7,7 @@ use crate::effect::{
     trigger::Trigger,
     condition::{CultivationContext, BattleContext},
     entry::Entry,
-    effect::Effect,
+    effect::{Effect, Operation, AttributeTarget},
     modifier::AttributeModifier,
     formula::{FormulaCalculator, CultivationFormulaContext, BattleFormulaContext},
 };
@@ -218,7 +218,7 @@ impl EntryExecutor {
     /// 所有计算都基于提供的原始面板值
     fn calculate_modifier_cultivation(
         effect: &Effect,
-        _original_panel: &CharacterPanel,
+        original_panel: &CharacterPanel,
         formula_context: &CultivationFormulaContext,
     ) -> Option<AttributeModifier> {
         match effect {
@@ -245,12 +245,20 @@ impl EntryExecutor {
                         }
                     }
                 };
-                
+
+                let adjusted_value = match effect {
+                    Effect::ModifyPercentage { target, operation, .. } => {
+                        let current_value = Self::get_panel_value(original_panel, *target);
+                        match operation {
+                            Operation::Multiply => calculated_value,
+                            _ => current_value * calculated_value,
+                        }
+                    }
+                    _ => calculated_value,
+                };
+
                 // 创建修改器（不应用）
-                AttributeModifier::from_effect_with_value(
-                    effect,
-                    calculated_value,
-                )
+                AttributeModifier::from_effect_with_value(effect, adjusted_value)
             }
             Effect::ExtraAttack { .. } => {
                 // 额外攻击需要特殊处理，不在这里修改面板
@@ -264,7 +272,7 @@ impl EntryExecutor {
     /// 所有计算都基于提供的原始面板值
     fn calculate_modifier_battle(
         effect: &Effect,
-        _original_panel: &CharacterPanel,
+        original_panel: &CharacterPanel,
         formula_context: &BattleFormulaContext,
     ) -> Option<AttributeModifier> {
         match effect {
@@ -291,17 +299,48 @@ impl EntryExecutor {
                         }
                     }
                 };
-                
+
+                let adjusted_value = match effect {
+                    Effect::ModifyPercentage { target, operation, .. } => {
+                        let current_value = Self::get_panel_value(original_panel, *target);
+                        match operation {
+                            Operation::Multiply => calculated_value,
+                            _ => current_value * calculated_value,
+                        }
+                    }
+                    _ => calculated_value,
+                };
+
                 // 创建修改器（不应用）
-                AttributeModifier::from_effect_with_value(
-                    effect,
-                    calculated_value,
-                )
+                AttributeModifier::from_effect_with_value(effect, adjusted_value)
             }
             Effect::ExtraAttack { .. } => {
                 // 额外攻击需要特殊处理，不在这里修改面板
                 None
             }
+        }
+    }
+
+    fn get_panel_value(panel: &CharacterPanel, target: AttributeTarget) -> f64 {
+        match target {
+            AttributeTarget::Comprehension => panel.three_d.comprehension as f64,
+            AttributeTarget::BoneStructure => panel.three_d.bone_structure as f64,
+            AttributeTarget::Physique => panel.three_d.physique as f64,
+            AttributeTarget::MaxHp => panel.max_hp,
+            AttributeTarget::Hp => panel.hp,
+            AttributeTarget::MaxQi => panel.max_qi,
+            AttributeTarget::Qi => panel.qi,
+            AttributeTarget::BaseAttack => panel.base_attack,
+            AttributeTarget::BaseDefense => panel.base_defense,
+            AttributeTarget::MaxQiOutputRate => panel.max_qi_output_rate,
+            AttributeTarget::QiOutputRate => panel.qi_output_rate,
+            AttributeTarget::AttackSpeed => panel.attack_speed,
+            AttributeTarget::QiRecoveryRate => panel.qi_recovery_rate,
+            AttributeTarget::ChargeTime => panel.charge_time,
+            AttributeTarget::DamageBonus => panel.damage_bonus,
+            AttributeTarget::DamageReduction => panel.damage_reduction,
+            AttributeTarget::MaxDamageReduction => panel.max_damage_reduction,
+            _ => 0.0,
         }
     }
     

@@ -256,14 +256,27 @@ impl Effect {
         match self {
             Effect::ModifyAttribute { target, value, operation, target_panel, battle_record_template, is_temporary: _, .. } 
             | Effect::ModifyPercentage { target, value, operation, target_panel, battle_record_template, is_temporary: _, .. } => {
+                let is_percentage = matches!(self, Effect::ModifyPercentage { .. });
                 // 格式化值字符串
                 let value_str = match value {
-                    FormulaValue::Fixed(v) => format!("{:.1}", v),
+                    FormulaValue::Fixed(v) => {
+                        if is_percentage {
+                            format!("{:.1}%", v * 100.0)
+                        } else {
+                            format!("{:.1}", v)
+                        }
+                    }
                     FormulaValue::Formula(f) => {
                         // 如果有公式上下文，尝试计算公式值
                         if let Some(ctx) = formula_context {
                             match super::formula::FormulaCalculator::evaluate_battle(f, ctx) {
-                                Ok(v) => format!("{:.1}", v),
+                                Ok(v) => {
+                                    if is_percentage {
+                                        format!("{:.1}%", v * 100.0)
+                                    } else {
+                                        format!("{:.1}", v)
+                                    }
+                                }
                                 Err(_) => f.clone(), // 如果计算失败，使用原始公式字符串
                             }
                         } else {

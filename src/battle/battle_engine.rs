@@ -7,7 +7,7 @@ use crate::effect::{
     trigger::Trigger,
     condition::{BattleContext, AttackResult},
     formula::{FormulaCalculator, BattleFormulaContext},
-    effect::{Effect, PanelTarget, FormulaValue},
+    effect::{Effect, PanelTarget, FormulaValue, AttributeTarget, Operation},
 };
 use super::{
     battle_panel::BattlePanel,
@@ -537,19 +537,36 @@ impl BattleEngine {
                     PanelTarget::Own => source_side,
                     PanelTarget::Opponent => source_side.opposite(),
                 };
+
+                let mut apply_to_panel = |panel: &mut BattlePanel| {
+                    let adjusted_value = match effect {
+                        Effect::ModifyPercentage { .. } => {
+                            let current_value = Self::get_battle_panel_value(panel, *target);
+                            match operation {
+                                Operation::Multiply => calculated_value,
+                                _ => current_value * calculated_value,
+                            }
+                        }
+                        _ => calculated_value,
+                    };
+                    panel.apply_modifier_with_limit(target, adjusted_value, operation, *can_exceed_limit);
+                };
                 
                 // 根据是否临时效果，决定修改目标
                 if *is_temporary {
                     // 临时效果：只修改临时面板
                     if let Some(temp) = self.get_temp_panel_mut_by_side(target_side) {
-                        temp.apply_modifier_with_limit(target, calculated_value, operation, *can_exceed_limit);
+                        apply_to_panel(temp);
                     }
                 } else {
                     // 永久效果：修改战斗面板
-                    self.get_panel_mut(target_side).apply_modifier_with_limit(target, calculated_value, operation, *can_exceed_limit);
+                    {
+                        let panel = self.get_panel_mut(target_side);
+                        apply_to_panel(panel);
+                    }
                     // 如果临时面板存在，也同时修改
                     if let Some(temp) = self.get_temp_panel_mut_by_side(target_side) {
-                        temp.apply_modifier_with_limit(target, calculated_value, operation, *can_exceed_limit);
+                        apply_to_panel(temp);
                     }
                 }
                 
@@ -567,6 +584,26 @@ impl BattleEngine {
                 // 额外攻击
                 self.handle_extra_attack(output, source_side, source_id, battle_result);
             }
+        }
+    }
+
+    fn get_battle_panel_value(panel: &BattlePanel, target: AttributeTarget) -> f64 {
+        match target {
+            AttributeTarget::Hp => panel.hp,
+            AttributeTarget::MaxHp => panel.max_hp,
+            AttributeTarget::Qi => panel.qi,
+            AttributeTarget::MaxQi => panel.max_qi,
+            AttributeTarget::BaseAttack => panel.base_attack,
+            AttributeTarget::BaseDefense => panel.base_defense,
+            AttributeTarget::DamageBonus => panel.damage_bonus,
+            AttributeTarget::DamageReduction => panel.damage_reduction,
+            AttributeTarget::MaxDamageReduction => panel.max_damage_reduction,
+            AttributeTarget::AttackSpeed => panel.attack_speed,
+            AttributeTarget::QiRecoveryRate => panel.qi_recovery_rate,
+            AttributeTarget::ChargeTime => panel.charge_time,
+            AttributeTarget::MaxQiOutputRate => panel.max_qi_output_rate,
+            AttributeTarget::QiOutputRate => panel.qi_output_rate,
+            _ => 0.0,
         }
     }
     
