@@ -31,6 +31,9 @@ pub fn apply_rewards(
                 }
                 panel.traits.push(id.clone());
             }
+            Reward::StartTraitPool { .. } => {
+                // 开局特性池奖励由上层处理，这里不影响角色面板
+            }
             Reward::Internal { id } => {
                 if let Some(manager) = manual_manager {
                     if panel.has_internal(id) {
@@ -68,13 +71,16 @@ pub fn apply_rewards(
                 let manager = manual_manager.ok_or_else(|| "未提供 ManualManager，无法发放随机功法奖励".to_string())?;
                 let mut remaining = *count;
                 while remaining > 0 {
-                    let candidate = draw_random_manual(
+                    let candidate = match draw_random_manual(
                         manager,
                         panel,
                         *manual_kind,
                         *rarity,
                         manual_type.as_deref(),
-                    )?;
+                    ) {
+                        Ok(candidate) => candidate,
+                        Err(_) => break,
+                    };
 
                     match candidate {
                         ManualCandidate::Internal(id) => {
@@ -298,6 +304,83 @@ fn draw_random_manual(
 
     let idx = random_index(pool.len());
     Ok(pool.swap_remove(idx))
+}
+
+pub fn count_available_manuals(
+    manager: &ManualManager,
+    panel: &CharacterPanel,
+    manual_kind: ManualKind,
+    rarity: Option<u32>,
+    manual_type: Option<&str>,
+) -> usize {
+    let mut count = 0;
+
+    match manual_kind {
+        ManualKind::Internal => {
+            for manual in manager.all_internals() {
+                let id = &manual.manual.id;
+                if panel.has_internal(id) {
+                    continue;
+                }
+                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                    count += 1;
+                }
+            }
+        }
+        ManualKind::AttackSkill => {
+            for manual in manager.all_attack_skills() {
+                let id = &manual.manual.id;
+                if panel.has_attack_skill(id) {
+                    continue;
+                }
+                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                    count += 1;
+                }
+            }
+        }
+        ManualKind::DefenseSkill => {
+            for manual in manager.all_defense_skills() {
+                let id = &manual.manual.id;
+                if panel.has_defense_skill(id) {
+                    continue;
+                }
+                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                    count += 1;
+                }
+            }
+        }
+        ManualKind::Any => {
+            for manual in manager.all_internals() {
+                let id = &manual.manual.id;
+                if panel.has_internal(id) {
+                    continue;
+                }
+                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                    count += 1;
+                }
+            }
+            for manual in manager.all_attack_skills() {
+                let id = &manual.manual.id;
+                if panel.has_attack_skill(id) {
+                    continue;
+                }
+                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                    count += 1;
+                }
+            }
+            for manual in manager.all_defense_skills() {
+                let id = &manual.manual.id;
+                if panel.has_defense_skill(id) {
+                    continue;
+                }
+                if matches_filters(rarity, manual_type, manual.manual.rarity.level(), &manual.manual.manual_type) {
+                    count += 1;
+                }
+            }
+        }
+    }
+
+    count
 }
 
 fn try_add_manual(

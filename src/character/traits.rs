@@ -12,6 +12,9 @@ pub struct Trait {
     pub name: String,
     /// 描述
     pub description: String,
+    /// 是否加入开局特性池
+    #[serde(default)]
+    pub in_start_pool: bool,
     /// 词条列表
     pub entries: Vec<Entry>,
 }

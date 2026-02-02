@@ -6,12 +6,12 @@ export default function Home() {
         <section className="surface-card p-8 mb-10 overflow-hidden">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <div className="panel-kicker">武神核心系统</div>
+              <div className="panel-kicker">武神系统</div>
               <h1 className="text-4xl md:text-5xl font-semibold text-gray-900 reveal-text glow-text">
-                武神工作台
+                工作台
               </h1>
               <p className="text-gray-600 mt-3 max-w-xl reveal-text reveal-delay-1">
-                这里将游戏体验与 Mod 编辑彻底分离：一个是江湖战斗与剧情推进，另一个是内容锻造与数据调试。
+                自定义你的剧情与数值体验
               </p>
             </div>
             <div className="flex items-center gap-2 text-xs">
@@ -19,7 +19,7 @@ export default function Home() {
                 Mod 编辑
               </span>
               <span className="px-3 py-1 rounded-full border border-[var(--app-border)] bg-[var(--app-surface-soft)] text-gray-700">
-                实际游戏
+                体验游戏
               </span>
             </div>
           </div>
@@ -39,6 +39,13 @@ export default function Home() {
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">开始/继续游戏</span>
+                <span className="text-sm">→</span>
+              </a>
+              <a
+                href="/game/guide"
+                className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
+              >
+                <span className="font-medium">游戏说明</span>
                 <span className="text-sm">→</span>
               </a>
               <a
@@ -77,6 +84,13 @@ export default function Home() {
                 className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
               >
                 <span className="font-medium">内容编辑中心</span>
+                <span className="text-sm">→</span>
+              </a>
+              <a
+                href="/editor/mod-guide"
+                className="flex items-center justify-between rounded-lg border border-[var(--app-border)] px-4 py-3 hover:border-[var(--app-accent)] hover:bg-[var(--app-accent-soft)] transition-colors"
+              >
+                <span className="font-medium">Mod 制作说明</span>
                 <span className="text-sm">→</span>
               </a>
               <a

@@ -188,6 +188,8 @@ export function applyRewards(
           next = { ...next, traits: [...next.traits, reward.id] };
         }
         break;
+      case 'start_trait_pool':
+        break;
       case 'internal': {
         const manual = pools.internals.find((item) => item.id === reward.id);
         if (manual) {

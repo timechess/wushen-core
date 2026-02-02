@@ -34,6 +34,18 @@ impl TraitManager {
     pub fn all_traits(&self) -> Vec<&Trait> {
         self.traits.values().collect()
     }
+
+    /// 获取开局特性池的特性 ID 列表
+    pub fn start_pool_ids(&self) -> Vec<String> {
+        let mut ids: Vec<String> = self
+            .traits
+            .values()
+            .filter(|trait_| trait_.in_start_pool)
+            .map(|trait_| trait_.id.clone())
+            .collect();
+        ids.sort();
+        ids
+    }
     
     /// 根据 ID 列表获取特性
     pub fn get_traits_by_ids(&self, ids: &[String]) -> Vec<&Trait> {

@@ -4,6 +4,7 @@ export interface Trait {
   id: string;
   name: string;
   description: string;
+  in_start_pool?: boolean;
   entries: Entry[];
 }
 

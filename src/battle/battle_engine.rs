@@ -25,6 +25,13 @@ pub struct BattleEngine {
     side_a_panel: BattlePanel,
     /// Side B 战斗面板
     side_b_panel: BattlePanel,
+
+    // ========== 攻击武技原始蓄力时间 ==========
+
+    /// Side A 攻击武技原始蓄力时间
+    side_a_base_charge_time: f64,
+    /// Side B 攻击武技原始蓄力时间
+    side_b_base_charge_time: f64,
     
     // ========== 基础面板快照（用于重算永久效果） ==========
     
@@ -95,6 +102,9 @@ impl BattleEngine {
     ) -> Self {
         let side_a_panel = BattlePanel::from_character_panel(side_a);
         let side_b_panel = BattlePanel::from_character_panel(side_b);
+
+        let side_a_base_charge_time = side_a_panel.charge_time;
+        let side_b_base_charge_time = side_b_panel.charge_time;
         
         // 初始化行动条
         let action_bar = ActionBar::new(
@@ -111,6 +121,8 @@ impl BattleEngine {
         Self {
             side_a_panel,
             side_b_panel,
+            side_a_base_charge_time,
+            side_b_base_charge_time,
             // side_a_base,
             // side_b_base,
             last_side_a_panel,
@@ -222,6 +234,9 @@ impl BattleEngine {
         self.round += 1;
         self.current_attacker = Some(attacker);
         let defender = attacker.opposite();
+
+        // 缓存攻击者当前蓄力时间，便于攻击后重置
+        self.cache_base_charge_time(attacker);
         
         // 从战斗面板复制创建临时面板
         self.attacker_temp = Some(self.get_panel(attacker).clone());
@@ -370,6 +385,9 @@ impl BattleEngine {
             &context,
         );
         self.apply_effects(effects, attacker, Some(&calculation_result));
+
+        // 攻击后重置蓄力时间
+        self.reset_charge_time_after_attack(attacker);
         
         // 检查是否有人死亡
         if self.check_battle_end() {
@@ -871,6 +889,31 @@ impl BattleEngine {
         } else {
             // 否则使用战斗面板
             self.get_panel(side).clone()
+        }
+    }
+
+    /// 攻击后重置蓄力时间为攻击武技原始值
+    fn reset_charge_time_after_attack(&mut self, side: Side) {
+        let base_charge_time = match side {
+            Side::A => self.side_a_base_charge_time,
+            Side::B => self.side_b_base_charge_time,
+        };
+        let reset_value = base_charge_time.max(100.0);
+
+        if let Some(temp) = self.get_temp_panel_mut_by_side(side) {
+            temp.charge_time = reset_value;
+        }
+
+        let panel = self.get_panel_mut(side);
+        panel.charge_time = reset_value;
+    }
+
+    /// 缓存攻击者当前蓄力时间作为本次攻击的原始值
+    fn cache_base_charge_time(&mut self, side: Side) {
+        let current_charge_time = self.get_panel(side).charge_time;
+        match side {
+            Side::A => self.side_a_base_charge_time = current_charge_time,
+            Side::B => self.side_b_base_charge_time = current_charge_time,
         }
     }
     

@@ -389,6 +389,7 @@ fn wrap_character_as_save(character: Value, id_fallback: &str) -> Value {
         "current_character": character,
         "storyline_progress": null,
         "active_adventure_id": null,
+        "start_trait_pool": [],
         "completed_characters": [],
         "rng_state": 0,
     })
@@ -422,6 +423,9 @@ fn normalize_save_value(mut value: Value, id_fallback: &str) -> Value {
     }
     if !obj.contains_key("active_adventure_id") {
         obj.insert("active_adventure_id".to_string(), Value::Null);
+    }
+    if !obj.contains_key("start_trait_pool") {
+        obj.insert("start_trait_pool".to_string(), Value::Array(vec![]));
     }
     if !obj.contains_key("completed_characters") {
         obj.insert("completed_characters".to_string(), Value::Array(vec![]));

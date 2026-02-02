@@ -20,6 +20,7 @@ interface RewardEditorProps {
 const REWARD_TYPE_OPTIONS = [
   { value: 'attribute', label: '属性奖励' },
   { value: 'trait', label: '特性奖励' },
+  { value: 'start_trait_pool', label: '加入开局特性池' },
   { value: 'internal', label: '内功奖励' },
   { value: 'attack_skill', label: '攻击武技奖励' },
   { value: 'defense_skill', label: '防御武技奖励' },
@@ -147,6 +148,18 @@ export default function RewardEditor({ rewards, onChange }: RewardEditorProps) {
         return (
           <SearchableSelect
             label="特性"
+            options={[{ value: '', label: '(未选择)' }].concat(
+              traits.map((t) => ({ value: t.id, label: t.name }))
+            )}
+            value={reward.id}
+            onChange={(value) => updateReward(index, { ...reward, id: value })}
+            placeholder="搜索特性..."
+          />
+        );
+      case 'start_trait_pool':
+        return (
+          <SearchableSelect
+            label="开局特性"
             options={[{ value: '', label: '(未选择)' }].concat(
               traits.map((t) => ({ value: t.id, label: t.name }))
             )}
@@ -290,6 +303,8 @@ function createDefaultRewardByType(type: Reward['type']): Reward {
   switch (type) {
     case 'trait':
       return { type: 'trait', id: '' };
+    case 'start_trait_pool':
+      return { type: 'start_trait_pool', id: '' };
     case 'internal':
       return { type: 'internal', id: '' };
     case 'attack_skill':

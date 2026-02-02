@@ -19,6 +19,8 @@ pub struct SaveGame {
     pub storyline_progress: Option<StorylineProgress>,
     #[serde(default)]
     pub active_adventure_id: Option<String>,
+    #[serde(default)]
+    pub start_trait_pool: Vec<String>,
     pub completed_characters: Vec<CharacterState>,
     #[serde(default)]
     pub rng_state: u64,

@@ -27,7 +27,6 @@ export default function Navbar() {
     { href: '/mods', label: '模组包' },
     { href: '/mods/order', label: '排序' },
     { href: '/editor', label: '内容编辑' },
-    { href: '/character', label: '敌人' },
     { href: '/battle', label: '战斗测试' },
     { href: '/cultivation', label: '修行测试' },
   ];

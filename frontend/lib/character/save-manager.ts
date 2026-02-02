@@ -21,6 +21,7 @@ function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
       current_character: current,
       storyline_progress: save.storyline_progress ?? null,
       active_adventure_id: save.active_adventure_id ?? null,
+      start_trait_pool: Array.isArray(save.start_trait_pool) ? save.start_trait_pool : [],
       completed_characters: Array.isArray(save.completed_characters) ? save.completed_characters : [],
       rng_state: save.rng_state ?? 0,
     };
@@ -36,6 +37,7 @@ function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
     current_character: character,
     storyline_progress: null,
     active_adventure_id: null,
+    start_trait_pool: [],
     completed_characters: [],
     rng_state: 0,
   };
@@ -115,6 +117,7 @@ export async function saveGame(save: SaveGame): Promise<void> {
     current_character: save.current_character,
     storyline_progress: save.storyline_progress ?? null,
     active_adventure_id: save.active_adventure_id ?? null,
+    start_trait_pool: save.start_trait_pool ?? [],
     completed_characters: save.completed_characters ?? [],
     rng_state: save.rng_state ?? 0,
   };
@@ -129,6 +132,7 @@ export async function saveCharacter(character: Character): Promise<void> {
     current_character: character,
     storyline_progress: null,
     active_adventure_id: null,
+    start_trait_pool: [],
     completed_characters: [],
   };
   await saveGame(save);

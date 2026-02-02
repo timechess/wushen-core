@@ -79,6 +79,19 @@ export default function EditorHubPage() {
             打开导入/导出
           </a>
         </div>
+
+        <div className="mt-6 surface-panel p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-2">Mod 制作说明</h2>
+          <p className="text-sm text-gray-600 mb-4">
+            详细说明模组结构、字段含义与制作流程，适合在开始编辑前阅读。
+          </p>
+          <a
+            href="/editor/mod-guide"
+            className="inline-flex items-center justify-center font-medium rounded-lg transition-all focus:outline-none focus:ring-2 focus:ring-offset-0 focus:ring-[var(--app-ring)] bg-[var(--app-accent)] text-white hover:bg-[var(--app-accent-strong)] shadow-[0_12px_25px_rgba(0,0,0,0.15)] px-4 py-2 text-base"
+          >
+            查看说明
+          </a>
+        </div>
       </div>
     </div>
   );

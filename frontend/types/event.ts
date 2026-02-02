@@ -117,6 +117,7 @@ export type Reward =
       can_exceed_limit?: boolean;
     }
   | { type: 'trait'; id: string }
+  | { type: 'start_trait_pool'; id: string }
   | { type: 'internal'; id: string }
   | { type: 'attack_skill'; id: string }
   | { type: 'defense_skill'; id: string }

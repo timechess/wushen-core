@@ -20,6 +20,7 @@ export default function NewTraitPage() {
     id: '',
     name: '',
     description: '',
+    in_start_pool: false,
     entries: [],
   });
   const [loading, setLoading] = useState(false);
@@ -165,6 +166,20 @@ export default function NewTraitPage() {
                     placeholder="描述这个特性的效果..."
                   />
                 </div>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={trait.in_start_pool ?? false}
+                    onChange={(e) =>
+                      setTrait({
+                        ...trait,
+                        in_start_pool: e.target.checked,
+                      })
+                    }
+                  />
+                  加入开局特性池
+                </label>
               </div>
             </div>
           </div>

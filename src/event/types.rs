@@ -178,6 +178,10 @@ pub enum Reward {
     Trait {
         id: String,
     },
+    /// 将特性加入开局特性池
+    StartTraitPool {
+        id: String,
+    },
     /// 获得内功
     Internal {
         id: String,

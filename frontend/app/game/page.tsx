@@ -199,6 +199,8 @@ export default function GamePage() {
   const lastCultivationRef = useRef<{ id: string; type: ManualType } | null>(null);
   const [manualDetail, setManualDetail] = useState<{ type: ManualType; id: string } | null>(null);
   const [traitDetailId, setTraitDetailId] = useState<string | null>(null);
+  const [startTraitModalOpen, setStartTraitModalOpen] = useState(false);
+  const [startTraitIds, setStartTraitIds] = useState<string[]>([]);
   const prevViewRef = useRef<GameView | null>(null);
   const pendingBattleViewRef = useRef(false);
   const pendingBattleEnemyRef = useRef<EnemyTemplate | null>(null);
@@ -732,6 +734,8 @@ export default function GamePage() {
         }
         case 'trait':
           return { title: '特性', value: resolveTraitName(reward.id) };
+        case 'start_trait_pool':
+          return { title: '开局特性池', value: resolveTraitName(reward.id) };
         case 'internal':
           return { title: '内功', value: resolveManualName('internal', reward.id) };
         case 'attack_skill':
@@ -1224,7 +1228,8 @@ export default function GamePage() {
       return;
     }
     resetNarrative();
-    await runGameAction(() =>
+    setStartTraitModalOpen(false);
+    const res = await runGameAction(() =>
       gameStartNew({
         storylineId,
         characterId: generateCharacterId(),
@@ -1236,6 +1241,11 @@ export default function GamePage() {
         },
       })
     );
+    if (res) {
+      const traits = res.view.save.current_character.traits ?? [];
+      setStartTraitIds(traits);
+      setStartTraitModalOpen(true);
+    }
   };
 
   const resumeSave = async (id: string) => {
@@ -2350,6 +2360,41 @@ export default function GamePage() {
                     </div>
                   );
                 })()}
+              </Modal>
+            )}
+            {startTraitModalOpen && (
+              <Modal
+                isOpen={startTraitModalOpen}
+                onClose={() => setStartTraitModalOpen(false)}
+                title="开局特性"
+                contentClassName="!max-w-xl"
+                footer={
+                  <Button size="sm" onClick={() => setStartTraitModalOpen(false)}>
+                    知道了
+                  </Button>
+                }
+              >
+                <div className="space-y-3 text-sm text-gray-700">
+                  <p>本次开局抽取的特性如下：</p>
+                  {startTraitIds.length === 0 ? (
+                    <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-3 text-gray-500">
+                      暂无特性。
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {startTraitIds.map((id) => (
+                        <button
+                          key={`start-trait-${id}`}
+                          type="button"
+                          className="rounded-full border border-[var(--app-border)] bg-[var(--app-surface-soft)] px-3 py-1 text-xs text-[var(--app-ink)] hover:border-[var(--app-accent)]"
+                          onClick={() => setTraitDetailId(id)}
+                        >
+                          {resolveTraitName(id)}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </Modal>
             )}
           </>

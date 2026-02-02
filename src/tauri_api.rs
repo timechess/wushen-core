@@ -2,6 +2,7 @@
 /// 提供桌面端可调用的API接口
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashSet;
 use crate::character::panel::{CharacterPanel, ThreeDimensional};
 use crate::character::json::{parse_character_panel, serialize_character_panel};
 use crate::cultivation::{Internal, AttackSkill, DefenseSkill};
@@ -27,6 +28,7 @@ use crate::event::{
     parse_adventure_events,
     Reward,
 };
+use crate::event::reward::count_available_manuals;
 use crate::game::{
     AdventureDecisionView,
     AdventureOptionView,
@@ -717,11 +719,16 @@ impl WushenCore {
                 event_id: storyline.start_event_id.clone(),
             }),
             active_adventure_id: None,
+            start_trait_pool: self.trait_manager.start_pool_ids(),
             completed_characters: vec![],
             rng_state: seed_from_time(),
         };
 
         ensure_rng_state(&mut save);
+        let picked_traits = draw_start_traits(&self.trait_manager, &mut save);
+        if !picked_traits.is_empty() {
+            save.current_character.traits = picked_traits;
+        }
         self.apply_game_start_effects(&mut save.current_character)?;
         self.game_runtime = Some(GameRuntime {
             save,
@@ -794,7 +801,7 @@ impl WushenCore {
         attacker_qi_output_rate: Option<f64>,
         defender_qi_output_rate: Option<f64>,
     ) -> Result<GameResponse, String> {
-        let (mut character, rng_state) = {
+        let (mut character, rng_state, mut start_trait_pool) = {
             let runtime = self
                 .game_runtime
                 .as_ref()
@@ -802,7 +809,11 @@ impl WushenCore {
             if runtime.save.current_character.action_points == 0 {
                 return Err("行动点不足".to_string());
             }
-            (runtime.save.current_character.clone(), runtime.save.rng_state)
+            (
+                runtime.save.current_character.clone(),
+                runtime.save.rng_state,
+                runtime.save.start_trait_pool.clone(),
+            )
         };
 
         character.action_points = character.action_points.saturating_sub(1);
@@ -847,11 +858,18 @@ impl WushenCore {
                 }
             }
             AdventureEventContent::Story { text, rewards } => {
-                self.apply_rewards_to_character(&mut character, rewards)?;
+                let panel = character_state_to_panel(&character);
+                let filtered = filter_rewards_for_panel(
+                    &panel,
+                    rewards,
+                    &self.manual_manager,
+                    &start_trait_pool,
+                );
+                self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
                 GameOutcome::Adventure {
                     name: picked.name.clone(),
                     text: Some(text.clone()),
-                    rewards: rewards.clone(),
+                    rewards: filtered,
                     battle_result: None,
                     win: None,
                 }
@@ -865,11 +883,18 @@ impl WushenCore {
                 )?;
                 let win_flag = battle_is_attacker_win(&battle_result);
                 let rewards = if win_flag { &win.rewards } else { &lose.rewards };
-                self.apply_rewards_to_character(&mut character, rewards)?;
+                let panel = character_state_to_panel(&character);
+                let filtered = filter_rewards_for_panel(
+                    &panel,
+                    rewards,
+                    &self.manual_manager,
+                    &start_trait_pool,
+                );
+                self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
                 GameOutcome::Adventure {
                     name: picked.name.clone(),
                     text: Some(text.clone()),
-                    rewards: rewards.clone(),
+                    rewards: filtered,
                     battle_result: Some(battle_result),
                     win: Some(win_flag),
                 }
@@ -882,6 +907,7 @@ impl WushenCore {
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             runtime.save.current_character = character;
+            runtime.save.start_trait_pool = start_trait_pool;
             runtime.save.rng_state = next_rng_state;
             runtime.save.active_adventure_id = active_adventure_id;
         }
@@ -1014,12 +1040,15 @@ impl WushenCore {
             _ => return Err("当前事件不是战斗事件".to_string()),
         };
 
-        let mut character = {
+        let (mut character, mut start_trait_pool) = {
             let runtime = self
                 .game_runtime
                 .as_ref()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
-            runtime.save.current_character.clone()
+            (
+                runtime.save.current_character.clone(),
+                runtime.save.start_trait_pool.clone(),
+            )
         };
 
         let battle_result = self.run_battle(
@@ -1030,7 +1059,14 @@ impl WushenCore {
         )?;
         let win_flag = battle_is_attacker_win(&battle_result);
         let rewards = if win_flag { &win.rewards } else { &lose.rewards };
-        self.apply_rewards_to_character(&mut character, rewards)?;
+        let panel = character_state_to_panel(&character);
+        let filtered = filter_rewards_for_panel(
+            &panel,
+            rewards,
+            &self.manual_manager,
+            &start_trait_pool,
+        );
+        self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
         let next_event_id = if win_flag {
             win.next_event_id.clone()
         } else {
@@ -1042,12 +1078,13 @@ impl WushenCore {
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             runtime.save.current_character = character;
+            runtime.save.start_trait_pool = start_trait_pool;
             Self::advance_to_event(runtime, &storyline, &next_event_id)?;
         }
 
         let outcome = GameOutcome::Story {
             text: Some(text.clone()),
-            rewards: rewards.clone(),
+            rewards: filtered,
             battle_result: Some(battle_result),
             win: Some(win_flag),
         };
@@ -1074,25 +1111,33 @@ impl WushenCore {
         let next_id = next_event_id
             .clone()
             .ok_or_else(|| "剧情事件未指定后续事件".to_string())?;
-        let mut character = {
+        let (mut character, mut start_trait_pool) = {
             let runtime = self
                 .game_runtime
                 .as_ref()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
-            runtime.save.current_character.clone()
+            (runtime.save.current_character.clone(), runtime.save.start_trait_pool.clone())
         };
-        self.apply_rewards_to_character(&mut character, rewards)?;
+        let panel = character_state_to_panel(&character);
+        let filtered = filter_rewards_for_panel(
+            &panel,
+            rewards,
+            &self.manual_manager,
+            &start_trait_pool,
+        );
+        self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
         {
             let runtime = self
                 .game_runtime
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             runtime.save.current_character = character;
+            runtime.save.start_trait_pool = start_trait_pool;
             Self::advance_to_event(runtime, &storyline, &next_id)?;
         }
         let outcome = GameOutcome::Story {
             text: Some(text.clone()),
-            rewards: rewards.clone(),
+            rewards: filtered,
             battle_result: None,
             win: None,
         };
@@ -1105,7 +1150,7 @@ impl WushenCore {
         attacker_qi_output_rate: Option<f64>,
         defender_qi_output_rate: Option<f64>,
     ) -> Result<GameResponse, String> {
-        let (adventure_id, mut character) = {
+        let (adventure_id, mut character, mut start_trait_pool) = {
             let runtime = self
                 .game_runtime
                 .as_ref()
@@ -1115,7 +1160,11 @@ impl WushenCore {
                 .active_adventure_id
                 .clone()
                 .ok_or_else(|| "当前没有可处理的奇遇".to_string())?;
-            (adventure_id, runtime.save.current_character.clone())
+            (
+                adventure_id,
+                runtime.save.current_character.clone(),
+                runtime.save.start_trait_pool.clone(),
+            )
         };
         let event = self
             .event_manager
@@ -1134,8 +1183,14 @@ impl WushenCore {
                 }
                 match &option.result {
                     AdventureOptionResult::Story { text, rewards } => {
-                        self.apply_rewards_to_character(&mut character, rewards)?;
-                        (Some(text.clone()), rewards.clone(), None, None)
+                        let filtered = filter_rewards_for_panel(
+                            &panel,
+                            rewards,
+                            &self.manual_manager,
+                            &start_trait_pool,
+                        );
+                        self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
+                        (Some(text.clone()), filtered, None, None)
                     }
                     AdventureOptionResult::Battle { text, enemy, win, lose } => {
                         let battle_result = self.run_battle(
@@ -1146,8 +1201,14 @@ impl WushenCore {
                         )?;
                         let win_flag = battle_is_attacker_win(&battle_result);
                         let rewards = if win_flag { &win.rewards } else { &lose.rewards };
-                        self.apply_rewards_to_character(&mut character, rewards)?;
-                        (Some(text.clone()), rewards.clone(), Some(battle_result), Some(win_flag))
+                        let filtered = filter_rewards_for_panel(
+                            &panel,
+                            rewards,
+                            &self.manual_manager,
+                            &start_trait_pool,
+                        );
+                        self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
+                        (Some(text.clone()), filtered, Some(battle_result), Some(win_flag))
                     }
                 }
             }
@@ -1160,6 +1221,7 @@ impl WushenCore {
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             runtime.save.current_character = character;
+            runtime.save.start_trait_pool = start_trait_pool;
             runtime.save.active_adventure_id = None;
         }
 
@@ -1270,6 +1332,7 @@ impl WushenCore {
                     event,
                     &panel,
                     &self.manual_manager,
+                    &runtime.save.start_trait_pool,
                 ));
                 phase = GamePhase::Story;
             }
@@ -1334,15 +1397,28 @@ impl WushenCore {
     fn apply_rewards_to_character(
         &self,
         character: &mut CharacterState,
+        start_trait_pool: &mut Vec<String>,
         rewards: &[Reward],
     ) -> Result<(), String> {
         if rewards.is_empty() {
             return Ok(());
         }
+        for reward in rewards {
+            if let Reward::StartTraitPool { id } = reward {
+                if !start_trait_pool.contains(id) {
+                    start_trait_pool.push(id.clone());
+                }
+            }
+        }
         let mut panel = character_state_to_panel(character);
+        let filtered: Vec<Reward> = rewards
+            .iter()
+            .filter(|reward| !matches!(reward, Reward::StartTraitPool { .. }))
+            .cloned()
+            .collect();
         crate::event::apply_rewards(
             &mut panel,
-            rewards,
+            &filtered,
             Some(&self.manual_manager),
             Some(&self.trait_manager),
         )?;
@@ -1419,6 +1495,37 @@ fn ensure_rng_state(save: &mut SaveGame) {
     }
 }
 
+fn draw_start_traits(trait_manager: &TraitManager, save: &mut SaveGame) -> Vec<String> {
+    let mut seen = HashSet::new();
+    let mut pool = Vec::new();
+    for id in &save.start_trait_pool {
+        if trait_manager.get_trait(id).is_none() {
+            continue;
+        }
+        if seen.insert(id) {
+            pool.push(id.clone());
+        }
+    }
+
+    if pool.len() != save.start_trait_pool.len() {
+        save.start_trait_pool = pool.clone();
+    }
+
+    if pool.is_empty() {
+        return Vec::new();
+    }
+
+    let draw_count = 3.min(pool.len());
+    let mut rng = SimpleRng::from_state(save.rng_state);
+    let mut picked = Vec::with_capacity(draw_count);
+    for _ in 0..draw_count {
+        let idx = rng.next_usize(pool.len());
+        picked.push(pool.swap_remove(idx));
+    }
+    save.rng_state = rng.state();
+    picked
+}
+
 fn battle_is_attacker_win(battle: &Value) -> bool {
     battle
         .get("result")
@@ -1438,6 +1545,7 @@ fn build_story_event_view(
     event: &StoryEvent,
     panel: &CharacterPanel,
     manual_manager: &ManualManager,
+    start_trait_pool: &[String],
 ) -> StoryEventView {
     let action_points = event.action_points;
     let content = match &event.content {
@@ -1460,10 +1568,13 @@ fn build_story_event_view(
             text: text.clone(),
             enemy_name: enemy.name.clone(),
         },
-        StoryEventContent::Story { text, rewards, .. } => StoryEventContentView::Story {
-            text: text.clone(),
-            rewards: rewards.clone(),
-        },
+        StoryEventContent::Story { text, rewards, .. } => {
+            let filtered = filter_rewards_for_panel(panel, rewards, manual_manager, start_trait_pool);
+            StoryEventContentView::Story {
+                text: text.clone(),
+                rewards: filtered,
+            }
+        }
         StoryEventContent::End { text } => StoryEventContentView::End { text: text.clone() },
     };
 
@@ -1474,6 +1585,63 @@ fn build_story_event_view(
         action_points,
         content,
     }
+}
+
+fn filter_rewards_for_panel(
+    panel: &CharacterPanel,
+    rewards: &[Reward],
+    manual_manager: &ManualManager,
+    start_trait_pool: &[String],
+) -> Vec<Reward> {
+    let mut filtered = Vec::new();
+
+    for reward in rewards {
+        match reward {
+            Reward::Internal { id } => {
+                if !panel.has_internal(id) {
+                    filtered.push(reward.clone());
+                }
+            }
+            Reward::AttackSkill { id } => {
+                if !panel.has_attack_skill(id) {
+                    filtered.push(reward.clone());
+                }
+            }
+            Reward::DefenseSkill { id } => {
+                if !panel.has_defense_skill(id) {
+                    filtered.push(reward.clone());
+                }
+            }
+            Reward::RandomManual { manual_kind, rarity, manual_type, count } => {
+                let available = count_available_manuals(
+                    manual_manager,
+                    panel,
+                    *manual_kind,
+                    *rarity,
+                    manual_type.as_deref(),
+                );
+                if available == 0 {
+                    continue;
+                }
+                let mut adjusted = reward.clone();
+                let desired = *count;
+                if available < desired as usize {
+                    if let Reward::RandomManual { count, .. } = &mut adjusted {
+                        *count = available as u32;
+                    }
+                }
+                filtered.push(adjusted);
+            }
+            Reward::StartTraitPool { id } => {
+                if !start_trait_pool.contains(id) {
+                    filtered.push(reward.clone());
+                }
+            }
+            _ => filtered.push(reward.clone()),
+        }
+    }
+
+    filtered
 }
 
 fn character_state_to_panel(character: &CharacterState) -> CharacterPanel {
