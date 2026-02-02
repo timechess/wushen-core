@@ -561,6 +561,9 @@ impl WushenCore {
                 build_record_logs(record, &attacker_name, &defender_name);
             records.extend(effect_logs);
             records.extend(value_logs);
+            if matches!(record, BattleRecord::BattleEnd { .. }) {
+                break;
+            }
         }
 
         let battle_result = BattleResultJson {
@@ -2180,14 +2183,6 @@ fn format_battle_record(record: &BattleRecord) -> String {
             } else {
                 details.push("未击破内息防御".to_string());
             }
-
-            details.push(format!(
-                "{}消耗了{:.1}点内息，{}消耗了{:.1}点内息",
-                attacker_name,
-                result.attacker_qi_consumed,
-                defender_name,
-                result.defender_qi_consumed
-            ));
 
             details.join("，")
         }
