@@ -9,6 +9,9 @@
     "devUrl": "http://localhost:3000",
     "frontendDist": "../frontend/out"
   },
+  "bundle": {
+    "active": true
+  },
   "app": {
     "withGlobalTauri": true,
     "windows": [
