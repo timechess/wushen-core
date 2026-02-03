@@ -1419,11 +1419,10 @@ export default function GamePage() {
       openNoticeDialog('当前没有可修行的功法');
       return;
     }
-    if (type === 'internal' && view?.save.current_character.internals.equipped !== id) {
-      openNoticeDialog('内功修行仅限当前主修，请先转修内功');
-      return;
-    }
     lastCultivationRef.current = { id, type };
+    if (type === 'internal' && view?.save.current_character.internals.equipped !== id) {
+      await runGameAction(() => gameEquipManual(id, 'internal'));
+    }
     await runGameAction(() => gameCultivate(id, type));
   };
 
@@ -1559,7 +1558,7 @@ export default function GamePage() {
   const isInGame = Boolean(view);
   const isActionPhase = view?.phase === 'action';
   const equippedInternalId = view?.save.current_character.internals.equipped ?? '';
-  const canCultivateInternal = Boolean(equippedInternalId) && equipInternalId === equippedInternalId;
+  const canCultivateInternal = Boolean(equipInternalId);
   const canCultivateAttack = Boolean(equipAttackSkillId);
   const canCultivateDefense = Boolean(equipDefenseSkillId);
 
@@ -1848,17 +1847,17 @@ export default function GamePage() {
                         onClick={() => handleEquipManual(equipInternalId, 'internal')}
                         disabled={!equipInternalId || equipInternalId === view.save.current_character.internals.equipped}
                       >
-                        {equipInternalId === view.save.current_character.internals.equipped ? '已主修' : '切换主修'}
+                        {equipInternalId === view.save.current_character.internals.equipped ? '已主修' : '转修内功'}
                       </Button>
                       <Button
-                        onClick={() => handleCultivation('internal', equippedInternalId)}
+                        onClick={() => handleCultivation('internal', equipInternalId)}
                         disabled={!isActionPhase || !canCultivateInternal}
                       >
                         修行
                       </Button>
                     </div>
                       <p className="text-xs text-gray-500">
-                        内功修行仅限当前主修，转修后才可修行其他内功。
+                        修行会以当前选择的内功为主修，若不同将自动转修并触发内息亏损。
                       </p>
 
                       <div className="flex items-end gap-2">

@@ -752,12 +752,14 @@ impl WushenCore {
         // 执行修行
         let exp_gain = match manual_type {
             "internal" => {
-                if panel
-                    .current_internal_id
-                    .as_ref()
-                    .map_or(true, |id| id != manual_id)
-                {
-                    panel.current_internal_id = Some(manual_id.to_string());
+                let from_id = panel.current_internal_id.clone();
+                if from_id.as_deref().map_or(true, |id| id != manual_id) {
+                    self.manual_manager.switch_internal(
+                        from_id.as_deref(),
+                        manual_id,
+                        &mut panel,
+                        Some(&mut executor),
+                    )?;
                 }
                 self.manual_manager
                     .cultivate_internal(&mut panel, Some(&mut executor))
@@ -1110,15 +1112,24 @@ impl WushenCore {
         };
 
         let mut panel = character_state_to_panel(&character);
-        let (label, name) = match manual_type.as_str() {
+        let (label, name, switched) = match manual_type.as_str() {
             "internal" => {
-                self.manual_manager.equip_internal(&manual_id, &mut panel)?;
+                let mut executor = self.trait_manager.create_executor(&panel.traits);
+                let from_id = panel.current_internal_id.clone();
+                if from_id.as_deref().map_or(true, |id| id != manual_id) {
+                    self.manual_manager.switch_internal(
+                        from_id.as_deref(),
+                        &manual_id,
+                        &mut panel,
+                        Some(&mut executor),
+                    )?;
+                }
                 let name = self
                     .manual_manager
                     .get_internal(&manual_id)
                     .map(|m| m.manual.name.clone())
                     .unwrap_or_else(|| manual_id.clone());
-                ("内功", name)
+                ("内功", name, true)
             }
             "attack_skill" => {
                 self.manual_manager
@@ -1128,7 +1139,7 @@ impl WushenCore {
                     .get_attack_skill(&manual_id)
                     .map(|m| m.manual.name.clone())
                     .unwrap_or_else(|| manual_id.clone());
-                ("攻击武技", name)
+                ("攻击武技", name, false)
             }
             "defense_skill" => {
                 self.manual_manager
@@ -1138,7 +1149,7 @@ impl WushenCore {
                     .get_defense_skill(&manual_id)
                     .map(|m| m.manual.name.clone())
                     .unwrap_or_else(|| manual_id.clone());
-                ("防御武技", name)
+                ("防御武技", name, false)
             }
             _ => return Err("未知的功法类型".to_string()),
         };
@@ -1153,9 +1164,12 @@ impl WushenCore {
             runtime.save.current_character = character;
         }
 
-        let outcome = GameOutcome::Info {
-            message: format!("已切换{}：{}", label, name),
+        let message = if switched && label == "内功" {
+            format!("已转修{}：{}", label, name)
+        } else {
+            format!("已切换{}：{}", label, name)
         };
+        let outcome = GameOutcome::Info { message };
         self.game_view(Some(outcome))
     }
 
