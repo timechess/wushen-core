@@ -6,3 +6,5 @@
 /src-tauri/node_modules
 .DS_Store
 gen/
+doc/
+.codex/
