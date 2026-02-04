@@ -1,18 +1,25 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { CharacterPanel, OwnedManual } from '@/types/character';
-import { CultivationResult } from '@/types/game';
-import { ManualType, ManualListItem } from '@/types/manual';
-import { TraitListItem } from '@/types/trait';
-import { initCore, loadTraits, loadInternals, loadAttackSkills, loadDefenseSkills, executeCultivation } from '@/lib/tauri/wushen-core';
-import Button from '@/components/ui/Button';
-import Select from '@/components/ui/Select';
-import Input from '@/components/ui/Input';
-import ActivePackStatus from '@/components/mod/ActivePackStatus';
-import RequireActivePack from '@/components/mod/RequireActivePack';
-import { useActivePack } from '@/lib/mods/active-pack';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { CharacterPanel, OwnedManual } from "@/types/character";
+import { CultivationResult } from "@/types/game";
+import { ManualType, ManualListItem } from "@/types/manual";
+import { TraitListItem } from "@/types/trait";
+import {
+  initCore,
+  loadTraits,
+  loadInternals,
+  loadAttackSkills,
+  loadDefenseSkills,
+  executeCultivation,
+} from "@/lib/tauri/wushen-core";
+import Button from "@/components/ui/Button";
+import Select from "@/components/ui/Select";
+import Input from "@/components/ui/Input";
+import ActivePackStatus from "@/components/mod/ActivePackStatus";
+import RequireActivePack from "@/components/mod/RequireActivePack";
+import { useActivePack } from "@/lib/mods/active-pack";
 import {
   getAttackSkill,
   getDefenseSkill,
@@ -22,7 +29,7 @@ import {
   listDefenseSkills,
   listInternals,
   listTraits,
-} from '@/lib/tauri/commands';
+} from "@/lib/tauri/commands";
 
 export default function CultivationPage() {
   const router = useRouter();
@@ -38,7 +45,7 @@ export default function CultivationPage() {
     defense_skill: 0,
   });
   const [tempCharacter, setTempCharacter] = useState<CharacterPanel>({
-    name: '临时角色',
+    name: "临时角色",
     three_d: {
       comprehension: 10,
       bone_structure: 10,
@@ -61,10 +68,13 @@ export default function CultivationPage() {
     qi: undefined,
     martial_arts_attainment: undefined,
   });
-  const [manualType, setManualType] = useState<ManualType>('internal');
-  const [availableManuals, setAvailableManuals] = useState<ManualListItem[]>([]);
-  const [selectedManualId, setSelectedManualId] = useState<string>('');
-  const [cultivationResult, setCultivationResult] = useState<CultivationResult | null>(null);
+  const [manualType, setManualType] = useState<ManualType>("internal");
+  const [availableManuals, setAvailableManuals] = useState<ManualListItem[]>(
+    [],
+  );
+  const [selectedManualId, setSelectedManualId] = useState<string>("");
+  const [cultivationResult, setCultivationResult] =
+    useState<CultivationResult | null>(null);
   const [cultivating, setCultivating] = useState(false);
   const { activePack } = useActivePack();
 
@@ -82,14 +92,17 @@ export default function CultivationPage() {
   }, [activePack]);
 
   useEffect(() => {
-    const field = `${manualType}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const field = `${manualType}s` as
+      | "internals"
+      | "attack_skills"
+      | "defense_skills";
     const ownedIds = new Set(tempCharacter[field].owned.map((m) => m.id));
     const source =
-      manualType === 'internal'
+      manualType === "internal"
         ? internals
-        : manualType === 'attack_skill'
-        ? attackSkills
-        : defenseSkills;
+        : manualType === "attack_skill"
+          ? attackSkills
+          : defenseSkills;
 
     const ownedManuals = source.filter((m) => ownedIds.has(m.id));
     setAvailableManuals(ownedManuals);
@@ -100,24 +113,25 @@ export default function CultivationPage() {
     } else if (ownedManuals.length > 0) {
       setSelectedManualId(ownedManuals[0].id);
     } else {
-      setSelectedManualId('');
+      setSelectedManualId("");
     }
   }, [tempCharacter, manualType, internals, attackSkills, defenseSkills]);
 
   const initialize = async (packId: string) => {
     try {
       setLoading(true);
-      
+
       // 初始化核心引擎
       await initCore();
-      
+
       // 加载数据
-      const [traitsJson, internalsJson, attackJson, defenseJson] = await Promise.all([
-        listTraits(packId),
-        listInternals(packId),
-        listAttackSkills(packId),
-        listDefenseSkills(packId),
-      ]);
+      const [traitsJson, internalsJson, attackJson, defenseJson] =
+        await Promise.all([
+          listTraits(packId),
+          listInternals(packId),
+          listAttackSkills(packId),
+          listDefenseSkills(packId),
+        ]);
 
       setTraits(traitsJson);
       setInternals(internalsJson);
@@ -127,9 +141,11 @@ export default function CultivationPage() {
       // 加载到核心引擎
       if (traitsJson.length > 0) {
         const traitsData = await Promise.all(
-          traitsJson.map((t: { id: string }) => getTrait(packId, t.id))
+          traitsJson.map((t: { id: string }) => getTrait(packId, t.id)),
         );
-        const validTraitsData = traitsData.filter((t): t is NonNullable<typeof t> => t !== null);
+        const validTraitsData = traitsData.filter(
+          (t): t is NonNullable<typeof t> => t !== null,
+        );
         if (validTraitsData.length > 0) {
           await loadTraits(JSON.stringify({ traits: validTraitsData }));
         }
@@ -137,9 +153,11 @@ export default function CultivationPage() {
 
       if (internalsJson.length > 0) {
         const internalsData = await Promise.all(
-          internalsJson.map((t: { id: string }) => getInternal(packId, t.id))
+          internalsJson.map((t: { id: string }) => getInternal(packId, t.id)),
         );
-        const validInternalsData = internalsData.filter((i): i is NonNullable<typeof i> => i !== null);
+        const validInternalsData = internalsData.filter(
+          (i): i is NonNullable<typeof i> => i !== null,
+        );
         // 转换数据格式：manual_type -> type，移除前端特有字段
         const transformedInternals = validInternalsData.map((internal: any) => {
           const { level, current_exp, manual_type, ...rest } = internal;
@@ -149,15 +167,19 @@ export default function CultivationPage() {
           };
         });
         if (transformedInternals.length > 0) {
-          await loadInternals(JSON.stringify({ internals: transformedInternals }));
+          await loadInternals(
+            JSON.stringify({ internals: transformedInternals }),
+          );
         }
       }
 
       if (attackJson.length > 0) {
         const attackData = await Promise.all(
-          attackJson.map((t: { id: string }) => getAttackSkill(packId, t.id))
+          attackJson.map((t: { id: string }) => getAttackSkill(packId, t.id)),
         );
-        const validAttackData = attackData.filter((a): a is NonNullable<typeof a> => a !== null);
+        const validAttackData = attackData.filter(
+          (a): a is NonNullable<typeof a> => a !== null,
+        );
         // 转换数据格式：manual_type -> type，移除前端特有字段
         const transformedAttackSkills = validAttackData.map((skill: any) => {
           const { level, current_exp, manual_type, ...rest } = skill;
@@ -167,15 +189,19 @@ export default function CultivationPage() {
           };
         });
         if (transformedAttackSkills.length > 0) {
-          await loadAttackSkills(JSON.stringify({ attack_skills: transformedAttackSkills }));
+          await loadAttackSkills(
+            JSON.stringify({ attack_skills: transformedAttackSkills }),
+          );
         }
       }
 
       if (defenseJson.length > 0) {
         const defenseData = await Promise.all(
-          defenseJson.map((t: { id: string }) => getDefenseSkill(packId, t.id))
+          defenseJson.map((t: { id: string }) => getDefenseSkill(packId, t.id)),
         );
-        const validDefenseData = defenseData.filter((d): d is NonNullable<typeof d> => d !== null);
+        const validDefenseData = defenseData.filter(
+          (d): d is NonNullable<typeof d> => d !== null,
+        );
         // 转换数据格式：manual_type -> type，移除前端特有字段
         const transformedDefenseSkills = validDefenseData.map((skill: any) => {
           const { level, current_exp, manual_type, ...rest } = skill;
@@ -185,28 +211,33 @@ export default function CultivationPage() {
           };
         });
         if (transformedDefenseSkills.length > 0) {
-          await loadDefenseSkills(JSON.stringify({ defense_skills: transformedDefenseSkills }));
+          await loadDefenseSkills(
+            JSON.stringify({ defense_skills: transformedDefenseSkills }),
+          );
         }
       }
 
       setCoreReady(true);
     } catch (error) {
-      console.error('初始化失败:', error);
-      alert('初始化失败: ' + (error as Error).message);
+      console.error("初始化失败:", error);
+      alert("初始化失败: " + (error as Error).message);
     } finally {
       setLoading(false);
     }
   };
 
   const handleAddManual = (
-    type: 'internal' | 'attack_skill' | 'defense_skill',
-    manualId: string
+    type: "internal" | "attack_skill" | "defense_skill",
+    manualId: string,
   ) => {
-    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const field = `${type}s` as
+      | "internals"
+      | "attack_skills"
+      | "defense_skills";
     const currentManuals = tempCharacter[field];
 
     if (currentManuals.owned.find((m) => m.id === manualId)) {
-      alert('该功法已添加');
+      alert("该功法已添加");
       return;
     }
 
@@ -229,13 +260,17 @@ export default function CultivationPage() {
   };
 
   const handleRemoveManual = (
-    type: 'internal' | 'attack_skill' | 'defense_skill',
-    manualId: string
+    type: "internal" | "attack_skill" | "defense_skill",
+    manualId: string,
   ) => {
-    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const field = `${type}s` as
+      | "internals"
+      | "attack_skills"
+      | "defense_skills";
     const currentManuals = tempCharacter[field];
     const nextOwned = currentManuals.owned.filter((m) => m.id !== manualId);
-    const nextEquipped = currentManuals.equipped === manualId ? null : currentManuals.equipped;
+    const nextEquipped =
+      currentManuals.equipped === manualId ? null : currentManuals.equipped;
 
     setTempCharacter({
       ...tempCharacter,
@@ -247,10 +282,13 @@ export default function CultivationPage() {
   };
 
   const handleEquipManual = (
-    type: 'internal' | 'attack_skill' | 'defense_skill',
-    manualId: string | null
+    type: "internal" | "attack_skill" | "defense_skill",
+    manualId: string | null,
   ) => {
-    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const field = `${type}s` as
+      | "internals"
+      | "attack_skills"
+      | "defense_skills";
     const currentManuals = tempCharacter[field];
     setTempCharacter({
       ...tempCharacter,
@@ -262,18 +300,21 @@ export default function CultivationPage() {
   };
 
   const handleUpdateManualLevel = (
-    type: 'internal' | 'attack_skill' | 'defense_skill',
+    type: "internal" | "attack_skill" | "defense_skill",
     manualId: string,
     level: number,
-    exp: number
+    exp: number,
   ) => {
-    const field = `${type}s` as 'internals' | 'attack_skills' | 'defense_skills';
+    const field = `${type}s` as
+      | "internals"
+      | "attack_skills"
+      | "defense_skills";
     const currentManuals = tempCharacter[field];
     setTempCharacter({
       ...tempCharacter,
       [field]: {
         owned: currentManuals.owned.map((m) =>
-          m.id === manualId ? { ...m, level, exp } : m
+          m.id === manualId ? { ...m, level, exp } : m,
         ),
         equipped: currentManuals.equipped,
       },
@@ -297,13 +338,13 @@ export default function CultivationPage() {
 
   const renderManualSection = (
     title: string,
-    type: 'internal' | 'attack_skill' | 'defense_skill',
+    type: "internal" | "attack_skill" | "defense_skill",
     manuals: ManualListItem[],
     ownedManuals: OwnedManual[],
-    equippedId: string | null
+    equippedId: string | null,
   ) => {
     const availableManuals = manuals.filter(
-      (m) => !ownedManuals.find((om) => om.id === m.id)
+      (m) => !ownedManuals.find((om) => om.id === m.id),
     );
 
     return (
@@ -319,7 +360,7 @@ export default function CultivationPage() {
             <Select
               key={`${type}-${selectKeys[type]}`}
               options={[
-                { value: '', label: '请选择...' },
+                { value: "", label: "请选择..." },
                 ...availableManuals.map((m) => ({
                   value: m.id,
                   label: m.name,
@@ -343,7 +384,10 @@ export default function CultivationPage() {
             </label>
             <div className="space-y-2">
               {ownedManuals.map((manual) => (
-                <div key={manual.id} className="p-3 border border-gray-300 rounded-lg">
+                <div
+                  key={manual.id}
+                  className="p-3 border border-gray-300 rounded-lg"
+                >
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-3">
                       <input
@@ -354,7 +398,8 @@ export default function CultivationPage() {
                         className="w-4 h-4"
                       />
                       <span className="text-sm font-medium">
-                        {manuals.find((m) => m.id === manual.id)?.name ?? '未命名功法'}
+                        {manuals.find((m) => m.id === manual.id)?.name ??
+                          "未命名功法"}
                       </span>
                     </div>
                     <Button
@@ -375,7 +420,7 @@ export default function CultivationPage() {
                           type,
                           manual.id,
                           parseInt(e.target.value) || 0,
-                          manual.exp
+                          manual.exp,
                         )
                       }
                     />
@@ -388,7 +433,7 @@ export default function CultivationPage() {
                           type,
                           manual.id,
                           manual.level,
-                          parseInt(e.target.value) || 0
+                          parseInt(e.target.value) || 0,
                         )
                       }
                     />
@@ -402,10 +447,9 @@ export default function CultivationPage() {
     );
   };
 
-
   const handleCultivate = async () => {
     if (!selectedManualId) {
-      alert('请选择功法');
+      alert("请选择功法");
       return;
     }
 
@@ -414,14 +458,20 @@ export default function CultivationPage() {
       setCultivationResult(null);
 
       // 执行修行
-      const result = await executeCultivation(tempCharacter, selectedManualId, manualType);
+      const result = await executeCultivation(
+        tempCharacter,
+        selectedManualId,
+        manualType,
+      );
       setCultivationResult(result);
 
-      const updatedCharacterPanel: CharacterPanel = JSON.parse(result.updated_character);
+      const updatedCharacterPanel: CharacterPanel = JSON.parse(
+        result.updated_character,
+      );
       setTempCharacter(updatedCharacterPanel);
     } catch (error) {
-      console.error('修行失败:', error);
-      alert('修行失败: ' + (error as Error).message);
+      console.error("修行失败:", error);
+      alert("修行失败: " + (error as Error).message);
     } finally {
       setCultivating(false);
     }
@@ -430,16 +480,21 @@ export default function CultivationPage() {
   const getCurrentManualInfo = () => {
     if (!selectedManualId) return null;
 
-    const field = `${manualType}s` as 'internals' | 'attack_skills' | 'defense_skills';
-    const manual = tempCharacter[field].owned.find((m) => m.id === selectedManualId);
+    const field = `${manualType}s` as
+      | "internals"
+      | "attack_skills"
+      | "defense_skills";
+    const manual = tempCharacter[field].owned.find(
+      (m) => m.id === selectedManualId,
+    );
     return manual;
   };
 
   const currentManual = getCurrentManualInfo();
   const manualTypeNames = {
-    internal: '内功',
-    attack_skill: '攻击武技',
-    defense_skill: '防御武技',
+    internal: "内功",
+    attack_skill: "攻击武技",
+    defense_skill: "防御武技",
   };
 
   const content = loading ? (
@@ -454,10 +509,7 @@ export default function CultivationPage() {
     <div className="container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold">修行系统</h1>
-        <Button
-          variant="secondary"
-          onClick={() => router.push('/')}
-        >
+        <Button variant="secondary" onClick={() => router.push("/")}>
           返回主页
         </Button>
       </div>
@@ -471,39 +523,44 @@ export default function CultivationPage() {
             <Input
               label="角色名称"
               value={tempCharacter.name}
-              onChange={(e) => setTempCharacter({ ...tempCharacter, name: e.target.value })}
+              onChange={(e) =>
+                setTempCharacter({ ...tempCharacter, name: e.target.value })
+              }
               placeholder="临时角色"
             />
             <Input
               label="武学素养"
               type="number"
-              value={tempCharacter.martial_arts_attainment ?? ''}
+              value={tempCharacter.martial_arts_attainment ?? ""}
               onChange={(e) =>
                 setTempCharacter({
                   ...tempCharacter,
-                  martial_arts_attainment: e.target.value === '' ? undefined : Number(e.target.value),
+                  martial_arts_attainment:
+                    e.target.value === "" ? undefined : Number(e.target.value),
                 })
               }
             />
             <Input
               label="最大内息量"
               type="number"
-              value={tempCharacter.max_qi ?? ''}
+              value={tempCharacter.max_qi ?? ""}
               onChange={(e) =>
                 setTempCharacter({
                   ...tempCharacter,
-                  max_qi: e.target.value === '' ? undefined : Number(e.target.value),
+                  max_qi:
+                    e.target.value === "" ? undefined : Number(e.target.value),
                 })
               }
             />
             <Input
               label="当前内息量"
               type="number"
-              value={tempCharacter.qi ?? ''}
+              value={tempCharacter.qi ?? ""}
               onChange={(e) =>
                 setTempCharacter({
                   ...tempCharacter,
-                  qi: e.target.value === '' ? undefined : Number(e.target.value),
+                  qi:
+                    e.target.value === "" ? undefined : Number(e.target.value),
                 })
               }
             />
@@ -583,25 +640,25 @@ export default function CultivationPage() {
         </div>
 
         {renderManualSection(
-          '内功',
-          'internal',
+          "内功",
+          "internal",
           internals,
           tempCharacter.internals.owned,
-          tempCharacter.internals.equipped
+          tempCharacter.internals.equipped,
         )}
         {renderManualSection(
-          '攻击武技',
-          'attack_skill',
+          "攻击武技",
+          "attack_skill",
           attackSkills,
           tempCharacter.attack_skills.owned,
-          tempCharacter.attack_skills.equipped
+          tempCharacter.attack_skills.equipped,
         )}
         {renderManualSection(
-          '防御武技',
-          'defense_skill',
+          "防御武技",
+          "defense_skill",
           defenseSkills,
           tempCharacter.defense_skills.owned,
-          tempCharacter.defense_skills.equipped
+          tempCharacter.defense_skills.equipped,
         )}
 
         <div className="bg-white rounded-lg shadow p-6">
@@ -613,14 +670,14 @@ export default function CultivationPage() {
               </label>
               <Select
                 options={[
-                  { value: 'internal', label: '内功' },
-                  { value: 'attack_skill', label: '攻击武技' },
-                  { value: 'defense_skill', label: '防御武技' },
+                  { value: "internal", label: "内功" },
+                  { value: "attack_skill", label: "攻击武技" },
+                  { value: "defense_skill", label: "防御武技" },
                 ]}
                 value={manualType}
                 onChange={(e) => {
                   setManualType(e.target.value as ManualType);
-                  setSelectedManualId('');
+                  setSelectedManualId("");
                 }}
               />
             </div>
@@ -629,7 +686,9 @@ export default function CultivationPage() {
                 {manualTypeNames[manualType]}
               </label>
               {availableManuals.length === 0 ? (
-                <p className="text-sm text-gray-500">临时角色未拥有任何{manualTypeNames[manualType]}</p>
+                <p className="text-sm text-gray-500">
+                  临时角色未拥有任何{manualTypeNames[manualType]}
+                </p>
               ) : (
                 <Select
                   options={availableManuals.map((m) => ({
@@ -645,15 +704,21 @@ export default function CultivationPage() {
 
           {currentManual && (
             <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h3 className="text-sm font-medium text-gray-700 mb-2">当前状态</h3>
+              <h3 className="text-sm font-medium text-gray-700 mb-2">
+                当前状态
+              </h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <span className="text-sm text-gray-600">等级: </span>
-                  <span className="text-sm font-medium">{currentManual.level}</span>
+                  <span className="text-sm font-medium">
+                    {currentManual.level}
+                  </span>
                 </div>
                 <div>
                   <span className="text-sm text-gray-600">经验: </span>
-                  <span className="text-sm font-medium">{currentManual.exp.toFixed(2)}</span>
+                  <span className="text-sm font-medium">
+                    {currentManual.exp.toFixed(2)}
+                  </span>
                 </div>
               </div>
             </div>
@@ -668,9 +733,11 @@ export default function CultivationPage() {
                 (!!currentManual && currentManual.level >= 5)
               }
             >
-              {cultivating ? '修行中...' :
-               currentManual && currentManual.level >= 5 ? '已满级' :
-               '开始修行'}
+              {cultivating
+                ? "修行中..."
+                : currentManual && currentManual.level >= 5
+                  ? "已满级"
+                  : "开始修行"}
             </Button>
           </div>
         </div>
@@ -690,7 +757,8 @@ export default function CultivationPage() {
                 <div>
                   <span className="text-sm text-gray-600">等级变化: </span>
                   <span className="text-sm font-medium">
-                    {cultivationResult.old_level} → {cultivationResult.new_level}
+                    {cultivationResult.old_level} →{" "}
+                    {cultivationResult.new_level}
                   </span>
                 </div>
               </div>

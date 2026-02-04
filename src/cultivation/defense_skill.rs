@@ -40,7 +40,7 @@ impl DefenseSkill {
 
     /// 获取当前境界（如果已修行）
     pub fn current_realm(&self) -> Option<&DefenseSkillRealm> {
-        if self.manual.level > 0 && self.manual.level <= 5 {
+        if (1..=5).contains(&self.manual.level) {
             Some(&self.realms[(self.manual.level - 1) as usize])
         } else {
             None
@@ -49,7 +49,7 @@ impl DefenseSkill {
 
     /// 获取指定等级的境界
     pub fn realm_at_level(&self, level: u32) -> Option<&DefenseSkillRealm> {
-        if level >= 1 && level <= 5 {
+        if (1..=5).contains(&level) {
             Some(&self.realms[(level - 1) as usize])
         } else {
             None

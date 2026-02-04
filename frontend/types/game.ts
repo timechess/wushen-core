@@ -43,14 +43,14 @@ export interface PanelDelta {
 
 export interface BattleRecord {
   text: string;
-  log_kind: 'effect' | 'value';
+  log_kind: "effect" | "value";
   attacker_panel_delta?: PanelDelta;
   defender_panel_delta?: PanelDelta;
   is_terminal?: boolean;
 }
 
 export interface BattleResult {
-  result: 'attacker_win' | 'defender_win' | 'draw';
+  result: "attacker_win" | "defender_win" | "draw";
   records: BattleRecord[];
   attacker_panel: BattlePanel;
   defender_panel: BattlePanel;
@@ -66,12 +66,12 @@ export interface CultivationResult {
   updated_character: string; // JSON字符串
 }
 
-export type GamePhase = 'action' | 'story' | 'adventure_decision' | 'completed';
+export type GamePhase = "action" | "story" | "adventure_decision" | "completed";
 
 export interface StoryEventSummary {
   id: string;
   name: string;
-  node_type: 'start' | 'middle' | 'end';
+  node_type: "start" | "middle" | "end";
 }
 
 export interface StoryOptionView {
@@ -82,29 +82,29 @@ export interface StoryOptionView {
 
 export type StoryEventContentView =
   | {
-      type: 'decision';
+      type: "decision";
       text: string;
       options: StoryOptionView[];
     }
   | {
-      type: 'battle';
+      type: "battle";
       text: string;
       enemy_name: string;
     }
   | {
-      type: 'story';
+      type: "story";
       text: string;
-      rewards: import('./event').Reward[];
+      rewards: import("./event").Reward[];
     }
   | {
-      type: 'end';
+      type: "end";
       text: string;
     };
 
 export interface StoryEventView {
   id: string;
   name: string;
-  node_type: 'start' | 'middle' | 'end';
+  node_type: "start" | "middle" | "end";
   action_points: number;
   content: StoryEventContentView;
 }
@@ -122,7 +122,7 @@ export interface AdventureDecisionView {
 }
 
 export interface GameView {
-  save: import('./save').SaveGame;
+  save: import("./save").SaveGame;
   storyline?: { id: string; name: string } | null;
   phase: GamePhase;
   current_event?: StoryEventSummary | null;
@@ -132,11 +132,11 @@ export interface GameView {
 
 export type GameOutcome =
   | {
-      type: 'info';
+      type: "info";
       message: string;
     }
   | {
-      type: 'cultivation';
+      type: "cultivation";
       exp_gain: number;
       old_level: number;
       old_exp: number;
@@ -145,17 +145,17 @@ export type GameOutcome =
       leveled_up: boolean;
     }
   | {
-      type: 'story';
+      type: "story";
       text?: string | null;
-      rewards: import('./event').Reward[];
+      rewards: import("./event").Reward[];
       battle_result?: BattleResult | null;
       win?: boolean | null;
     }
   | {
-      type: 'adventure';
+      type: "adventure";
       name: string;
       text?: string | null;
-      rewards: import('./event').Reward[];
+      rewards: import("./event").Reward[];
       battle_result?: BattleResult | null;
       win?: boolean | null;
     };

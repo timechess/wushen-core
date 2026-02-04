@@ -8,7 +8,7 @@ pub struct Rarity(pub u32);
 
 impl Rarity {
     pub fn new(level: u32) -> Result<Self, String> {
-        if level < 1 || level > 5 {
+        if !(1..=5).contains(&level) {
             return Err(format!("稀有度必须在 1-5 之间，当前值: {}", level));
         }
         Ok(Self(level))

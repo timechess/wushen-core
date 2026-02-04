@@ -311,10 +311,8 @@ fn validate_story_options(
         return Err(format!("事件 {} 至少需要一个无条件选项", event.id));
     }
 
-    if event.node_type == StoryNodeType::Start {
-        if options.iter().any(|o| o.condition.is_some()) {
-            return Err(format!("起始事件 {} 的选项不应包含条件", event.id));
-        }
+    if event.node_type == StoryNodeType::Start && options.iter().any(|o| o.condition.is_some()) {
+        return Err(format!("起始事件 {} 的选项不应包含条件", event.id));
     }
 
     // 保留 storyline 参数用于未来扩展（避免未使用警告）

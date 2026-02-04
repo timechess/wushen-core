@@ -1,3 +1,5 @@
+#![allow(clippy::module_inception)]
+
 pub mod battle_record_template;
 pub mod condition;
 pub mod effect;

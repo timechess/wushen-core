@@ -71,45 +71,45 @@ impl FormulaCalculator {
     /// 将角色面板添加到上下文
     fn add_panel_to_context(ctx: &mut Context, prefix: &str, panel: &CharacterPanel) {
         // 基本三维
-        ctx.var(&format!("{}_x", prefix), panel.x())
-            .var(&format!("{}_y", prefix), panel.y())
-            .var(&format!("{}_z", prefix), panel.z())
-            .var(&format!("{}_a", prefix), panel.a())
-            .var(&format!("{}_comprehension", prefix), panel.x())
-            .var(&format!("{}_bone_structure", prefix), panel.y())
-            .var(&format!("{}_physique", prefix), panel.z())
-            .var(&format!("{}_martial_arts_attainment", prefix), panel.a())
+        ctx.var(format!("{}_x", prefix), panel.x())
+            .var(format!("{}_y", prefix), panel.y())
+            .var(format!("{}_z", prefix), panel.z())
+            .var(format!("{}_a", prefix), panel.a())
+            .var(format!("{}_comprehension", prefix), panel.x())
+            .var(format!("{}_bone_structure", prefix), panel.y())
+            .var(format!("{}_physique", prefix), panel.z())
+            .var(format!("{}_martial_arts_attainment", prefix), panel.a())
             // 战斗属性
-            .var(&format!("{}_max_hp", prefix), panel.max_hp)
-            .var(&format!("{}_hp", prefix), panel.hp)
-            .var(&format!("{}_max_qi", prefix), panel.max_qi)
-            .var(&format!("{}_qi", prefix), panel.qi)
-            .var(&format!("{}_base_attack", prefix), panel.base_attack)
-            .var(&format!("{}_base_defense", prefix), panel.base_defense)
+            .var(format!("{}_max_hp", prefix), panel.max_hp)
+            .var(format!("{}_hp", prefix), panel.hp)
+            .var(format!("{}_max_qi", prefix), panel.max_qi)
+            .var(format!("{}_qi", prefix), panel.qi)
+            .var(format!("{}_base_attack", prefix), panel.base_attack)
+            .var(format!("{}_base_defense", prefix), panel.base_defense)
             .var(
-                &format!("{}_max_qi_output_rate", prefix),
+                format!("{}_max_qi_output_rate", prefix),
                 panel.max_qi_output_rate,
             )
-            .var(&format!("{}_qi_output_rate", prefix), panel.qi_output_rate)
-            .var(&format!("{}_damage_bonus", prefix), panel.damage_bonus)
+            .var(format!("{}_qi_output_rate", prefix), panel.qi_output_rate)
+            .var(format!("{}_damage_bonus", prefix), panel.damage_bonus)
             .var(
-                &format!("{}_damage_reduction", prefix),
+                format!("{}_damage_reduction", prefix),
                 panel.damage_reduction,
             )
             .var(
-                &format!("{}_max_damage_reduction", prefix),
+                format!("{}_max_damage_reduction", prefix),
                 panel.max_damage_reduction,
             )
             // 武技相关属性
-            .var(&format!("{}_power", prefix), panel.power)
-            .var(&format!("{}_defense_power", prefix), panel.defense_power)
-            .var(&format!("{}_qi_quality", prefix), panel.qi_quality)
-            .var(&format!("{}_attack_speed", prefix), panel.attack_speed)
+            .var(format!("{}_power", prefix), panel.power)
+            .var(format!("{}_defense_power", prefix), panel.defense_power)
+            .var(format!("{}_qi_quality", prefix), panel.qi_quality)
+            .var(format!("{}_attack_speed", prefix), panel.attack_speed)
             .var(
-                &format!("{}_qi_recovery_rate", prefix),
+                format!("{}_qi_recovery_rate", prefix),
                 panel.qi_recovery_rate,
             )
-            .var(&format!("{}_charge_time", prefix), panel.charge_time);
+            .var(format!("{}_charge_time", prefix), panel.charge_time);
     }
 
     /// 使用上下文计算公式

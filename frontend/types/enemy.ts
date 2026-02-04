@@ -1,4 +1,4 @@
-import type { EnemyTemplate } from '@/types/event';
+import type { EnemyTemplate } from "@/types/event";
 
 export interface Enemy extends EnemyTemplate {
   id: string;

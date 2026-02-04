@@ -1,20 +1,23 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { DefenseSkill, DefenseSkillRealm } from '@/types/manual';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import RealmEditor from '@/components/editor/RealmEditor';
-import { validateCultivationFormula, formatFormulaPreview } from '@/lib/utils/formulaValidator';
-import RequireActivePack from '@/components/mod/RequireActivePack';
-import { useActivePack } from '@/lib/mods/active-pack';
-import { getDefenseSkill, saveDefenseSkill } from '@/lib/tauri/commands';
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { DefenseSkill, DefenseSkillRealm } from "@/types/manual";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import RealmEditor from "@/components/editor/RealmEditor";
+import {
+  validateCultivationFormula,
+  formatFormulaPreview,
+} from "@/lib/utils/formulaValidator";
+import RequireActivePack from "@/components/mod/RequireActivePack";
+import { useActivePack } from "@/lib/mods/active-pack";
+import { getDefenseSkill, saveDefenseSkill } from "@/lib/tauri/commands";
 
 export default function EditDefenseSkillPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const skillId = searchParams.get('id') ?? '';
+  const skillId = searchParams.get("id") ?? "";
 
   const [skill, setSkill] = useState<DefenseSkill | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,15 +41,15 @@ export default function EditDefenseSkillPage() {
       if (!activePack) return;
       const skillData = await getDefenseSkill(activePack.id, skillId);
       if (!skillData) {
-        alert('防御武技不存在');
-        router.push('/editor/defense-skills');
+        alert("防御武技不存在");
+        router.push("/editor/defense-skills");
         return;
       }
       setSkill(skillData);
     } catch (error) {
-      console.error('加载防御武技失败:', error);
-      alert('加载防御武技失败');
-      router.push('/editor/defense-skills');
+      console.error("加载防御武技失败:", error);
+      alert("加载防御武技失败");
+      router.push("/editor/defense-skills");
     } finally {
       setLoading(false);
     }
@@ -56,43 +59,45 @@ export default function EditDefenseSkillPage() {
     if (!skill) return;
 
     if (!skill.name) {
-      alert('请填写名称');
+      alert("请填写名称");
       return;
     }
 
     if (!skill.manual_type) {
-      alert('请填写功法类型');
+      alert("请填写功法类型");
       return;
     }
 
     if (!skill.cultivation_formula) {
-      alert('请填写修行公式');
+      alert("请填写修行公式");
       return;
     }
 
-    const formulaValidation = validateCultivationFormula(skill.cultivation_formula);
+    const formulaValidation = validateCultivationFormula(
+      skill.cultivation_formula,
+    );
     if (!formulaValidation.valid) {
       alert(`修行公式无效: ${formulaValidation.error}`);
       return;
     }
 
     if (skill.realms.length !== 5) {
-      alert('防御武技必须有5个境界');
+      alert("防御武技必须有5个境界");
       return;
     }
 
     try {
       setSaving(true);
       if (!activePack) {
-        throw new Error('请先选择模组包');
+        throw new Error("请先选择模组包");
       }
       await saveDefenseSkill(activePack.id, skill);
 
-      await new Promise(resolve => setTimeout(resolve, 200));
-      router.push('/editor/defense-skills');
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      router.push("/editor/defense-skills");
     } catch (error) {
-      console.error('保存防御武技失败:', error);
-      alert(`保存失败: ${error instanceof Error ? error.message : '未知错误'}`);
+      console.error("保存防御武技失败:", error);
+      alert(`保存失败: ${error instanceof Error ? error.message : "未知错误"}`);
     } finally {
       setSaving(false);
     }
@@ -112,13 +117,15 @@ export default function EditDefenseSkillPage() {
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">编辑防御武技</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                编辑防御武技
+              </h1>
               <p className="text-gray-600">编辑防御武技并配置境界</p>
             </div>
             <div className="flex gap-3">
               <Button
                 variant="secondary"
-                onClick={() => router.push('/editor/defense-skills')}
+                onClick={() => router.push("/editor/defense-skills")}
                 disabled={saving}
               >
                 取消
@@ -127,7 +134,7 @@ export default function EditDefenseSkillPage() {
                 onClick={handleSave}
                 disabled={saving || !skill.name || skill.realms.length !== 5}
               >
-                {saving ? '保存中...' : '保存'}
+                {saving ? "保存中..." : "保存"}
               </Button>
             </div>
           </div>
@@ -152,7 +159,9 @@ export default function EditDefenseSkillPage() {
                   <textarea
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
                     value={skill.description}
-                    onChange={(e) => setSkill({ ...skill, description: e.target.value })}
+                    onChange={(e) =>
+                      setSkill({ ...skill, description: e.target.value })
+                    }
                     rows={4}
                   />
                 </div>
@@ -161,7 +170,10 @@ export default function EditDefenseSkillPage() {
                   type="number"
                   value={skill.rarity.toString()}
                   onChange={(e) =>
-                    setSkill({ ...skill, rarity: parseInt(e.target.value) || 1 })
+                    setSkill({
+                      ...skill,
+                      rarity: parseInt(e.target.value) || 1,
+                    })
                   }
                 />
                 <Input
@@ -181,7 +193,7 @@ export default function EditDefenseSkillPage() {
                     onChange={(e) => {
                       const formula = e.target.value;
                       setSkill({ ...skill, cultivation_formula: formula });
-                      
+
                       // 实时验证公式
                       if (formula.trim()) {
                         const validation = validateCultivationFormula(formula);
@@ -189,7 +201,7 @@ export default function EditDefenseSkillPage() {
                           setFormulaError(null);
                           setFormulaPreview(formatFormulaPreview(formula));
                         } else {
-                          setFormulaError(validation.error || '公式无效');
+                          setFormulaError(validation.error || "公式无效");
                           setFormulaPreview(null);
                         }
                       } else {
@@ -203,15 +215,20 @@ export default function EditDefenseSkillPage() {
                     <p className="mt-1 text-sm text-red-600">{formulaError}</p>
                   )}
                   {formulaPreview && (
-                    <p className="mt-2 text-xs text-gray-500">{formulaPreview}</p>
+                    <p className="mt-2 text-xs text-gray-500">
+                      {formulaPreview}
+                    </p>
                   )}
                 </div>
                 <Input
                   label="防御日志模板（支持 {self} 和 {opponent} 占位符）"
                   type="text"
-                  value={skill.log_template || ''}
+                  value={skill.log_template || ""}
                   onChange={(e) =>
-                    setSkill({ ...skill, log_template: e.target.value || undefined })
+                    setSkill({
+                      ...skill,
+                      log_template: e.target.value || undefined,
+                    })
                   }
                   placeholder="例如：{self}使用基础格挡防御{opponent}的攻击"
                 />
@@ -223,7 +240,9 @@ export default function EditDefenseSkillPage() {
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex items-center justify-between mb-6 pb-4 border-b border-gray-200">
                 <div>
-                  <h2 className="text-xl font-semibold text-gray-900">境界列表</h2>
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    境界列表
+                  </h2>
                   <p className="text-sm text-gray-600 mt-1">
                     配置防御武技的5个境界（必须包含5个境界）
                   </p>
@@ -240,11 +259,24 @@ export default function EditDefenseSkillPage() {
                         defense_power: 0,
                         entries: [],
                       };
-                      setSkill({ ...skill, realms: [...skill.realms, newRealm] });
+                      setSkill({
+                        ...skill,
+                        realms: [...skill.realms, newRealm],
+                      });
                     }}
                   >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    <svg
+                      className="w-4 h-4 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
                     </svg>
                     添加境界
                   </Button>
@@ -253,11 +285,25 @@ export default function EditDefenseSkillPage() {
 
               {skill.realms.length === 0 ? (
                 <div className="text-center py-12">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg
+                    className="mx-auto h-12 w-12 text-gray-400"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                    />
                   </svg>
-                  <h3 className="mt-2 text-sm font-medium text-gray-900">暂无境界</h3>
-                  <p className="mt-1 text-sm text-gray-500">点击上方按钮添加境界（需要5个境界）</p>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">
+                    暂无境界
+                  </h3>
+                  <p className="mt-1 text-sm text-gray-500">
+                    点击上方按钮添加境界（需要5个境界）
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -266,7 +312,9 @@ export default function EditDefenseSkillPage() {
                       key={index}
                       realm={realm}
                       realmType="defense_skill"
-                      previousRealm={index > 0 ? skill.realms[index - 1] : undefined}
+                      previousRealm={
+                        index > 0 ? skill.realms[index - 1] : undefined
+                      }
                       onChange={(newRealm) => {
                         const newRealms = [...skill.realms];
                         newRealms[index] = newRealm as DefenseSkillRealm;
@@ -275,11 +323,15 @@ export default function EditDefenseSkillPage() {
                       onDelete={
                         skill.realms.length > 1
                           ? () => {
-                              const newRealms = skill.realms.filter((_, i) => i !== index);
-                              const renumberedRealms = newRealms.map((r, i) => ({
-                                ...r,
-                                level: i + 1,
-                              }));
+                              const newRealms = skill.realms.filter(
+                                (_, i) => i !== index,
+                              );
+                              const renumberedRealms = newRealms.map(
+                                (r, i) => ({
+                                  ...r,
+                                  level: i + 1,
+                                }),
+                              );
                               setSkill({ ...skill, realms: renumberedRealms });
                             }
                           : undefined

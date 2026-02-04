@@ -24,6 +24,7 @@ pub struct InternalRealm {
 }
 
 impl InternalRealm {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         level: u32,
         exp_required: f64,

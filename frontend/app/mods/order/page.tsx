@@ -1,16 +1,19 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
-import Button from '@/components/ui/Button';
-import Modal from '@/components/ui/Modal';
-import type { ModPackMetadata } from '@/types/mod';
-import { getPackOrder, listPacks, setPackOrder } from '@/lib/tauri/commands';
+import { useEffect, useMemo, useState } from "react";
+import Button from "@/components/ui/Button";
+import Modal from "@/components/ui/Modal";
+import type { ModPackMetadata } from "@/types/mod";
+import { getPackOrder, listPacks, setPackOrder } from "@/lib/tauri/commands";
 
 export default function ModOrderPage() {
   const [packs, setPacks] = useState<ModPackMetadata[]>([]);
   const [order, setOrder] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
-  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
+  const [notice, setNotice] = useState<{
+    title: string;
+    message: string;
+  } | null>(null);
 
   useEffect(() => {
     loadData();
@@ -26,8 +29,11 @@ export default function ModOrderPage() {
       setPacks(packsData);
       setOrder(orderData ?? []);
     } catch (error) {
-      console.error('加载模组排序失败:', error);
-      setNotice({ title: '加载失败', message: '加载模组排序失败，请稍后重试。' });
+      console.error("加载模组排序失败:", error);
+      setNotice({
+        title: "加载失败",
+        message: "加载模组排序失败，请稍后重试。",
+      });
     } finally {
       setLoading(false);
     }
@@ -60,10 +66,10 @@ export default function ModOrderPage() {
     try {
       setLoading(true);
       await setPackOrder(order);
-      setNotice({ title: '保存成功', message: '模组排序已保存。' });
+      setNotice({ title: "保存成功", message: "模组排序已保存。" });
     } catch (error) {
-      console.error('保存排序失败:', error);
-      setNotice({ title: '保存失败', message: '保存排序失败，请稍后重试。' });
+      console.error("保存排序失败:", error);
+      setNotice({ title: "保存失败", message: "保存排序失败，请稍后重试。" });
     } finally {
       setLoading(false);
     }
@@ -75,10 +81,17 @@ export default function ModOrderPage() {
         <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2">模组排序</h1>
-              <p className="text-gray-600">优先级越高的包越靠上，冲突时将覆盖后面的内容。</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">
+                模组排序
+              </h1>
+              <p className="text-gray-600">
+                优先级越高的包越靠上，冲突时将覆盖后面的内容。
+              </p>
             </div>
-            <a href="/mods" className="text-sm font-medium text-blue-600 hover:text-blue-700">
+            <a
+              href="/mods"
+              className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
               返回模组包管理 →
             </a>
           </div>
@@ -86,24 +99,47 @@ export default function ModOrderPage() {
 
         <div className="bg-white rounded-xl shadow-lg p-6">
           {orderedPacks.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">没有可排序的模组包</div>
+            <div className="text-center py-12 text-gray-500">
+              没有可排序的模组包
+            </div>
           ) : (
             <div className="space-y-3">
               {orderedPacks.map((pack, index) => (
-                <div key={pack.id} className="border border-gray-200 rounded-lg p-4 flex items-center justify-between">
+                <div
+                  key={pack.id}
+                  className="border border-gray-200 rounded-lg p-4 flex items-center justify-between"
+                >
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-500">#{index + 1}</span>
-                      <h3 className="text-base font-semibold text-gray-900">{pack.name}</h3>
-                      <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">v{pack.version}</span>
+                      <span className="text-sm text-gray-500">
+                        #{index + 1}
+                      </span>
+                      <h3 className="text-base font-semibold text-gray-900">
+                        {pack.name}
+                      </h3>
+                      <span className="text-xs font-medium text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                        v{pack.version}
+                      </span>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">{pack.author ? `作者：${pack.author}` : '未填写作者'}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {pack.author ? `作者：${pack.author}` : "未填写作者"}
+                    </p>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button size="sm" variant="secondary" onClick={() => movePack(index, -1)} disabled={loading || index === 0}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => movePack(index, -1)}
+                      disabled={loading || index === 0}
+                    >
                       上移
                     </Button>
-                    <Button size="sm" variant="secondary" onClick={() => movePack(index, 1)} disabled={loading || index === orderedPacks.length - 1}>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => movePack(index, 1)}
+                      disabled={loading || index === orderedPacks.length - 1}
+                    >
                       下移
                     </Button>
                   </div>
@@ -116,7 +152,10 @@ export default function ModOrderPage() {
             <Button variant="secondary" onClick={loadData} disabled={loading}>
               重新加载
             </Button>
-            <Button onClick={handleSave} disabled={loading || orderedPacks.length === 0}>
+            <Button
+              onClick={handleSave}
+              disabled={loading || orderedPacks.length === 0}
+            >
               保存排序
             </Button>
           </div>
@@ -126,7 +165,7 @@ export default function ModOrderPage() {
       <Modal
         isOpen={Boolean(notice)}
         onClose={() => setNotice(null)}
-        title={notice?.title ?? '提示'}
+        title={notice?.title ?? "提示"}
         footer={
           <div className="flex gap-2">
             <Button onClick={() => setNotice(null)}>知道了</Button>

@@ -33,6 +33,7 @@ impl BattleRecordTemplate {
     }
 
     /// 从模板字符串创建（用于解析 JSON）
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(template: &str) -> Self {
         Self {
             template: template.to_string(),
@@ -49,6 +50,7 @@ impl BattleRecordTemplate {
     /// - `target`: 可选属性目标（用于属性修改类特效）
     /// - `value`: 可选修改值（格式化后的字符串）
     /// - `operation`: 可选操作类型（用于属性修改类特效）
+    #[allow(clippy::too_many_arguments)]
     pub fn generate(
         &self,
         entry_id: &str,

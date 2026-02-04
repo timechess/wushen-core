@@ -17,47 +17,47 @@ export interface Entry {
 
 // 触发时机
 export type Trigger =
-  | 'game_start'
-  | 'trait_acquired'
-  | 'reading_manual'
-  | 'cultivating_internal'
-  | 'cultivating_attack'
-  | 'cultivating_defense'
-  | 'internal_level_up'
-  | 'attack_level_up'
-  | 'defense_level_up'
-  | 'switching_cultivation'
-  | 'battle_start'
-  | 'before_attack'
-  | 'after_attack'
-  | 'before_defense'
-  | 'after_defense'
-  | 'round_end';
+  | "game_start"
+  | "trait_acquired"
+  | "reading_manual"
+  | "cultivating_internal"
+  | "cultivating_attack"
+  | "cultivating_defense"
+  | "internal_level_up"
+  | "attack_level_up"
+  | "defense_level_up"
+  | "switching_cultivation"
+  | "battle_start"
+  | "before_attack"
+  | "after_attack"
+  | "before_defense"
+  | "after_defense"
+  | "round_end";
 
 // 比较运算符
 export type ComparisonOp =
-  | 'less_than'
-  | 'less_than_or_equal'
-  | 'equal'
-  | 'greater_than'
-  | 'greater_than_or_equal';
+  | "less_than"
+  | "less_than_or_equal"
+  | "equal"
+  | "greater_than"
+  | "greater_than_or_equal";
 
 // 属性类型（修行）
 export type AttributeType =
-  | 'comprehension'
-  | 'bone_structure'
-  | 'physique'
-  | 'martial_arts_attainment';
+  | "comprehension"
+  | "bone_structure"
+  | "physique"
+  | "martial_arts_attainment";
 
 // 战斗属性类型
-export type BattleAttributeType = 
-  | 'hp' 
-  | 'qi' 
-  | 'comprehension' 
-  | 'bone_structure' 
-  | 'physique' 
-  | 'martial_arts_attainment' 
-  | 'qi_quality';
+export type BattleAttributeType =
+  | "hp"
+  | "qi"
+  | "comprehension"
+  | "bone_structure"
+  | "physique"
+  | "martial_arts_attainment"
+  | "qi_quality";
 
 // 修行条件（使用 serde untagged，所以是联合类型）
 export type CultivationCondition =
@@ -112,33 +112,33 @@ export type Condition =
 
 // 属性目标
 export type AttributeTarget =
-  | 'comprehension'
-  | 'bone_structure'
-  | 'physique'
-  | 'max_hp'
-  | 'hp'
-  | 'max_qi'
-  | 'qi'
-  | 'base_attack'
-  | 'base_defense'
-  | 'max_qi_output_rate'
-  | 'qi_output_rate'
-  | 'attack_speed'
-  | 'qi_recovery_rate'
-  | 'charge_time'
-  | 'damage_bonus'
-  | 'damage_reduction'
-  | 'max_damage_reduction'
-  | 'martial_arts_attainment_gain'
-  | 'cultivation_exp_gain'
-  | 'qi_gain'
-  | 'qi_loss_rate';
+  | "comprehension"
+  | "bone_structure"
+  | "physique"
+  | "max_hp"
+  | "hp"
+  | "max_qi"
+  | "qi"
+  | "base_attack"
+  | "base_defense"
+  | "max_qi_output_rate"
+  | "qi_output_rate"
+  | "attack_speed"
+  | "qi_recovery_rate"
+  | "charge_time"
+  | "damage_bonus"
+  | "damage_reduction"
+  | "max_damage_reduction"
+  | "martial_arts_attainment_gain"
+  | "cultivation_exp_gain"
+  | "qi_gain"
+  | "qi_loss_rate";
 
 // 操作类型
-export type Operation = 'add' | 'subtract' | 'set' | 'multiply';
+export type Operation = "add" | "subtract" | "set" | "multiply";
 
 // 目标面板（修改自身还是对手的面板）
-export type PanelTarget = 'own' | 'opponent';
+export type PanelTarget = "own" | "opponent";
 
 // 公式值（可以是固定值或公式字符串）
 export type FormulaValue = number | string;
@@ -150,7 +150,7 @@ export interface BattleRecordTemplate {
 
 // 效果类型
 export interface EffectModifyAttribute {
-  type: 'modify_attribute';
+  type: "modify_attribute";
   target: AttributeTarget;
   value: FormulaValue;
   operation: Operation;
@@ -161,7 +161,7 @@ export interface EffectModifyAttribute {
 }
 
 export interface EffectModifyPercentage {
-  type: 'modify_percentage';
+  type: "modify_percentage";
   target: AttributeTarget;
   value: FormulaValue;
   operation: Operation;
@@ -172,7 +172,7 @@ export interface EffectModifyPercentage {
 }
 
 export interface EffectExtraAttack {
-  type: 'extra_attack';
+  type: "extra_attack";
   output: string;
   battle_record_template?: BattleRecordTemplate;
 }

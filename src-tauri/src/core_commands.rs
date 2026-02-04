@@ -319,6 +319,19 @@ pub fn core_game_resume_save(
     let raw =
         crate::commands::load_save(app.clone(), id)?.ok_or_else(|| "存档不存在".to_string())?;
     let save: SaveGame = serde_json::from_value(raw).map_err(|e| e.to_string())?;
+    if let Some(progress) = save.storyline_progress.as_ref() {
+        let needs_reload = {
+            let core = lock_core(&state)?;
+            core.get_storyline(&progress.storyline_id).is_err()
+        };
+        if needs_reload {
+            let packs = crate::commands::list_packs(app.clone())?;
+            let pack_ids: Vec<String> = packs.into_iter().map(|pack| pack.id).collect();
+            if !pack_ids.is_empty() {
+                core_game_load_packs(app.clone(), state.clone(), pack_ids)?;
+            }
+        }
+    }
     let mut core = lock_core(&state)?;
     let response = core.game_resume(save)?;
     persist_game_save(&app, &response.view.save)?;

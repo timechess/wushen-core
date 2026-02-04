@@ -1,9 +1,16 @@
-import type { Character } from '@/types/character';
+import type { Character } from "@/types/character";
 
 export interface StorylineProgress {
   storyline_id: string;
   event_id: string;
 }
+
+export type StoryHistoryRecord = {
+  scope: "story" | "adventure";
+  event_id: string;
+  option_id?: string | null;
+  battle_win?: boolean | null;
+};
 
 export interface SaveGame {
   id: string;
@@ -15,4 +22,5 @@ export interface SaveGame {
   start_trait_pool?: string[];
   completed_characters: Character[];
   rng_state?: number;
+  story_history?: StoryHistoryRecord[];
 }

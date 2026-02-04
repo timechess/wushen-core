@@ -1,6 +1,5 @@
 /// 角色面板数据结构
 /// 包含角色的所有属性信息
-
 /// 基本三维属性
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ThreeDimensional {

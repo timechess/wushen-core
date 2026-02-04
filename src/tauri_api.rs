@@ -19,8 +19,8 @@ use crate::event::{
 use crate::game::{
     now_timestamp, seed_from_time, AdventureDecisionView, AdventureOptionView, CharacterState,
     GameOutcome, GamePhase, GameResponse, GameRuntime, GameView, NewGameRequest, SaveGame,
-    SimpleRng, StoryEventContentView, StoryEventSummary, StoryEventView, StoryOptionView,
-    StorylineProgress, StorylineSummary,
+    SimpleRng, StoryEventContentView, StoryEventSummary, StoryEventView, StoryHistoryRecord,
+    StoryHistoryScope, StoryOptionView, StorylineProgress, StorylineSummary,
 };
 /// Tauri API 模块
 /// 提供桌面端可调用的API接口
@@ -35,6 +35,12 @@ pub struct WushenCore {
     manual_manager: ManualManager,
     event_manager: EventManager,
     game_runtime: Option<GameRuntime>,
+}
+
+impl Default for WushenCore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl WushenCore {
@@ -297,22 +303,21 @@ impl WushenCore {
                     .ok_or_else(|| format!("内功 {} 不存在", manual_id))?;
                 internal
                     .manual
-                    .calculate_exp_gain(x, y, z, a)
-                    .map_err(|e| e)?
+                    .calculate_exp_gain(x, y, z, a)?
             }
             "attack_skill" => {
                 let skill = self
                     .manual_manager
                     .get_attack_skill(manual_id)
                     .ok_or_else(|| format!("攻击武技 {} 不存在", manual_id))?;
-                skill.manual.calculate_exp_gain(x, y, z, a).map_err(|e| e)?
+                skill.manual.calculate_exp_gain(x, y, z, a)?
             }
             "defense_skill" => {
                 let skill = self
                     .manual_manager
                     .get_defense_skill(manual_id)
                     .ok_or_else(|| format!("防御武技 {} 不存在", manual_id))?;
-                skill.manual.calculate_exp_gain(x, y, z, a).map_err(|e| e)?
+                skill.manual.calculate_exp_gain(x, y, z, a)?
             }
             _ => return Err(format!("未知的功法类型: {}", manual_type)),
         };
@@ -753,7 +758,7 @@ impl WushenCore {
         let exp_gain = match manual_type {
             "internal" => {
                 let from_id = panel.current_internal_id.clone();
-                if from_id.as_deref().map_or(true, |id| id != manual_id) {
+                if from_id.as_deref() != Some(manual_id) {
                     self.manual_manager.switch_internal(
                         from_id.as_deref(),
                         manual_id,
@@ -762,17 +767,16 @@ impl WushenCore {
                     )?;
                 }
                 self.manual_manager
-                    .cultivate_internal(&mut panel, Some(&mut executor))
-                    .map_err(|e| e)?
+                    .cultivate_internal(&mut panel, Some(&mut executor))?
             }
             "attack_skill" => self
                 .manual_manager
                 .cultivate_attack_skill(manual_id, &mut panel, Some(&mut executor))
-                .map_err(|e| e)?,
+                ?,
             "defense_skill" => self
                 .manual_manager
                 .cultivate_defense_skill(manual_id, &mut panel, Some(&mut executor))
-                .map_err(|e| e)?,
+                ?,
             _ => unreachable!(),
         };
 
@@ -854,7 +858,10 @@ impl WushenCore {
             start_trait_pool: self.trait_manager.start_pool_ids(),
             completed_characters: vec![],
             rng_state: seed_from_time(),
+            story_history: vec![],
         };
+
+        Self::record_story_event(&mut save, &storyline.start_event_id);
 
         ensure_rng_state(&mut save);
         let picked_traits = draw_start_traits(&self.trait_manager, &mut save);
@@ -868,6 +875,23 @@ impl WushenCore {
 
     pub fn game_resume(&mut self, mut save: SaveGame) -> Result<GameResponse, String> {
         ensure_rng_state(&mut save);
+        if save.story_history.is_empty() {
+            if let Some(progress) = save.storyline_progress.as_ref() {
+                if let Some(storyline) = self.event_manager.get_storyline(&progress.storyline_id) {
+                    if let Some(event) = storyline
+                        .events
+                        .iter()
+                        .find(|event| event.id == progress.event_id)
+                    {
+                        let is_action_phase = event.node_type == StoryNodeType::Middle
+                            && save.current_character.action_points > 0;
+                        if !is_action_phase {
+                            Self::record_story_event(&mut save, &event.id);
+                        }
+                    }
+                }
+            }
+        }
         self.game_runtime = Some(GameRuntime { save });
         self.game_view(None)
     }
@@ -913,6 +937,7 @@ impl WushenCore {
                 .action_points
                 .saturating_sub(1);
             runtime.save.current_character.cultivation_history.clear();
+            Self::record_current_story_event_if_ready(&mut runtime.save);
         }
 
         let outcome = GameOutcome::Cultivation {
@@ -965,6 +990,7 @@ impl WushenCore {
                     .as_mut()
                     .ok_or_else(|| "游戏尚未初始化".to_string())?;
                 runtime.save.current_character = character;
+                Self::record_current_story_event_if_ready(&mut runtime.save);
             }
             let outcome = GameOutcome::Info {
                 message: "本次游历未触发奇遇".to_string(),
@@ -977,6 +1003,7 @@ impl WushenCore {
         let next_rng_state = rng.state();
 
         let mut active_adventure_id = None;
+        let mut adventure_battle_win = None;
         let outcome = match &picked.content {
             AdventureEventContent::Decision { .. } => {
                 active_adventure_id = Some(picked.id.clone());
@@ -1031,6 +1058,7 @@ impl WushenCore {
                     &start_trait_pool,
                 );
                 self.apply_rewards_to_character(&mut character, &mut start_trait_pool, &filtered)?;
+                adventure_battle_win = Some(win_flag);
                 GameOutcome::Adventure {
                     name: picked.name.clone(),
                     text: Some(text.clone()),
@@ -1050,6 +1078,16 @@ impl WushenCore {
             runtime.save.start_trait_pool = start_trait_pool;
             runtime.save.rng_state = next_rng_state;
             runtime.save.active_adventure_id = active_adventure_id;
+            Self::record_adventure_event(&mut runtime.save, &picked.id);
+            if let Some(win_flag) = adventure_battle_win {
+                Self::record_battle_result(
+                    &mut runtime.save,
+                    StoryHistoryScope::Adventure,
+                    &picked.id,
+                    win_flag,
+                );
+            }
+            Self::record_current_story_event_if_ready(&mut runtime.save);
         }
 
         self.game_view(Some(outcome))
@@ -1090,6 +1128,12 @@ impl WushenCore {
                 .game_runtime
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            Self::record_decision(
+                &mut runtime.save,
+                StoryHistoryScope::Story,
+                &event.id,
+                option_id.clone(),
+            );
             Self::advance_to_event(runtime, &storyline, &selected_next_id)?;
         }
         let outcome = GameOutcome::Info {
@@ -1116,7 +1160,7 @@ impl WushenCore {
             "internal" => {
                 let mut executor = self.trait_manager.create_executor(&panel.traits);
                 let from_id = panel.current_internal_id.clone();
-                if from_id.as_deref().map_or(true, |id| id != manual_id) {
+                if from_id.as_deref() != Some(manual_id.as_str()) {
                     self.manual_manager.switch_internal(
                         from_id.as_deref(),
                         &manual_id,
@@ -1186,6 +1230,13 @@ impl WushenCore {
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             ensure_event_ready(runtime, &event)?;
         }
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            Self::record_story_event(&mut runtime.save, &event.id);
+        }
 
         let (text, enemy, win, lose) = match &event.content {
             StoryEventContent::Battle {
@@ -1236,6 +1287,7 @@ impl WushenCore {
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             runtime.save.current_character = character;
             runtime.save.start_trait_pool = start_trait_pool;
+            Self::record_battle_result(&mut runtime.save, StoryHistoryScope::Story, &event.id, win_flag);
             Self::advance_to_event(runtime, &storyline, &next_event_id)?;
         }
 
@@ -1256,6 +1308,13 @@ impl WushenCore {
                 .as_ref()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             ensure_event_ready(runtime, &event)?;
+        }
+        {
+            let runtime = self
+                .game_runtime
+                .as_mut()
+                .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            Self::record_story_event(&mut runtime.save, &event.id);
         }
 
         let (text, rewards, next_event_id) = match &event.content {
@@ -1401,9 +1460,24 @@ impl WushenCore {
                 .game_runtime
                 .as_mut()
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
+            Self::record_decision(
+                &mut runtime.save,
+                StoryHistoryScope::Adventure,
+                &adventure_id,
+                option_id.clone(),
+            );
+            if let Some(win_flag) = win_flag {
+                Self::record_battle_result(
+                    &mut runtime.save,
+                    StoryHistoryScope::Adventure,
+                    &adventure_id,
+                    win_flag,
+                );
+            }
             runtime.save.current_character = character;
             runtime.save.start_trait_pool = start_trait_pool;
             runtime.save.active_adventure_id = None;
+            Self::record_current_story_event_if_ready(&mut runtime.save);
         }
 
         let outcome = GameOutcome::Adventure {
@@ -1576,7 +1650,95 @@ impl WushenCore {
         if let Some(progress) = runtime.save.storyline_progress.as_mut() {
             progress.event_id = next_event_id.to_string();
         }
+        if action_points == 0 {
+            Self::record_story_event(&mut runtime.save, next_event_id);
+        }
         Ok(())
+    }
+
+    fn record_story_event(save: &mut SaveGame, event_id: &str) {
+        if save
+            .story_history
+            .iter()
+            .rev()
+            .any(|record| record.scope == StoryHistoryScope::Story && record.event_id == event_id)
+        {
+            return;
+        }
+        save.story_history.push(StoryHistoryRecord {
+            scope: StoryHistoryScope::Story,
+            event_id: event_id.to_string(),
+            option_id: None,
+            battle_win: None,
+        });
+    }
+
+    fn record_adventure_event(save: &mut SaveGame, event_id: &str) {
+        save.story_history.push(StoryHistoryRecord {
+            scope: StoryHistoryScope::Adventure,
+            event_id: event_id.to_string(),
+            option_id: None,
+            battle_win: None,
+        });
+    }
+
+    fn record_decision(
+        save: &mut SaveGame,
+        scope: StoryHistoryScope,
+        event_id: &str,
+        option_id: String,
+    ) {
+        if let Some(record) = save
+            .story_history
+            .iter_mut()
+            .rev()
+            .find(|record| record.scope == scope && record.event_id == event_id)
+        {
+            record.option_id = Some(option_id);
+            return;
+        }
+        save.story_history.push(StoryHistoryRecord {
+            scope,
+            event_id: event_id.to_string(),
+            option_id: Some(option_id),
+            battle_win: None,
+        });
+    }
+
+    fn record_battle_result(
+        save: &mut SaveGame,
+        scope: StoryHistoryScope,
+        event_id: &str,
+        win: bool,
+    ) {
+        if let Some(record) = save
+            .story_history
+            .iter_mut()
+            .rev()
+            .find(|record| record.scope == scope && record.event_id == event_id)
+        {
+            record.battle_win = Some(win);
+            return;
+        }
+        save.story_history.push(StoryHistoryRecord {
+            scope,
+            event_id: event_id.to_string(),
+            option_id: None,
+            battle_win: Some(win),
+        });
+    }
+
+    fn record_current_story_event_if_ready(save: &mut SaveGame) {
+        if save.current_character.action_points > 0 {
+            return;
+        }
+        if save.active_adventure_id.is_some() {
+            return;
+        }
+        if let Some(progress) = save.storyline_progress.as_ref() {
+            let event_id = progress.event_id.clone();
+            Self::record_story_event(save, &event_id);
+        }
     }
 
     fn apply_rewards_to_character(

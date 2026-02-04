@@ -1,6 +1,6 @@
-'use client';
+"use client";
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from "react";
 import type {
   Storyline,
   StoryEvent,
@@ -8,18 +8,24 @@ import type {
   StoryOption,
   StoryBattleBranch,
   EnemyTemplate,
-} from '@/types/event';
-import type { Enemy } from '@/types/enemy';
-import type { ManualListItem } from '@/types/manual';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import SearchableSelect from '@/components/ui/SearchableSelect';
-import ConditionEditor from '@/components/editor/ConditionEditor';
-import RewardEditor from '@/components/editor/RewardEditor';
-import { generateUlid } from '@/lib/utils/ulid';
-import { useActivePack } from '@/lib/mods/active-pack';
-import { getEnemy, listAttackSkills, listDefenseSkills, listEnemies, listInternals } from '@/lib/tauri/commands';
+} from "@/types/event";
+import type { Enemy } from "@/types/enemy";
+import type { ManualListItem } from "@/types/manual";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import ConditionEditor from "@/components/editor/ConditionEditor";
+import RewardEditor from "@/components/editor/RewardEditor";
+import { generateUlid } from "@/lib/utils/ulid";
+import { useActivePack } from "@/lib/mods/active-pack";
+import {
+  getEnemy,
+  listAttackSkills,
+  listDefenseSkills,
+  listEnemies,
+  listInternals,
+} from "@/lib/tauri/commands";
 
 interface StorylineFormProps {
   initialStoryline: Storyline;
@@ -29,21 +35,21 @@ interface StorylineFormProps {
 }
 
 const NODE_TYPE_OPTIONS = [
-  { value: 'start', label: '起始事件' },
-  { value: 'middle', label: '中间事件' },
-  { value: 'end', label: '结局事件' },
+  { value: "start", label: "起始事件" },
+  { value: "middle", label: "中间事件" },
+  { value: "end", label: "结局事件" },
 ];
 
 const CONTENT_TYPE_OPTIONS = [
-  { value: 'decision', label: '抉择事件' },
-  { value: 'battle', label: '战斗事件' },
-  { value: 'story', label: '剧情事件' },
-  { value: 'end', label: '结局文本' },
+  { value: "decision", label: "抉择事件" },
+  { value: "battle", label: "战斗事件" },
+  { value: "story", label: "剧情事件" },
+  { value: "end", label: "结局文本" },
 ];
 
 function defaultEnemy(): EnemyTemplate {
   return {
-    name: '敌人',
+    name: "敌人",
     three_d: { comprehension: 0, bone_structure: 0, physique: 0 },
     traits: [],
     internal: null,
@@ -57,37 +63,37 @@ function defaultEnemy(): EnemyTemplate {
 
 function defaultBranch(): StoryBattleBranch {
   return {
-    next_event_id: '',
+    next_event_id: "",
     rewards: [],
   };
 }
 
-function defaultContent(type: StoryEventContent['type']): StoryEventContent {
+function defaultContent(type: StoryEventContent["type"]): StoryEventContent {
   switch (type) {
-    case 'decision':
-      return { type: 'decision', text: '', options: [] };
-    case 'battle':
+    case "decision":
+      return { type: "decision", text: "", options: [] };
+    case "battle":
       return {
-        type: 'battle',
-        text: '',
-        enemy_id: '',
+        type: "battle",
+        text: "",
+        enemy_id: "",
         enemy: defaultEnemy(),
         win: defaultBranch(),
         lose: defaultBranch(),
       };
-    case 'story':
-      return { type: 'story', text: '', rewards: [], next_event_id: '' };
-    case 'end':
+    case "story":
+      return { type: "story", text: "", rewards: [], next_event_id: "" };
+    case "end":
     default:
-      return { type: 'end', text: '' };
+      return { type: "end", text: "" };
   }
 }
 
 function defaultOption(): StoryOption {
   return {
     id: generateUlid(),
-    text: '',
-    next_event_id: '',
+    text: "",
+    next_event_id: "",
     condition: null,
   };
 }
@@ -95,10 +101,10 @@ function defaultOption(): StoryOption {
 function defaultEvent(): StoryEvent {
   return {
     id: generateUlid(),
-    name: '',
-    node_type: 'middle',
+    name: "",
+    node_type: "middle",
     action_points: 0,
-    content: defaultContent('decision'),
+    content: defaultContent("decision"),
   };
 }
 
@@ -106,11 +112,13 @@ export default function StorylineForm({
   initialStoryline,
   onSubmit,
   onCancel,
-  submitLabel = '保存剧情线',
+  submitLabel = "保存剧情线",
 }: StorylineFormProps) {
   const [storyline, setStoryline] = useState<Storyline>(initialStoryline);
   const [loading, setLoading] = useState(false);
-  const [enemyOptions, setEnemyOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [enemyOptions, setEnemyOptions] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [loadingEnemies, setLoadingEnemies] = useState(false);
   const [internals, setInternals] = useState<ManualListItem[]>([]);
   const [attackSkills, setAttackSkills] = useState<ManualListItem[]>([]);
@@ -121,7 +129,7 @@ export default function StorylineForm({
     value: event.id,
     label: event.name ? event.name : `未命名事件 ${index + 1}`,
   }));
-  const nextEventOptions = [{ value: '', label: '无 / 结束' }, ...eventOptions];
+  const nextEventOptions = [{ value: "", label: "无 / 结束" }, ...eventOptions];
 
   useEffect(() => {
     const loadEnemies = async () => {
@@ -134,7 +142,7 @@ export default function StorylineForm({
         const enemies = await listEnemies(activePack.id);
         setEnemyOptions(enemies);
       } catch (error) {
-        console.error('加载敌人列表失败:', error);
+        console.error("加载敌人列表失败:", error);
         setEnemyOptions([]);
       } finally {
         setLoadingEnemies(false);
@@ -162,7 +170,7 @@ export default function StorylineForm({
         setAttackSkills(attackData);
         setDefenseSkills(defenseData);
       } catch (error) {
-        console.error('加载功法列表失败:', error);
+        console.error("加载功法列表失败:", error);
         setInternals([]);
         setAttackSkills([]);
         setDefenseSkills([]);
@@ -176,27 +184,33 @@ export default function StorylineForm({
   const manualNameLookup = useMemo(() => {
     return {
       internal: new Map(internals.map((manual) => [manual.id, manual.name])),
-      attack_skill: new Map(attackSkills.map((manual) => [manual.id, manual.name])),
-      defense_skill: new Map(defenseSkills.map((manual) => [manual.id, manual.name])),
+      attack_skill: new Map(
+        attackSkills.map((manual) => [manual.id, manual.name]),
+      ),
+      defense_skill: new Map(
+        defenseSkills.map((manual) => [manual.id, manual.name]),
+      ),
     };
   }, [internals, attackSkills, defenseSkills]);
 
   const resolveManualName = (
-    type: 'internal' | 'attack_skill' | 'defense_skill',
-    manualId?: string | null
+    type: "internal" | "attack_skill" | "defense_skill",
+    manualId?: string | null,
   ) => {
-    if (!manualId) return '无';
+    if (!manualId) return "无";
     const fallback =
-      type === 'internal'
-        ? '未命名内功'
-        : type === 'attack_skill'
-        ? '未命名攻击武技'
-        : '未命名防御武技';
+      type === "internal"
+        ? "未命名内功"
+        : type === "attack_skill"
+          ? "未命名攻击武技"
+          : "未命名防御武技";
     return manualNameLookup[type].get(manualId) ?? fallback;
   };
 
   const handleEventChange = (index: number, next: StoryEvent) => {
-    const updated = storyline.events.map((evt, i) => (i === index ? next : evt));
+    const updated = storyline.events.map((evt, i) =>
+      i === index ? next : evt,
+    );
     setStoryline({ ...storyline, events: updated });
   };
 
@@ -204,17 +218,24 @@ export default function StorylineForm({
     const nextEvent = defaultEvent();
     const nextEvents = [...storyline.events, nextEvent];
     const nextStartId = storyline.start_event_id || nextEvent.id;
-    setStoryline({ ...storyline, events: nextEvents, start_event_id: nextStartId });
+    setStoryline({
+      ...storyline,
+      events: nextEvents,
+      start_event_id: nextStartId,
+    });
   };
 
   const handleDeleteEvent = (index: number) => {
     const removed = storyline.events[index];
     const remaining = storyline.events.filter((_, i) => i !== index);
-    const nextStartId = storyline.start_event_id === removed?.id ? (remaining[0]?.id ?? '') : storyline.start_event_id;
+    const nextStartId =
+      storyline.start_event_id === removed?.id
+        ? (remaining[0]?.id ?? "")
+        : storyline.start_event_id;
     const cleaned = remaining.map((event) => {
-      const clearNext = (value: string) => (value === removed?.id ? '' : value);
+      const clearNext = (value: string) => (value === removed?.id ? "" : value);
       switch (event.content.type) {
-        case 'decision':
+        case "decision":
           return {
             ...event,
             content: {
@@ -225,17 +246,23 @@ export default function StorylineForm({
               })),
             },
           };
-        case 'battle':
+        case "battle":
           return {
             ...event,
             content: {
               ...event.content,
-              win: { ...event.content.win, next_event_id: clearNext(event.content.win.next_event_id) },
-              lose: { ...event.content.lose, next_event_id: clearNext(event.content.lose.next_event_id) },
+              win: {
+                ...event.content.win,
+                next_event_id: clearNext(event.content.win.next_event_id),
+              },
+              lose: {
+                ...event.content.lose,
+                next_event_id: clearNext(event.content.lose.next_event_id),
+              },
             },
           };
-        case 'story': {
-          const nextId = event.content.next_event_id ?? '';
+        case "story": {
+          const nextId = event.content.next_event_id ?? "";
           return {
             ...event,
             content: {
@@ -248,13 +275,17 @@ export default function StorylineForm({
           return event;
       }
     });
-    setStoryline({ ...storyline, events: cleaned, start_event_id: nextStartId });
+    setStoryline({
+      ...storyline,
+      events: cleaned,
+      start_event_id: nextStartId,
+    });
   };
 
   const renderBranch = (
     label: string,
     branch: StoryBattleBranch,
-    onChange: (next: StoryBattleBranch) => void
+    onChange: (next: StoryBattleBranch) => void,
   ) => (
     <div className="border border-gray-200 rounded-lg p-4 space-y-3 bg-gray-50">
       <h4 className="text-sm font-semibold text-gray-700">{label}</h4>
@@ -271,10 +302,13 @@ export default function StorylineForm({
     </div>
   );
 
-  const renderEventContent = (event: StoryEvent, onChange: (next: StoryEventContent) => void) => {
+  const renderEventContent = (
+    event: StoryEvent,
+    onChange: (next: StoryEventContent) => void,
+  ) => {
     const content = event.content;
     switch (content.type) {
-      case 'decision':
+      case "decision":
         return (
           <div className="space-y-4">
             <Input
@@ -284,11 +318,16 @@ export default function StorylineForm({
             />
             <div className="space-y-3">
               <div className="flex items-center justify-between">
-                <h4 className="text-sm font-semibold text-gray-700">选项列表</h4>
-                <Button size="sm" onClick={() => {
-                  const options = [...content.options, defaultOption()];
-                  onChange({ ...content, options });
-                }}>
+                <h4 className="text-sm font-semibold text-gray-700">
+                  选项列表
+                </h4>
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    const options = [...content.options, defaultOption()];
+                    onChange({ ...content, options });
+                  }}
+                >
                   添加选项
                 </Button>
               </div>
@@ -296,13 +335,24 @@ export default function StorylineForm({
                 <div className="text-sm text-gray-500">暂无选项</div>
               ) : (
                 content.options.map((option, optionIndex) => (
-                  <div key={`${option.id}-${optionIndex}`} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                  <div
+                    key={`${option.id}-${optionIndex}`}
+                    className="border border-gray-200 rounded-lg p-4 space-y-3"
+                  >
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-semibold text-gray-700">选项 {optionIndex + 1}</span>
-                      <Button variant="danger" size="sm" onClick={() => {
-                        const options = content.options.filter((_, i) => i !== optionIndex);
-                        onChange({ ...content, options });
-                      }}>
+                      <span className="text-sm font-semibold text-gray-700">
+                        选项 {optionIndex + 1}
+                      </span>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        onClick={() => {
+                          const options = content.options.filter(
+                            (_, i) => i !== optionIndex,
+                          );
+                          onChange({ ...content, options });
+                        }}
+                      >
                         删除
                       </Button>
                     </div>
@@ -312,7 +362,9 @@ export default function StorylineForm({
                         value={option.text}
                         onChange={(e) => {
                           const options = content.options.map((opt, i) =>
-                            i === optionIndex ? { ...opt, text: e.target.value } : opt
+                            i === optionIndex
+                              ? { ...opt, text: e.target.value }
+                              : opt,
                           );
                           onChange({ ...content, options });
                         }}
@@ -324,7 +376,9 @@ export default function StorylineForm({
                       options={nextEventOptions}
                       onChange={(e) => {
                         const options = content.options.map((opt, i) =>
-                          i === optionIndex ? { ...opt, next_event_id: e.target.value } : opt
+                          i === optionIndex
+                            ? { ...opt, next_event_id: e.target.value }
+                            : opt,
                         );
                         onChange({ ...content, options });
                       }}
@@ -333,7 +387,7 @@ export default function StorylineForm({
                       condition={option.condition ?? null}
                       onChange={(condition) => {
                         const options = content.options.map((opt, i) =>
-                          i === optionIndex ? { ...opt, condition } : opt
+                          i === optionIndex ? { ...opt, condition } : opt,
                         );
                         onChange({ ...content, options });
                       }}
@@ -344,7 +398,7 @@ export default function StorylineForm({
             </div>
           </div>
         );
-      case 'battle':
+      case "battle":
         return (
           <div className="space-y-4">
             <Input
@@ -355,33 +409,40 @@ export default function StorylineForm({
             <div className="space-y-2">
               <SearchableSelect
                 label="选择敌人"
-                value={content.enemy_id ?? ''}
+                value={content.enemy_id ?? ""}
                 options={[
-                  { value: '', label: '请选择敌人' },
-                  ...enemyOptions.map((enemy) => ({ value: enemy.id, label: enemy.name })),
+                  { value: "", label: "请选择敌人" },
+                  ...enemyOptions.map((enemy) => ({
+                    value: enemy.id,
+                    label: enemy.name,
+                  })),
                 ]}
                 onChange={async (value) => {
                   if (!value) {
-                    onChange({ ...content, enemy_id: '', enemy: defaultEnemy() });
+                    onChange({
+                      ...content,
+                      enemy_id: "",
+                      enemy: defaultEnemy(),
+                    });
                     return;
                   }
                   if (!activePack) {
-                    alert('请先选择模组包');
+                    alert("请先选择模组包");
                     return;
                   }
                   const enemy = await getEnemy(activePack.id, value);
                   if (!enemy) {
-                    alert('敌人不存在');
+                    alert("敌人不存在");
                     return;
                   }
                   const { id: _id, ...rest } = enemy as Enemy;
                   onChange({ ...content, enemy_id: value, enemy: rest });
                 }}
-                placeholder={loadingEnemies ? '加载中...' : '搜索敌人...'}
+                placeholder={loadingEnemies ? "加载中..." : "搜索敌人..."}
               />
               <div className="rounded-lg border border-gray-200 bg-white p-3 text-xs text-gray-600">
                 <div className="font-medium text-gray-800">
-                  当前敌人：{content.enemy.name || '未命名敌人'}
+                  当前敌人：{content.enemy.name || "未命名敌人"}
                 </div>
                 <div className="mt-1 grid grid-cols-3 gap-2">
                   <span>悟性 {content.enemy.three_d.comprehension}</span>
@@ -390,19 +451,47 @@ export default function StorylineForm({
                 </div>
                 <div className="mt-1 flex flex-wrap gap-2 text-gray-500">
                   <span>特性 {content.enemy.traits?.length ?? 0}</span>
-                  <span>内功 {loadingManuals ? '加载中...' : resolveManualName('internal', content.enemy.internal?.id)}</span>
-                  <span>攻击 {loadingManuals ? '加载中...' : resolveManualName('attack_skill', content.enemy.attack_skill?.id)}</span>
-                  <span>防御 {loadingManuals ? '加载中...' : resolveManualName('defense_skill', content.enemy.defense_skill?.id)}</span>
+                  <span>
+                    内功{" "}
+                    {loadingManuals
+                      ? "加载中..."
+                      : resolveManualName(
+                          "internal",
+                          content.enemy.internal?.id,
+                        )}
+                  </span>
+                  <span>
+                    攻击{" "}
+                    {loadingManuals
+                      ? "加载中..."
+                      : resolveManualName(
+                          "attack_skill",
+                          content.enemy.attack_skill?.id,
+                        )}
+                  </span>
+                  <span>
+                    防御{" "}
+                    {loadingManuals
+                      ? "加载中..."
+                      : resolveManualName(
+                          "defense_skill",
+                          content.enemy.defense_skill?.id,
+                        )}
+                  </span>
                 </div>
               </div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {renderBranch('胜利分支', content.win, (win) => onChange({ ...content, win }))}
-              {renderBranch('失败分支', content.lose, (lose) => onChange({ ...content, lose }))}
+              {renderBranch("胜利分支", content.win, (win) =>
+                onChange({ ...content, win }),
+              )}
+              {renderBranch("失败分支", content.lose, (lose) =>
+                onChange({ ...content, lose }),
+              )}
             </div>
           </div>
         );
-      case 'story':
+      case "story":
         return (
           <div className="space-y-4">
             <Input
@@ -412,9 +501,11 @@ export default function StorylineForm({
             />
             <Select
               label="下一事件"
-              value={content.next_event_id ?? ''}
+              value={content.next_event_id ?? ""}
               options={nextEventOptions}
-              onChange={(e) => onChange({ ...content, next_event_id: e.target.value })}
+              onChange={(e) =>
+                onChange({ ...content, next_event_id: e.target.value })
+              }
             />
             <RewardEditor
               rewards={content.rewards ?? []}
@@ -422,7 +513,7 @@ export default function StorylineForm({
             />
           </div>
         );
-      case 'end':
+      case "end":
       default:
         return (
           <Input
@@ -436,15 +527,15 @@ export default function StorylineForm({
 
   const handleSubmit = async () => {
     if (!storyline.name) {
-      alert('请填写名称');
+      alert("请填写名称");
       return;
     }
     if (storyline.events.length === 0) {
-      alert('请至少创建一个事件');
+      alert("请至少创建一个事件");
       return;
     }
     if (!storyline.start_event_id) {
-      alert('请选择起始事件');
+      alert("请选择起始事件");
       return;
     }
     try {
@@ -467,7 +558,9 @@ export default function StorylineForm({
           label="起始事件"
           value={storyline.start_event_id}
           options={nextEventOptions}
-          onChange={(e) => setStoryline({ ...storyline, start_event_id: e.target.value })}
+          onChange={(e) =>
+            setStoryline({ ...storyline, start_event_id: e.target.value })
+          }
         />
       </div>
 
@@ -482,10 +575,19 @@ export default function StorylineForm({
           <div className="text-sm text-gray-500">暂无事件</div>
         ) : (
           storyline.events.map((event, index) => (
-            <div key={`${event.id}-${index}`} className="border border-gray-200 rounded-xl p-5 space-y-4 bg-white">
+            <div
+              key={`${event.id}-${index}`}
+              className="border border-gray-200 rounded-xl p-5 space-y-4 bg-white"
+            >
               <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-700">事件 {index + 1}</span>
-                <Button variant="danger" size="sm" onClick={() => handleDeleteEvent(index)}>
+                <span className="text-sm font-semibold text-gray-700">
+                  事件 {index + 1}
+                </span>
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={() => handleDeleteEvent(index)}
+                >
                   删除事件
                 </Button>
               </div>
@@ -493,7 +595,9 @@ export default function StorylineForm({
                 <Input
                   label="事件名称"
                   value={event.name}
-                  onChange={(e) => handleEventChange(index, { ...event, name: e.target.value })}
+                  onChange={(e) =>
+                    handleEventChange(index, { ...event, name: e.target.value })
+                  }
                 />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -502,7 +606,10 @@ export default function StorylineForm({
                   value={event.node_type}
                   options={NODE_TYPE_OPTIONS}
                   onChange={(e) =>
-                    handleEventChange(index, { ...event, node_type: e.target.value as StoryEvent['node_type'] })
+                    handleEventChange(index, {
+                      ...event,
+                      node_type: e.target.value as StoryEvent["node_type"],
+                    })
                   }
                 />
                 <Select
@@ -512,7 +619,9 @@ export default function StorylineForm({
                   onChange={(e) =>
                     handleEventChange(index, {
                       ...event,
-                      content: defaultContent(e.target.value as StoryEventContent['type']),
+                      content: defaultContent(
+                        e.target.value as StoryEventContent["type"],
+                      ),
                     })
                   }
                 />
@@ -533,7 +642,7 @@ export default function StorylineForm({
                   handleEventChange(index, {
                     ...event,
                     content,
-                  })
+                  }),
                 )}
               </div>
             </div>

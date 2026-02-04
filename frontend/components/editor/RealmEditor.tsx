@@ -1,18 +1,24 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { Entry } from '@/types/trait';
-import { InternalRealm, AttackSkillRealm, DefenseSkillRealm } from '@/types/manual';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import EntryEditor from './EntryEditor';
+import { useState } from "react";
+import { Entry } from "@/types/trait";
+import {
+  InternalRealm,
+  AttackSkillRealm,
+  DefenseSkillRealm,
+} from "@/types/manual";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import EntryEditor from "./EntryEditor";
 
-type RealmType = 'internal' | 'attack_skill' | 'defense_skill';
+type RealmType = "internal" | "attack_skill" | "defense_skill";
 
 interface RealmEditorProps {
   realm: InternalRealm | AttackSkillRealm | DefenseSkillRealm;
   realmType: RealmType;
-  onChange: (realm: InternalRealm | AttackSkillRealm | DefenseSkillRealm) => void;
+  onChange: (
+    realm: InternalRealm | AttackSkillRealm | DefenseSkillRealm,
+  ) => void;
   onDelete?: () => void;
   previousRealm?: InternalRealm | AttackSkillRealm | DefenseSkillRealm;
 }
@@ -34,7 +40,7 @@ export default function RealmEditor({
 
   const handleAddEntry = () => {
     const newEntry: Entry = {
-      trigger: 'battle_start',
+      trigger: "battle_start",
       condition: null,
       effects: [],
       max_triggers: null,
@@ -58,7 +64,7 @@ export default function RealmEditor({
 
   const renderRealmSpecificFields = () => {
     switch (realmType) {
-      case 'internal': {
+      case "internal": {
         const internalRealm = realm as InternalRealm;
         return (
           <>
@@ -99,10 +105,14 @@ export default function RealmEditor({
               label="回气量（百分比）"
               type="number"
               step="0.01"
-              value={isNaN(internalRealm.qi_recovery_rate) ? '0' : (internalRealm.qi_recovery_rate * 100).toString()}
+              value={
+                isNaN(internalRealm.qi_recovery_rate)
+                  ? "0"
+                  : (internalRealm.qi_recovery_rate * 100).toString()
+              }
               onChange={(e) => {
                 const inputValue = e.target.value.trim();
-                if (inputValue === '') {
+                if (inputValue === "") {
                   onChange({
                     ...internalRealm,
                     qi_recovery_rate: 0,
@@ -119,7 +129,7 @@ export default function RealmEditor({
           </>
         );
       }
-      case 'attack_skill': {
+      case "attack_skill": {
         const attackRealm = realm as AttackSkillRealm;
         return (
           <>
@@ -148,7 +158,7 @@ export default function RealmEditor({
           </>
         );
       }
-      case 'defense_skill': {
+      case "defense_skill": {
         const defenseRealm = realm as DefenseSkillRealm;
         return (
           <>
@@ -180,15 +190,11 @@ export default function RealmEditor({
             onClick={() => setIsExpanded(!isExpanded)}
             className="text-sm text-blue-600 hover:text-blue-800"
           >
-            {isExpanded ? '收起' : '展开'}
+            {isExpanded ? "收起" : "展开"}
           </button>
         </div>
         {onDelete && (
-          <Button
-            variant="danger"
-            size="sm"
-            onClick={onDelete}
-          >
+          <Button variant="danger" size="sm" onClick={onDelete}>
             删除
           </Button>
         )}
@@ -227,14 +233,24 @@ export default function RealmEditor({
               </label>
               <div className="flex gap-2">
                 {previousRealm && previousRealm.entries.length > 0 && (
-                  <Button 
-                    size="sm" 
+                  <Button
+                    size="sm"
                     variant="secondary"
                     onClick={handleCopyPreviousEntries}
                     title="复制上一个境界的所有词条"
                   >
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    <svg
+                      className="w-4 h-4 mr-1"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                      />
                     </svg>
                     复制上一境界词条
                   </Button>

@@ -1,4 +1,4 @@
-declare module 'd3-force' {
+declare module "d3-force" {
   export interface Simulation<T> {
     force(name: string, force: Force<T> | null): this;
     stop(): this;
@@ -26,7 +26,9 @@ declare module 'd3-force' {
   export interface ForceCenter<TNode> extends Force<TNode> {}
 
   export function forceSimulation<T>(nodes?: T[]): Simulation<T>;
-  export function forceLink<TNode, TLink>(links: TLink[]): ForceLink<TNode, TLink>;
+  export function forceLink<TNode, TLink>(
+    links: TLink[],
+  ): ForceLink<TNode, TLink>;
   export function forceManyBody<TNode>(): ForceManyBody<TNode>;
   export function forceCenter<TNode>(x: number, y: number): ForceCenter<TNode>;
   export function forceCollide<TNode>(radius: number): ForceCollide<TNode>;

@@ -1,6 +1,6 @@
 /// 角色类型定义
 
-import { Entry } from './trait';
+import { Entry } from "./trait";
 
 export interface ThreeDimensional {
   comprehension: number;
@@ -36,7 +36,7 @@ export interface Character {
 
 export interface CultivationHistoryItem {
   manual_id: string;
-  manual_type: 'internal' | 'attack_skill' | 'defense_skill';
+  manual_type: "internal" | "attack_skill" | "defense_skill";
   points_spent: number;
 }
 

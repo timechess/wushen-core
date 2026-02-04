@@ -920,6 +920,7 @@ impl BattleEngine {
     }
 
     /// 处理额外攻击
+    #[allow(clippy::too_many_arguments)]
     fn handle_extra_attack(
         &mut self,
         output_formula: &str,

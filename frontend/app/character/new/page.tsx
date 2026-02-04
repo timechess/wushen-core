@@ -1,18 +1,18 @@
-'use client';
+"use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import Button from '@/components/ui/Button';
-import EnemyEditor from '@/components/editor/EnemyEditor';
-import RequireActivePack from '@/components/mod/RequireActivePack';
-import ActivePackStatus from '@/components/mod/ActivePackStatus';
-import { useActivePack } from '@/lib/mods/active-pack';
-import { saveEnemy } from '@/lib/tauri/commands';
-import type { Enemy } from '@/types/enemy';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import Button from "@/components/ui/Button";
+import EnemyEditor from "@/components/editor/EnemyEditor";
+import RequireActivePack from "@/components/mod/RequireActivePack";
+import ActivePackStatus from "@/components/mod/ActivePackStatus";
+import { useActivePack } from "@/lib/mods/active-pack";
+import { saveEnemy } from "@/lib/tauri/commands";
+import type { Enemy } from "@/types/enemy";
 
 const defaultEnemy: Enemy = {
-  id: '',
-  name: '敌人',
+  id: "",
+  name: "敌人",
   three_d: { comprehension: 0, bone_structure: 0, physique: 0 },
   traits: [],
   internal: null,
@@ -31,20 +31,20 @@ export default function NewEnemyPage() {
 
   const handleSave = async () => {
     if (!enemy.name) {
-      alert('请填写名称');
+      alert("请填写名称");
       return;
     }
 
     try {
       setLoading(true);
       if (!activePack) {
-        throw new Error('请先选择模组包');
+        throw new Error("请先选择模组包");
       }
       await saveEnemy(activePack.id, enemy);
-      router.push('/character');
+      router.push("/character");
     } catch (error: any) {
-      console.error('保存敌人失败:', error);
-      alert(error.message || '保存失败');
+      console.error("保存敌人失败:", error);
+      alert(error.message || "保存失败");
     } finally {
       setLoading(false);
     }
@@ -59,13 +59,13 @@ export default function NewEnemyPage() {
             <div className="flex gap-2">
               <Button
                 variant="secondary"
-                onClick={() => router.push('/character')}
+                onClick={() => router.push("/character")}
                 disabled={loading}
               >
                 取消
               </Button>
               <Button onClick={handleSave} disabled={loading}>
-                {loading ? '保存中...' : '保存'}
+                {loading ? "保存中..." : "保存"}
               </Button>
             </div>
           </div>

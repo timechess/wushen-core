@@ -95,18 +95,16 @@ impl AttributeModifier {
                 is_temporary,
                 ..
             } => {
-                if let Some(fixed_value) = value.as_fixed() {
-                    Some(Self::new(
+                value.as_fixed().map(|fixed_value| {
+                    Self::new(
                         *target,
                         fixed_value,
                         *operation,
                         *target_panel,
                         *can_exceed_limit,
                         *is_temporary,
-                    ))
-                } else {
-                    None // 如果是公式，需要先计算
-                }
+                    )
+                })
             }
             _ => None,
         }

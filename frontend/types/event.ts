@@ -1,6 +1,6 @@
-import type { Condition, Operation } from '@/types/trait';
+import type { Condition, Operation } from "@/types/trait";
 
-export type StoryNodeType = 'start' | 'middle' | 'end';
+export type StoryNodeType = "start" | "middle" | "end";
 
 export interface Storyline {
   id: string;
@@ -19,12 +19,12 @@ export interface StoryEvent {
 
 export type StoryEventContent =
   | {
-      type: 'decision';
+      type: "decision";
       text: string;
       options: StoryOption[];
     }
   | {
-      type: 'battle';
+      type: "battle";
       text: string;
       enemy_id?: string;
       enemy: EnemyTemplate;
@@ -32,13 +32,13 @@ export type StoryEventContent =
       lose: StoryBattleBranch;
     }
   | {
-      type: 'story';
+      type: "story";
       text: string;
       rewards?: Reward[];
       next_event_id?: string | null;
     }
   | {
-      type: 'end';
+      type: "end";
       text: string;
     };
 
@@ -63,12 +63,12 @@ export interface AdventureEvent {
 
 export type AdventureEventContent =
   | {
-      type: 'decision';
+      type: "decision";
       text: string;
       options: AdventureOption[];
     }
   | {
-      type: 'battle';
+      type: "battle";
       text: string;
       enemy_id?: string;
       enemy: EnemyTemplate;
@@ -76,7 +76,7 @@ export type AdventureEventContent =
       lose: AdventureOutcome;
     }
   | {
-      type: 'story';
+      type: "story";
       text: string;
       rewards?: Reward[];
     };
@@ -90,12 +90,12 @@ export interface AdventureOption {
 
 export type AdventureOptionResult =
   | {
-      type: 'story';
+      type: "story";
       text: string;
       rewards?: Reward[];
     }
   | {
-      type: 'battle';
+      type: "battle";
       text: string;
       enemy_id?: string;
       enemy: EnemyTemplate;
@@ -110,19 +110,19 @@ export interface AdventureOutcome {
 
 export type Reward =
   | {
-      type: 'attribute';
+      type: "attribute";
       target: RewardTarget;
       value: number;
       operation: Operation;
       can_exceed_limit?: boolean;
     }
-  | { type: 'trait'; id: string }
-  | { type: 'start_trait_pool'; id: string }
-  | { type: 'internal'; id: string }
-  | { type: 'attack_skill'; id: string }
-  | { type: 'defense_skill'; id: string }
+  | { type: "trait"; id: string }
+  | { type: "start_trait_pool"; id: string }
+  | { type: "internal"; id: string }
+  | { type: "attack_skill"; id: string }
+  | { type: "defense_skill"; id: string }
   | {
-      type: 'random_manual';
+      type: "random_manual";
       manual_kind?: ManualKind;
       rarity?: number | null;
       manual_type?: string | null;
@@ -130,12 +130,12 @@ export type Reward =
     };
 
 export type RewardTarget =
-  | 'comprehension'
-  | 'bone_structure'
-  | 'physique'
-  | 'martial_arts_attainment';
+  | "comprehension"
+  | "bone_structure"
+  | "physique"
+  | "martial_arts_attainment";
 
-export type ManualKind = 'internal' | 'attack_skill' | 'defense_skill' | 'any';
+export type ManualKind = "internal" | "attack_skill" | "defense_skill" | "any";
 
 export interface ThreeDimensionalTemplate {
   comprehension: number;

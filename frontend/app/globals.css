@@ -18,7 +18,12 @@
   --app-alert-soft: rgba(170, 86, 32, 0.16);
   --app-shadow: 0 22px 50px rgba(32, 22, 12, 0.18);
   --app-ring: rgba(196, 138, 45, 0.35);
-  --app-bg: radial-gradient(circle at top, #f6ead5 0%, #efe2c8 50%, #e6d5b8 100%);
+  --app-bg: radial-gradient(
+    circle at top,
+    #f6ead5 0%,
+    #efe2c8 50%,
+    #e6d5b8 100%
+  );
 }
 
 @theme inline {
@@ -68,22 +73,45 @@ html {
   inset: 0;
   pointer-events: none;
   background-image:
-    radial-gradient(circle at 10% 10%, rgba(255, 255, 255, 0.3), transparent 35%),
-    radial-gradient(circle at 80% 0%, rgba(255, 255, 255, 0.16), transparent 45%),
+    radial-gradient(
+      circle at 10% 10%,
+      rgba(255, 255, 255, 0.3),
+      transparent 35%
+    ),
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(255, 255, 255, 0.16),
+      transparent 45%
+    ),
     radial-gradient(circle at 80% 80%, rgba(15, 12, 8, 0.08), transparent 40%);
   opacity: 0.9;
 }
 
 .app-shell.area-home {
-  --app-bg: radial-gradient(circle at 20% 20%, #f9f0dc 0%, #f0e0c2 50%, #e6d1ac 100%);
+  --app-bg: radial-gradient(
+    circle at 20% 20%,
+    #f9f0dc 0%,
+    #f0e0c2 50%,
+    #e6d1ac 100%
+  );
 }
 
 .app-shell.area-editor {
-  --app-bg: radial-gradient(circle at 20% 20%, #faf1df 0%, #f1e1c6 55%, #e5d1ae 100%);
+  --app-bg: radial-gradient(
+    circle at 20% 20%,
+    #faf1df 0%,
+    #f1e1c6 55%,
+    #e5d1ae 100%
+  );
 }
 
 .app-shell.area-game {
-  --app-bg: radial-gradient(circle at 20% 20%, #2b3534 0%, #121a19 55%, #0c1110 100%);
+  --app-bg: radial-gradient(
+    circle at 20% 20%,
+    #2b3534 0%,
+    #121a19 55%,
+    #0c1110 100%
+  );
   --app-ink: #f3e7cf;
   --app-ink-muted: #d4c4a6;
   --app-ink-soft: #b9a88b;
@@ -104,7 +132,12 @@ html {
 }
 
 .app-shell.area-neutral {
-  --app-bg: radial-gradient(circle at 20% 20%, #f6ead5 0%, #efe2c8 55%, #e6d5b8 100%);
+  --app-bg: radial-gradient(
+    circle at 20% 20%,
+    #f6ead5 0%,
+    #efe2c8 55%,
+    #e6d5b8 100%
+  );
 }
 
 .page-shell {
@@ -114,7 +147,6 @@ html {
   position: relative;
   z-index: 1;
 }
-
 
 .page-shell.game-shell {
   --game-shell-gap: clamp(6px, 1vh, 14px);
@@ -211,7 +243,10 @@ html {
   border: 1px solid transparent;
   font-size: 0.85rem;
   font-weight: 500;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
   background: color-mix(in oklab, var(--app-surface) 85%, transparent);
 }
 
@@ -327,7 +362,11 @@ html {
 
 .app-shell .bg-amber-100 {
   background-color: var(--app-alert-soft);
-  background-color: color-mix(in oklab, var(--app-accent-strong) 25%, transparent);
+  background-color: color-mix(
+    in oklab,
+    var(--app-accent-strong) 25%,
+    transparent
+  );
 }
 
 .app-shell select {
@@ -342,7 +381,9 @@ html {
   background-position:
     right 1.1rem center,
     right 0.75rem center;
-  background-size: 8px 8px, 8px 8px;
+  background-size:
+    8px 8px,
+    8px 8px;
   background-repeat: no-repeat;
   padding-right: 2.5rem;
 }
@@ -356,7 +397,11 @@ html {
 
 .app-shell option:checked,
 .app-shell option:hover {
-  background-color: color-mix(in oklab, var(--app-accent) 18%, var(--app-surface));
+  background-color: color-mix(
+    in oklab,
+    var(--app-accent) 18%,
+    var(--app-surface)
+  );
   color: var(--app-ink);
 }
 
@@ -454,7 +499,12 @@ html {
 
 .rune-divider {
   height: 1px;
-  background: linear-gradient(90deg, transparent, var(--app-accent), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--app-accent),
+    transparent
+  );
   opacity: 0.6;
 }
 

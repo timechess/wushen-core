@@ -1,6 +1,6 @@
-import type { Trait } from '@/types/trait';
-import type { Internal, AttackSkill, DefenseSkill } from '@/types/manual';
-import type { AdventureEvent, Storyline } from '@/types/event';
+import type { Trait } from "@/types/trait";
+import type { Internal, AttackSkill, DefenseSkill } from "@/types/manual";
+import type { AdventureEvent, Storyline } from "@/types/event";
 import {
   getAdventureEvent,
   getAttackSkill,
@@ -14,7 +14,7 @@ import {
   listInternals,
   listStorylines,
   listTraits,
-} from '@/lib/tauri/commands';
+} from "@/lib/tauri/commands";
 
 export interface GameData {
   traits: Trait[];
@@ -28,7 +28,7 @@ export interface GameData {
 async function loadPackItems<T>(
   packId: string,
   listFn: (packId: string) => Promise<Array<{ id: string }>>,
-  getFn: (packId: string, id: string) => Promise<T | null>
+  getFn: (packId: string, id: string) => Promise<T | null>,
 ): Promise<Array<NonNullable<Awaited<T>>>> {
   const list = await listFn(packId);
   const items = await Promise.all(list.map((item) => getFn(packId, item.id)));
@@ -52,12 +52,32 @@ export async function loadMergedGameData(packIds: string[]): Promise<GameData> {
   const perPack = await Promise.all(
     packIds.map(async (packId) => ({
       traits: await loadPackItems<Trait>(packId, listTraits, getTrait),
-      internals: await loadPackItems<Internal>(packId, listInternals, getInternal),
-      attackSkills: await loadPackItems<AttackSkill>(packId, listAttackSkills, getAttackSkill),
-      defenseSkills: await loadPackItems<DefenseSkill>(packId, listDefenseSkills, getDefenseSkill),
-      storylines: await loadPackItems<Storyline>(packId, listStorylines, getStoryline),
-      adventures: await loadPackItems<AdventureEvent>(packId, listAdventureEvents, getAdventureEvent),
-    }))
+      internals: await loadPackItems<Internal>(
+        packId,
+        listInternals,
+        getInternal,
+      ),
+      attackSkills: await loadPackItems<AttackSkill>(
+        packId,
+        listAttackSkills,
+        getAttackSkill,
+      ),
+      defenseSkills: await loadPackItems<DefenseSkill>(
+        packId,
+        listDefenseSkills,
+        getDefenseSkill,
+      ),
+      storylines: await loadPackItems<Storyline>(
+        packId,
+        listStorylines,
+        getStoryline,
+      ),
+      adventures: await loadPackItems<AdventureEvent>(
+        packId,
+        listAdventureEvents,
+        getAdventureEvent,
+      ),
+    })),
   );
 
   return {

@@ -184,7 +184,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -227,7 +227,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -385,7 +385,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -416,7 +416,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -569,7 +569,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -600,7 +600,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -758,7 +758,7 @@ impl ManualManager {
                         let calculated_value = match value.as_formula() {
                             Some(formula) => {
                                 match FormulaCalculator::evaluate_cultivation(
-                                    &formula,
+                                    formula,
                                     &formula_context,
                                 ) {
                                     Ok(v) => v,
@@ -1060,6 +1060,7 @@ impl ManualManager {
     }
 
     /// 应用升级时的词条效果（包含增益修改）
+    #[allow(clippy::too_many_arguments)]
     fn apply_level_up_effects(
         &self,
         panel: &mut CharacterPanel,
@@ -1072,7 +1073,7 @@ impl ManualManager {
     ) -> (Option<f64>, f64) {
         let mut effects = Vec::new();
 
-        if let Some(exec) = executor.as_deref_mut() {
+        if let Some(exec) = executor.as_mut() {
             effects.extend(exec.trigger_cultivation(trigger, panel, &context));
         }
 
@@ -1182,7 +1183,7 @@ impl ManualManager {
                 }
             }
 
-            if let Some(exec) = executor.as_deref_mut() {
+            if let Some(exec) = executor.as_mut() {
                 exec.apply_effects_cultivation(effects, panel, &context);
             } else {
                 let exec = EntryExecutor::new();
@@ -1207,6 +1208,7 @@ impl ManualManager {
     }
 
     /// 应用阅读功法的武学素养增益（包含词条修改）
+    #[allow(clippy::too_many_arguments)]
     fn apply_reading_gain(
         &self,
         panel: &mut CharacterPanel,

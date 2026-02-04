@@ -37,6 +37,7 @@ pub struct StoryEvent {
 
 /// 剧情事件内容
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum StoryEventContent {
     /// 抉择事件
@@ -98,6 +99,7 @@ pub struct AdventureEvent {
 
 /// 奇遇事件内容
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AdventureEventContent {
     /// 抉择事件
@@ -132,6 +134,7 @@ pub struct AdventureOption {
 
 /// 奇遇选项结果
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::large_enum_variant)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AdventureOptionResult {
     /// 直接剧情结果
