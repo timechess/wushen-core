@@ -42,7 +42,7 @@ pub fn calculate_switching_qi(
         // 应用损失率修改
         let modified_loss_rate = base_loss_rate * qi_loss_rate_modifier;
         let loss_rate = 1.0 - modified_loss_rate;
-        let new_qi = current_qi * loss_rate.max(0.0).min(1.0);
+        let new_qi = current_qi * loss_rate.clamp(0.0, 1.0);
         let qi_lost = current_qi - new_qi;
 
         SwitchingResult {

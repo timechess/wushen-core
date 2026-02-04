@@ -414,6 +414,7 @@ fn wrap_character_as_save(character: Value, id_fallback: &str) -> Value {
         "start_trait_pool": [],
         "completed_characters": [],
         "rng_state": 0,
+        "story_history": [],
     })
 }
 
@@ -454,6 +455,9 @@ fn normalize_save_value(mut value: Value, id_fallback: &str) -> Value {
     }
     if !obj.contains_key("rng_state") {
         obj.insert("rng_state".to_string(), Value::Number(0.into()));
+    }
+    if !obj.contains_key("story_history") {
+        obj.insert("story_history".to_string(), Value::Array(vec![]));
     }
 
     value
@@ -623,7 +627,7 @@ pub fn delete_pack(app: AppHandle, id: String) -> Result<(), String> {
 
 #[tauri::command]
 pub fn get_pack_order(app: AppHandle) -> Result<Vec<String>, String> {
-    Ok(read_pack_order(&app)?)
+    read_pack_order(&app)
 }
 
 #[tauri::command]

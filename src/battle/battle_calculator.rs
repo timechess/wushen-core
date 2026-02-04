@@ -33,21 +33,22 @@ impl BattleCalculator {
     }
 
     /// 2. 计算攻击者输出
-    /// 公式：总输出 = (基础攻击力 + min(当前内息, 内息量 × 内息输出)) × 内息质量 × 威能 × 增伤
+    ///    公式：总输出 = (基础攻击力 + min(当前内息, 内息量 × 内息输出)) × 内息质量 × 威能 × 增伤
     pub fn calculate_attack_output(attacker: &BattlePanel) -> f64 {
         let qi_used = attacker.qi.min(attacker.max_qi * attacker.qi_output_rate);
         let base_with_qi = attacker.base_attack + qi_used;
-        let output =
-            base_with_qi * attacker.qi_quality * attacker.power * (1.0 + attacker.damage_bonus);
+        let qi_quality = if qi_used > 0.0 { attacker.qi_quality } else { 1.0 };
+        let output = base_with_qi * qi_quality * attacker.power * (1.0 + attacker.damage_bonus);
         output.max(0.0)
     }
 
     /// 3. 计算防御者防御力
-    /// 公式：总防御力 = (基础防御力 + min(当前内息, 内息量 × 内息输出)) × 内息质量 × 守御
+    ///    公式：总防御力 = (基础防御力 + min(当前内息, 内息量 × 内息输出)) × 内息质量 × 守御
     pub fn calculate_defense(defender: &BattlePanel) -> f64 {
         let qi_used = defender.qi.min(defender.max_qi * defender.qi_output_rate);
         let base_with_qi = defender.base_defense + qi_used;
-        let defense = base_with_qi * defender.qi_quality * defender.defense_power;
+        let qi_quality = if qi_used > 0.0 { defender.qi_quality } else { 1.0 };
+        let defense = base_with_qi * qi_quality * defender.defense_power;
         defense.max(0.0)
     }
 

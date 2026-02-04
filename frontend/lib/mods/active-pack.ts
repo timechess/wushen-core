@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import type { ActivePack } from '@/types/mod';
+import { useEffect, useState } from "react";
+import type { ActivePack } from "@/types/mod";
 
-const ACTIVE_PACK_KEY = 'wushen_active_pack';
+const ACTIVE_PACK_KEY = "wushen_active_pack";
 
 export function readActivePack(): ActivePack | null {
-  if (typeof window === 'undefined') return null;
+  if (typeof window === "undefined") return null;
   const raw = window.localStorage.getItem(ACTIVE_PACK_KEY);
   if (!raw) return null;
   try {
@@ -17,10 +17,10 @@ export function readActivePack(): ActivePack | null {
 }
 
 export function writeActivePack(pack: ActivePack | null): void {
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   if (!pack) {
     window.localStorage.removeItem(ACTIVE_PACK_KEY);
-    document.cookie = 'wushen_active_pack=; path=/; max-age=0';
+    document.cookie = "wushen_active_pack=; path=/; max-age=0";
     return;
   }
   window.localStorage.setItem(ACTIVE_PACK_KEY, JSON.stringify(pack));
@@ -44,8 +44,8 @@ export function useActivePack() {
         setActivePack(readActivePack());
       }
     };
-    window.addEventListener('storage', handler);
-    return () => window.removeEventListener('storage', handler);
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
   }, []);
 
   const updateActivePack = (pack: ActivePack | null) => {

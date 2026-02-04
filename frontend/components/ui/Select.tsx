@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 
 interface SelectOption {
   value: string;
@@ -15,7 +15,7 @@ export default function Select({
   label,
   options,
   error,
-  className = '',
+  className = "",
   ...props
 }: SelectProps) {
   return (
@@ -31,7 +31,7 @@ export default function Select({
             w-full appearance-none px-3 py-2 pr-10 border rounded-lg bg-[var(--app-surface-soft)] text-[var(--app-ink)]
             focus:outline-none focus:ring-2 focus:ring-[var(--app-ring)] focus:border-[var(--app-accent)]
             disabled:opacity-60 disabled:cursor-not-allowed
-            ${error ? 'border-red-500' : 'border-[var(--app-border)]'}
+            ${error ? "border-red-500" : "border-[var(--app-border)]"}
             ${className}
           `}
           {...props}
@@ -49,13 +49,16 @@ export default function Select({
             stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 9l-7 7-7-7"
+            />
           </svg>
         </div>
       </div>
-      {error && (
-        <p className="mt-1 text-sm text-red-600">{error}</p>
-      )}
+      {error && <p className="mt-1 text-sm text-red-600">{error}</p>}
     </div>
   );
 }

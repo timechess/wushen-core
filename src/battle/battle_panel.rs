@@ -85,7 +85,7 @@ impl BattlePanel {
     /// - 基础防御力 = 体魄 * 2
     pub fn from_character_panel(panel: &CharacterPanel) -> Self {
         let z = panel.three_d.physique as f64;
-        Self {
+        let mut battle_panel = Self {
             name: panel.name.clone(),
 
             comprehension: panel.three_d.comprehension,
@@ -125,7 +125,19 @@ impl BattlePanel {
             attack_speed: panel.attack_speed,
             qi_recovery_rate: panel.qi_recovery_rate,
             charge_time: panel.charge_time,
+        };
+
+        if battle_panel.internal_id.is_none()
+            && battle_panel.attack_skill_id.is_none()
+            && battle_panel.defense_skill_id.is_none()
+        {
+            battle_panel.attack_speed = 5.0;
+            battle_panel.charge_time = 50.0;
+            battle_panel.power = 1.0;
+            battle_panel.defense_power = 1.0;
         }
+
+        battle_panel
     }
 
     /// 检查是否死亡

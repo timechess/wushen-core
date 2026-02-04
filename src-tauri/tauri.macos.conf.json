@@ -2,8 +2,6 @@
   "bundle": {
     "active": true,
     "targets": ["dmg"],
-    "icon": [
-      "icons/icon.icns"
-    ]
+    "icon": ["icons/icon.icns"]
   }
 }

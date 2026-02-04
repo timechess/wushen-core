@@ -1,14 +1,19 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import type { EnemyTemplate, OwnedManualTemplate } from '@/types/event';
-import type { ManualListItem } from '@/types/manual';
-import type { TraitListItem } from '@/types/trait';
-import Input from '@/components/ui/Input';
-import Select from '@/components/ui/Select';
-import SearchableSelect from '@/components/ui/SearchableSelect';
-import { useActivePack } from '@/lib/mods/active-pack';
-import { listAttackSkills, listDefenseSkills, listInternals, listTraits } from '@/lib/tauri/commands';
+import { useEffect, useState } from "react";
+import type { EnemyTemplate, OwnedManualTemplate } from "@/types/event";
+import type { ManualListItem } from "@/types/manual";
+import type { TraitListItem } from "@/types/trait";
+import Input from "@/components/ui/Input";
+import Select from "@/components/ui/Select";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import { useActivePack } from "@/lib/mods/active-pack";
+import {
+  listAttackSkills,
+  listDefenseSkills,
+  listInternals,
+  listTraits,
+} from "@/lib/tauri/commands";
 
 interface EnemyEditorProps {
   enemy: EnemyTemplate;
@@ -25,7 +30,7 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
   const [attackSkills, setAttackSkills] = useState<ManualListItem[]>([]);
   const [defenseSkills, setDefenseSkills] = useState<ManualListItem[]>([]);
   const [traits, setTraits] = useState<TraitListItem[]>([]);
-  const [traitPicker, setTraitPicker] = useState('');
+  const [traitPicker, setTraitPicker] = useState("");
   const { activePack } = useActivePack();
 
   useEffect(() => {
@@ -38,25 +43,29 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
           setTraits([]);
           return;
         }
-        const [internalsData, attackData, defenseData, traitData] = await Promise.all([
-          listInternals(activePack.id),
-          listAttackSkills(activePack.id),
-          listDefenseSkills(activePack.id),
-          listTraits(activePack.id),
-        ]);
+        const [internalsData, attackData, defenseData, traitData] =
+          await Promise.all([
+            listInternals(activePack.id),
+            listAttackSkills(activePack.id),
+            listDefenseSkills(activePack.id),
+            listTraits(activePack.id),
+          ]);
         setInternals(internalsData);
         setAttackSkills(attackData);
         setDefenseSkills(defenseData);
         setTraits(traitData);
       } catch (error) {
-        console.error('加载敌人配置选项失败:', error);
+        console.error("加载敌人配置选项失败:", error);
       }
     };
     loadData();
   }, [activePack]);
 
-  const updateManual = (key: 'internal' | 'attack_skill' | 'defense_skill', patch: Partial<OwnedManualTemplate>) => {
-    const current = enemy[key] ?? { id: '', level: 0, exp: 0 };
+  const updateManual = (
+    key: "internal" | "attack_skill" | "defense_skill",
+    patch: Partial<OwnedManualTemplate>,
+  ) => {
+    const current = enemy[key] ?? { id: "", level: 0, exp: 0 };
     const next = { ...current, ...patch };
     if (!next.id) {
       onChange({ ...enemy, [key]: null });
@@ -67,12 +76,12 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
 
   const renderManualSection = (
     label: string,
-    manualKey: 'internal' | 'attack_skill' | 'defense_skill',
-    options: ManualListItem[]
+    manualKey: "internal" | "attack_skill" | "defense_skill",
+    options: ManualListItem[],
   ) => {
-    const manual = enemy[manualKey] ?? { id: '', level: 0, exp: 0 };
-    const selectOptions = [{ value: '', label: `(无) ${label}` }].concat(
-      options.map((m) => ({ value: m.id, label: m.name }))
+    const manual = enemy[manualKey] ?? { id: "", level: 0, exp: 0 };
+    const selectOptions = [{ value: "", label: `(无) ${label}` }].concat(
+      options.map((m) => ({ value: m.id, label: m.name })),
     );
 
     return (
@@ -88,22 +97,29 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
         <div className="grid grid-cols-2 gap-3">
           <Select
             label="等级"
-            value={manual.level?.toString() ?? '0'}
+            value={manual.level?.toString() ?? "0"}
             options={LEVEL_OPTIONS}
-            onChange={(e) => updateManual(manualKey, { level: Number(e.target.value) })}
+            onChange={(e) =>
+              updateManual(manualKey, { level: Number(e.target.value) })
+            }
           />
           <Input
             label="经验"
             type="number"
             value={(manual.exp ?? 0).toString()}
-            onChange={(e) => updateManual(manualKey, { exp: Number(e.target.value || 0) })}
+            onChange={(e) =>
+              updateManual(manualKey, { exp: Number(e.target.value || 0) })
+            }
           />
         </div>
       </div>
     );
   };
 
-  const traitOptions = traits.map((trait) => ({ value: trait.id, label: trait.name }));
+  const traitOptions = traits.map((trait) => ({
+    value: trait.id,
+    label: trait.name,
+  }));
   const traitNameMap = new Map(traits.map((trait) => [trait.id, trait.name]));
 
   const addTrait = (id: string) => {
@@ -173,12 +189,12 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
         <SearchableSelect
           label="添加特性"
           value={traitPicker}
-          options={[{ value: '', label: '选择特性' }, ...traitOptions]}
+          options={[{ value: "", label: "选择特性" }, ...traitOptions]}
           onChange={(value) => {
             if (value) {
               addTrait(value);
             }
-            setTraitPicker('');
+            setTraitPicker("");
           }}
           placeholder="搜索特性..."
         />
@@ -191,7 +207,7 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
                 key={traitId}
                 className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-700"
               >
-                {traitNameMap.get(traitId) || '未命名特性'}
+                {traitNameMap.get(traitId) || "未命名特性"}
                 <button
                   type="button"
                   className="text-blue-700/70 hover:text-blue-900"
@@ -206,42 +222,43 @@ export default function EnemyEditor({ enemy, onChange }: EnemyEditorProps) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {renderManualSection('内功', 'internal', internals)}
-        {renderManualSection('攻击武技', 'attack_skill', attackSkills)}
-        {renderManualSection('防御武技', 'defense_skill', defenseSkills)}
+        {renderManualSection("内功", "internal", internals)}
+        {renderManualSection("攻击武技", "attack_skill", attackSkills)}
+        {renderManualSection("防御武技", "defense_skill", defenseSkills)}
       </div>
 
       <div className="grid grid-cols-3 gap-3">
         <Input
           label="最大内息量(可选)"
           type="number"
-          value={enemy.max_qi ?? ''}
+          value={enemy.max_qi ?? ""}
           onChange={(e) =>
             onChange({
               ...enemy,
-              max_qi: e.target.value === '' ? null : Number(e.target.value),
+              max_qi: e.target.value === "" ? null : Number(e.target.value),
             })
           }
         />
         <Input
           label="当前内息量(可选)"
           type="number"
-          value={enemy.qi ?? ''}
+          value={enemy.qi ?? ""}
           onChange={(e) =>
             onChange({
               ...enemy,
-              qi: e.target.value === '' ? null : Number(e.target.value),
+              qi: e.target.value === "" ? null : Number(e.target.value),
             })
           }
         />
         <Input
           label="武学素养(可选)"
           type="number"
-          value={enemy.martial_arts_attainment ?? ''}
+          value={enemy.martial_arts_attainment ?? ""}
           onChange={(e) =>
             onChange({
               ...enemy,
-              martial_arts_attainment: e.target.value === '' ? null : Number(e.target.value),
+              martial_arts_attainment:
+                e.target.value === "" ? null : Number(e.target.value),
             })
           }
         />

@@ -1,7 +1,7 @@
-import fs from 'fs';
-import path from 'path';
+import fs from "fs";
+import path from "path";
 
-const DATA_DIR = path.join(process.cwd(), 'data');
+const DATA_DIR = path.join(process.cwd(), "data");
 
 export function getDataDir(): string {
   return DATA_DIR;
@@ -21,10 +21,14 @@ function readFileSafe(filePath: string): string | null {
   if (!fs.existsSync(filePath)) {
     return null;
   }
-  return fs.readFileSync(filePath, 'utf-8');
+  return fs.readFileSync(filePath, "utf-8");
 }
 
-export function readCollection<T>(fileName: string, key?: string, baseDir?: string): T[] {
+export function readCollection<T>(
+  fileName: string,
+  key?: string,
+  baseDir?: string,
+): T[] {
   const dir = resolveDataDir(baseDir);
   ensureDir(dir);
   const filePath = path.join(dir, fileName);
@@ -43,15 +47,24 @@ export function readCollection<T>(fileName: string, key?: string, baseDir?: stri
   return [];
 }
 
-export function writeCollection<T>(fileName: string, items: T[], key?: string, baseDir?: string): void {
+export function writeCollection<T>(
+  fileName: string,
+  items: T[],
+  key?: string,
+  baseDir?: string,
+): void {
   const dir = resolveDataDir(baseDir);
   ensureDir(dir);
   const filePath = path.join(dir, fileName);
   const payload = key ? { [key]: items } : items;
-  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(payload, null, 2), "utf-8");
 }
 
-export function readJson<T>(fileName: string, fallback: T, baseDir?: string): T {
+export function readJson<T>(
+  fileName: string,
+  fallback: T,
+  baseDir?: string,
+): T {
   const dir = resolveDataDir(baseDir);
   ensureDir(dir);
   const filePath = path.join(dir, fileName);
@@ -66,9 +79,13 @@ export function readJson<T>(fileName: string, fallback: T, baseDir?: string): T 
   }
 }
 
-export function writeJson<T>(fileName: string, data: T, baseDir?: string): void {
+export function writeJson<T>(
+  fileName: string,
+  data: T,
+  baseDir?: string,
+): void {
   const dir = resolveDataDir(baseDir);
   ensureDir(dir);
   const filePath = path.join(dir, fileName);
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
+  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
 }

@@ -60,4 +60,4 @@ export interface ManualListItem {
   name: string;
 }
 
-export type ManualType = 'internal' | 'attack_skill' | 'defense_skill';
+export type ManualType = "internal" | "attack_skill" | "defense_skill";

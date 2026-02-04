@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import Button from '@/components/ui/Button';
-import EnemyEditor from '@/components/editor/EnemyEditor';
-import RequireActivePack from '@/components/mod/RequireActivePack';
-import ActivePackStatus from '@/components/mod/ActivePackStatus';
-import { useActivePack } from '@/lib/mods/active-pack';
-import { getEnemy, saveEnemy } from '@/lib/tauri/commands';
-import type { Enemy } from '@/types/enemy';
+import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Button from "@/components/ui/Button";
+import EnemyEditor from "@/components/editor/EnemyEditor";
+import RequireActivePack from "@/components/mod/RequireActivePack";
+import ActivePackStatus from "@/components/mod/ActivePackStatus";
+import { useActivePack } from "@/lib/mods/active-pack";
+import { getEnemy, saveEnemy } from "@/lib/tauri/commands";
+import type { Enemy } from "@/types/enemy";
 
 export default function EditEnemyPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const enemyId = searchParams.get('id') ?? '';
+  const enemyId = searchParams.get("id") ?? "";
   const { activePack } = useActivePack();
 
   const [enemy, setEnemy] = useState<Enemy | null>(null);
@@ -35,15 +35,15 @@ export default function EditEnemyPage() {
       if (!activePack) return;
       const data = await getEnemy(activePack.id, enemyId);
       if (!data) {
-        alert('敌人不存在');
-        router.push('/character');
+        alert("敌人不存在");
+        router.push("/character");
         return;
       }
       setEnemy(data);
     } catch (error) {
-      console.error('加载敌人失败:', error);
-      alert('加载敌人失败');
-      router.push('/character');
+      console.error("加载敌人失败:", error);
+      alert("加载敌人失败");
+      router.push("/character");
     } finally {
       setLoading(false);
     }
@@ -52,20 +52,20 @@ export default function EditEnemyPage() {
   const handleSave = async () => {
     if (!enemy) return;
     if (!enemy.name) {
-      alert('请填写名称');
+      alert("请填写名称");
       return;
     }
 
     try {
       setSaving(true);
       if (!activePack) {
-        throw new Error('请先选择模组包');
+        throw new Error("请先选择模组包");
       }
       await saveEnemy(activePack.id, enemy);
-      router.push('/character');
+      router.push("/character");
     } catch (error: any) {
-      console.error('保存敌人失败:', error);
-      alert(error.message || '保存失败');
+      console.error("保存敌人失败:", error);
+      alert(error.message || "保存失败");
     } finally {
       setSaving(false);
     }
@@ -89,13 +89,13 @@ export default function EditEnemyPage() {
               <div className="flex gap-2">
                 <Button
                   variant="secondary"
-                  onClick={() => router.push('/character')}
+                  onClick={() => router.push("/character")}
                   disabled={saving}
                 >
                   取消
                 </Button>
                 <Button onClick={handleSave} disabled={saving}>
-                  {saving ? '保存中...' : '保存'}
+                  {saving ? "保存中..." : "保存"}
                 </Button>
               </div>
             </div>

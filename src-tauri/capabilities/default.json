@@ -7,7 +7,12 @@
         "urls": ["http://localhost:3000/*", "http://127.0.0.1:3000/*"]
       },
       "windows": ["main"],
-      "permissions": ["core:default", "dialog:allow-open", "dialog:allow-save", "app-commands"]
+      "permissions": [
+        "core:default",
+        "dialog:allow-open",
+        "dialog:allow-save",
+        "app-commands"
+      ]
     }
   ]
 }

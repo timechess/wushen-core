@@ -24,6 +24,25 @@ pub struct SaveGame {
     pub completed_characters: Vec<CharacterState>,
     #[serde(default)]
     pub rng_state: u64,
+    #[serde(default)]
+    pub story_history: Vec<StoryHistoryRecord>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum StoryHistoryScope {
+    Story,
+    Adventure,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoryHistoryRecord {
+    pub scope: StoryHistoryScope,
+    pub event_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub option_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub battle_win: Option<bool>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

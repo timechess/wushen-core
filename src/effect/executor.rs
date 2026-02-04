@@ -56,7 +56,7 @@ impl EntryExecutor {
         let entry_id = format!("{}#{}", source_id, entry_order);
         self.entries_by_trigger
             .entry(entry.trigger)
-            .or_insert_with(Vec::new)
+            .or_default()
             .push(EntryWithSource {
                 entry,
                 source_id,

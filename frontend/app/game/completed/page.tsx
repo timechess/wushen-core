@@ -1,9 +1,9 @@
-'use client';
+"use client";
 
-import { useEffect, useState } from 'react';
-import Button from '@/components/ui/Button';
-import type { Character } from '@/types/character';
-import { listSaves, loadSave } from '@/lib/tauri/commands';
+import { useEffect, useState } from "react";
+import Button from "@/components/ui/Button";
+import type { Character } from "@/types/character";
+import { listSaves, loadSave } from "@/lib/tauri/commands";
 
 interface CompletedEntry {
   saveId: string;
@@ -28,11 +28,11 @@ export default function CompletedCharactersPage() {
             saveName: save.name,
             character,
           }));
-        })
+        }),
       );
       setEntries(loaded.flat());
     } catch (error) {
-      console.error('加载完成角色失败:', error);
+      console.error("加载完成角色失败:", error);
       setEntries([]);
     } finally {
       setLoading(false);
@@ -49,28 +49,47 @@ export default function CompletedCharactersPage() {
         <div className="surface-card p-6 mb-6">
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-2 reveal-text">已完成角色</h1>
-              <p className="text-gray-600 reveal-text reveal-delay-1">查看所有完成剧情线的角色记录。</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2 reveal-text">
+                已完成角色
+              </h1>
+              <p className="text-gray-600 reveal-text reveal-delay-1">
+                查看所有完成剧情线的角色记录。
+              </p>
             </div>
-            <Button variant="secondary" onClick={loadCompleted} disabled={loading}>
-              {loading ? '刷新中...' : '刷新列表'}
+            <Button
+              variant="secondary"
+              onClick={loadCompleted}
+              disabled={loading}
+            >
+              {loading ? "刷新中..." : "刷新列表"}
             </Button>
           </div>
         </div>
 
         <div className="surface-panel p-6">
           {entries.length === 0 ? (
-            <div className="text-gray-500 text-center py-12">暂无完成角色记录</div>
+            <div className="text-gray-500 text-center py-12">
+              暂无完成角色记录
+            </div>
           ) : (
             <div className="space-y-4">
               {entries.map((entry, index) => (
-                <div key={`${entry.saveId}-${entry.character.id}-${index}`} className="border border-gray-200 rounded-lg p-4">
+                <div
+                  key={`${entry.saveId}-${entry.character.id}-${index}`}
+                  className="border border-gray-200 rounded-lg p-4"
+                >
                   <div className="flex items-center justify-between">
                     <div>
-                      <div className="text-lg font-semibold text-gray-900">{entry.character.name}</div>
-                      <div className="text-xs text-gray-500">存档：{entry.saveName}</div>
+                      <div className="text-lg font-semibold text-gray-900">
+                        {entry.character.name}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        存档：{entry.saveName}
+                      </div>
                     </div>
-                    <div className="text-xs text-gray-400">{entry.character.name}</div>
+                    <div className="text-xs text-gray-400">
+                      {entry.character.name}
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-3 gap-2 text-sm text-gray-700">
                     <div>悟性 {entry.character.three_d.comprehension}</div>
@@ -78,7 +97,8 @@ export default function CompletedCharactersPage() {
                     <div>体魄 {entry.character.three_d.physique}</div>
                   </div>
                   <div className="mt-2 text-sm text-gray-600">
-                    武学素养 {(entry.character.martial_arts_attainment ?? 0).toFixed(1)}
+                    武学素养{" "}
+                    {(entry.character.martial_arts_attainment ?? 0).toFixed(1)}
                   </div>
                 </div>
               ))}

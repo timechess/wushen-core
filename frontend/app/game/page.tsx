@@ -1,27 +1,40 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import SearchableSelect from '@/components/ui/SearchableSelect';
-import Modal from '@/components/ui/Modal';
-import type { ModPackMetadata } from '@/types/mod';
-import type { ManualType } from '@/types/manual';
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import SearchableSelect from "@/components/ui/SearchableSelect";
+import Modal from "@/components/ui/Modal";
+import type { ModPackMetadata } from "@/types/mod";
+import type { ManualType } from "@/types/manual";
 import type {
   BattlePanel,
   BattleRecord,
   BattleResult,
   GameOutcome,
+  GamePhase,
   GameResponse,
   GameView,
   PanelDelta,
-} from '@/types/game';
-import type { AdventureEvent, EnemyTemplate, OwnedManualTemplate, Reward, StoryEvent } from '@/types/event';
-import type { Condition, Entry } from '@/types/trait';
-import { loadMergedGameData, type GameData } from '@/lib/game/pack-data';
-import { isConditionMet, type ManualMaps } from '@/lib/game/conditions';
-import { describeCondition, describeEntry } from '@/lib/utils/entryDescription';
-import { deleteSave, getPackOrder, listPacks, listSaves } from '@/lib/tauri/commands';
+} from "@/types/game";
+import type {
+  AdventureEvent,
+  EnemyTemplate,
+  OwnedManualTemplate,
+  Reward,
+  StoryEvent,
+} from "@/types/event";
+import type { StoryHistoryRecord } from "@/types/save";
+import type { Condition, Entry } from "@/types/trait";
+import { loadMergedGameData, type GameData } from "@/lib/game/pack-data";
+import { isConditionMet, type ManualMaps } from "@/lib/game/conditions";
+import { describeCondition, describeEntry } from "@/lib/utils/entryDescription";
+import {
+  deleteSave,
+  getPackOrder,
+  listPacks,
+  listSaves,
+} from "@/lib/tauri/commands";
 import {
   gameAdventureOption,
   gameCultivate,
@@ -35,46 +48,50 @@ import {
   gameStoryOption,
   gameTravel,
   listStorylines,
-} from '@/lib/tauri/wushen-core';
+} from "@/lib/tauri/wushen-core";
 
-const PACK_SELECTION_KEY = 'wushen_game_pack_selection';
+const PACK_SELECTION_KEY = "wushen_game_pack_selection";
 
 const ATTRIBUTE_LABELS: Record<string, string> = {
-  comprehension: '悟性',
-  bone_structure: '根骨',
-  physique: '体魄',
-  martial_arts_attainment: '武学素养',
+  comprehension: "悟性",
+  bone_structure: "根骨",
+  physique: "体魄",
+  martial_arts_attainment: "武学素养",
 };
 
 const MANUAL_KIND_LABELS: Record<string, string> = {
-  internal: '内功',
-  attack_skill: '攻击武技',
-  defense_skill: '防御武技',
-  any: '任意功法',
+  internal: "内功",
+  attack_skill: "攻击武技",
+  defense_skill: "防御武技",
+  any: "任意功法",
 };
 
-type LogTone = 'story' | 'system';
+type LogTone = "story" | "system";
 
 type LogItem =
   | {
       id: string;
-      kind: 'text';
+      kind: "text";
       text: string;
       tone: LogTone;
       title?: string;
     }
   | {
       id: string;
-      kind: 'decision';
-      scope: 'story' | 'adventure';
+      kind: "decision";
+      scope: "story" | "adventure";
       title: string;
-      options: Array<{ id: string; text: string; condition?: Condition | null }>;
+      options: Array<{
+        id: string;
+        text: string;
+        condition?: Condition | null;
+      }>;
       chosenId?: string;
     }
   | {
       id: string;
-      kind: 'battle';
-      data: BattleResult;
+      kind: "battle";
+      data: BattleResult | null;
       viewed: boolean;
       resultText?: string;
       rewards?: Reward[];
@@ -82,21 +99,21 @@ type LogItem =
     }
   | {
       id: string;
-      kind: 'reward';
+      kind: "reward";
       title: string;
       rewards: Reward[];
     }
   | {
       id: string;
-      kind: 'phase';
+      kind: "phase";
       label: string;
       message: string;
     }
   | {
       id: string;
-      kind: 'action';
+      kind: "action";
       label: string;
-      actionType: 'story_continue' | 'story_battle' | 'story_end';
+      actionType: "story_continue" | "story_battle" | "story_end";
     };
 
 type DecisionOptionMeta = {
@@ -116,37 +133,53 @@ function generateCharacterId(): string {
 }
 
 const BATTLE_SPEEDS = [
-  { label: '慢', value: 900 },
-  { label: '中', value: 600 },
-  { label: '快', value: 300 },
+  { label: "慢", value: 900 },
+  { label: "中", value: 600 },
+  { label: "快", value: 300 },
 ];
 const LOG_TYPING_INTERVAL_MS = 30;
 const BATTLE_LOG_TYPING_INTERVAL_MS = 24;
 
-function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false) {
+function applyPanelDelta(
+  panel: BattlePanel,
+  delta?: PanelDelta,
+  reverse = false,
+) {
   if (!delta) return;
   const multiplier = reverse ? -1 : 1;
   const applyMaxFirst = !reverse;
 
   const applyHp = () => {
     if (delta.hp_delta !== undefined) {
-      panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp + delta.hp_delta * multiplier));
+      panel.hp = Math.max(
+        0,
+        Math.min(panel.max_hp, panel.hp + delta.hp_delta * multiplier),
+      );
     }
   };
   const applyMaxHp = () => {
     if (delta.max_hp_delta !== undefined) {
-      panel.max_hp = Math.max(0, panel.max_hp + delta.max_hp_delta * multiplier);
+      panel.max_hp = Math.max(
+        0,
+        panel.max_hp + delta.max_hp_delta * multiplier,
+      );
       panel.hp = Math.max(0, Math.min(panel.max_hp, panel.hp));
     }
   };
   const applyQi = () => {
     if (delta.qi_delta !== undefined) {
-      panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi + delta.qi_delta * multiplier));
+      panel.qi = Math.max(
+        0,
+        Math.min(panel.max_qi, panel.qi + delta.qi_delta * multiplier),
+      );
     }
   };
   const applyMaxQi = () => {
     if (delta.max_qi_delta !== undefined) {
-      panel.max_qi = Math.max(0, panel.max_qi + delta.max_qi_delta * multiplier);
+      panel.max_qi = Math.max(
+        0,
+        panel.max_qi + delta.max_qi_delta * multiplier,
+      );
       panel.qi = Math.max(0, Math.min(panel.max_qi, panel.qi));
     }
   };
@@ -154,7 +187,10 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
     if (delta.damage_reduction_delta !== undefined) {
       panel.damage_reduction = Math.max(
         0,
-        Math.min(panel.max_damage_reduction, panel.damage_reduction + delta.damage_reduction_delta * multiplier)
+        Math.min(
+          panel.max_damage_reduction,
+          panel.damage_reduction + delta.damage_reduction_delta * multiplier,
+        ),
       );
     }
   };
@@ -162,16 +198,23 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
     if (delta.max_damage_reduction_delta !== undefined) {
       panel.max_damage_reduction = Math.max(
         0,
-        panel.max_damage_reduction + delta.max_damage_reduction_delta * multiplier
+        panel.max_damage_reduction +
+          delta.max_damage_reduction_delta * multiplier,
       );
-      panel.damage_reduction = Math.max(0, Math.min(panel.max_damage_reduction, panel.damage_reduction));
+      panel.damage_reduction = Math.max(
+        0,
+        Math.min(panel.max_damage_reduction, panel.damage_reduction),
+      );
     }
   };
   const applyQiOutputRate = () => {
     if (delta.qi_output_rate_delta !== undefined) {
       panel.qi_output_rate = Math.max(
         0,
-        Math.min(panel.max_qi_output_rate, panel.qi_output_rate + delta.qi_output_rate_delta * multiplier)
+        Math.min(
+          panel.max_qi_output_rate,
+          panel.qi_output_rate + delta.qi_output_rate_delta * multiplier,
+        ),
       );
     }
   };
@@ -179,9 +222,12 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
     if (delta.max_qi_output_rate_delta !== undefined) {
       panel.max_qi_output_rate = Math.max(
         0,
-        panel.max_qi_output_rate + delta.max_qi_output_rate_delta * multiplier
+        panel.max_qi_output_rate + delta.max_qi_output_rate_delta * multiplier,
       );
-      panel.qi_output_rate = Math.max(0, Math.min(panel.max_qi_output_rate, panel.qi_output_rate));
+      panel.qi_output_rate = Math.max(
+        0,
+        Math.min(panel.max_qi_output_rate, panel.qi_output_rate),
+      );
     }
   };
 
@@ -211,10 +257,16 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
     applyMaxQiOutputRate();
   }
   if (delta.base_attack_delta !== undefined) {
-    panel.base_attack = Math.max(0, panel.base_attack + delta.base_attack_delta * multiplier);
+    panel.base_attack = Math.max(
+      0,
+      panel.base_attack + delta.base_attack_delta * multiplier,
+    );
   }
   if (delta.base_defense_delta !== undefined) {
-    panel.base_defense = Math.max(0, panel.base_defense + delta.base_defense_delta * multiplier);
+    panel.base_defense = Math.max(
+      0,
+      panel.base_defense + delta.base_defense_delta * multiplier,
+    );
   }
   if (delta.power_delta !== undefined) {
     panel.power += delta.power_delta * multiplier;
@@ -226,13 +278,22 @@ function applyPanelDelta(panel: BattlePanel, delta?: PanelDelta, reverse = false
     panel.qi_quality += delta.qi_quality_delta * multiplier;
   }
   if (delta.attack_speed_delta !== undefined) {
-    panel.attack_speed = Math.max(0, panel.attack_speed + delta.attack_speed_delta * multiplier);
+    panel.attack_speed = Math.max(
+      0,
+      panel.attack_speed + delta.attack_speed_delta * multiplier,
+    );
   }
   if (delta.qi_recovery_rate_delta !== undefined) {
-    panel.qi_recovery_rate = Math.max(0, panel.qi_recovery_rate + delta.qi_recovery_rate_delta * multiplier);
+    panel.qi_recovery_rate = Math.max(
+      0,
+      panel.qi_recovery_rate + delta.qi_recovery_rate_delta * multiplier,
+    );
   }
   if (delta.charge_time_delta !== undefined) {
-    panel.charge_time = Math.max(0, panel.charge_time + delta.charge_time_delta * multiplier);
+    panel.charge_time = Math.max(
+      0,
+      panel.charge_time + delta.charge_time_delta * multiplier,
+    );
   }
 }
 
@@ -240,29 +301,40 @@ export default function GamePage() {
   const [packs, setPacks] = useState<ModPackMetadata[]>([]);
   const [packOrder, setPackOrder] = useState<string[]>([]);
   const [selectedPacks, setSelectedPacks] = useState<string[]>([]);
-  const [saves, setSaves] = useState<Array<{ id: string; name: string; created_at?: number }>>([]);
-  const [storylines, setStorylines] = useState<Array<{ id: string; name: string }>>([]);
+  const [saves, setSaves] = useState<
+    Array<{ id: string; name: string; created_at?: number }>
+  >([]);
+  const [storylines, setStorylines] = useState<
+    Array<{ id: string; name: string }>
+  >([]);
   const [dataLoading, setDataLoading] = useState(false);
-  const [storylineId, setStorylineId] = useState('');
-  const [characterName, setCharacterName] = useState('');
+  const [storylineId, setStorylineId] = useState("");
+  const [characterName, setCharacterName] = useState("");
   const [comprehension, setComprehension] = useState(0);
   const [boneStructure, setBoneStructure] = useState(0);
   const [physique, setPhysique] = useState(0);
-  const [equipInternalId, setEquipInternalId] = useState('');
-  const [equipAttackSkillId, setEquipAttackSkillId] = useState('');
-  const [equipDefenseSkillId, setEquipDefenseSkillId] = useState('');
+  const [equipInternalId, setEquipInternalId] = useState("");
+  const [equipAttackSkillId, setEquipAttackSkillId] = useState("");
+  const [equipDefenseSkillId, setEquipDefenseSkillId] = useState("");
   const [response, setResponse] = useState<GameResponse | null>(null);
   const [gameData, setGameData] = useState<GameData | null>(null);
 
   const [logEntries, setLogEntries] = useState<LogItem[]>([]);
   const [pendingEntries, setPendingEntries] = useState<LogItem[]>([]);
   const [typingEntry, setTypingEntry] = useState<LogItem | null>(null);
-  const [typedText, setTypedText] = useState('');
+  const [typedText, setTypedText] = useState("");
   const seenEntryIds = useRef(new Set<string>());
+  const resumeRequestedRef = useRef(false);
+  const restoredHistoryRef = useRef(false);
   const lastOutcomeRef = useRef<GameOutcome | null>(null);
   const deferredViewRef = useRef<GameView | null>(null);
-  const lastCultivationRef = useRef<{ id: string; type: ManualType } | null>(null);
-  const [manualDetail, setManualDetail] = useState<{ type: ManualType; id: string } | null>(null);
+  const lastCultivationRef = useRef<{ id: string; type: ManualType } | null>(
+    null,
+  );
+  const [manualDetail, setManualDetail] = useState<{
+    type: ManualType;
+    id: string;
+  } | null>(null);
   const [traitDetailId, setTraitDetailId] = useState<string | null>(null);
   const [startTraitModalOpen, setStartTraitModalOpen] = useState(false);
   const [startTraitIds, setStartTraitIds] = useState<string[]>([]);
@@ -276,12 +348,16 @@ export default function GamePage() {
   const [battleStep, setBattleStep] = useState(0);
   const [battleAuto, setBattleAuto] = useState(false);
   const [battleSpeedIndex, setBattleSpeedIndex] = useState(1);
-  const [battleTypingIndex, setBattleTypingIndex] = useState<number | null>(null);
-  const [battleTypedText, setBattleTypedText] = useState('');
+  const [battleTypingIndex, setBattleTypingIndex] = useState<number | null>(
+    null,
+  );
+  const [battleTypedText, setBattleTypedText] = useState("");
   const [battleStickToBottom, setBattleStickToBottom] = useState(true);
   const [showValueLogs, setShowValueLogs] = useState(true);
   const [enemyPreview, setEnemyPreview] = useState<EnemyPreview | null>(null);
-  const [attackerQiOutputRate, setAttackerQiOutputRate] = useState<number | undefined>(undefined);
+  const [attackerQiOutputRate, setAttackerQiOutputRate] = useState<
+    number | undefined
+  >(undefined);
   const [confirmDialog, setConfirmDialog] = useState<{
     open: boolean;
     title: string;
@@ -290,8 +366,8 @@ export default function GamePage() {
     cancelText?: string;
   }>({
     open: false,
-    title: '',
-    message: '',
+    title: "",
+    message: "",
   });
   const [noticeDialog, setNoticeDialog] = useState<{
     open: boolean;
@@ -299,8 +375,8 @@ export default function GamePage() {
     message: string;
   }>({
     open: false,
-    title: '',
-    message: '',
+    title: "",
+    message: "",
   });
   const confirmActionRef = useRef<(() => void) | null>(null);
 
@@ -345,9 +421,12 @@ export default function GamePage() {
     };
     if (!gameData) return lookup;
     for (const trait of gameData.traits) lookup.trait.set(trait.id, trait.name);
-    for (const manual of gameData.internals) lookup.internal.set(manual.id, manual.name);
-    for (const manual of gameData.attackSkills) lookup.attack_skill.set(manual.id, manual.name);
-    for (const manual of gameData.defenseSkills) lookup.defense_skill.set(manual.id, manual.name);
+    for (const manual of gameData.internals)
+      lookup.internal.set(manual.id, manual.name);
+    for (const manual of gameData.attackSkills)
+      lookup.attack_skill.set(manual.id, manual.name);
+    for (const manual of gameData.defenseSkills)
+      lookup.defense_skill.set(manual.id, manual.name);
     return lookup;
   }, [gameData]);
 
@@ -359,53 +438,63 @@ export default function GamePage() {
     };
     if (!gameData) return lookup;
     for (const manual of gameData.internals) {
-      lookup.internal.set(manual.id, { name: manual.name, rarity: manual.rarity ?? null });
+      lookup.internal.set(manual.id, {
+        name: manual.name,
+        rarity: manual.rarity ?? null,
+      });
     }
     for (const manual of gameData.attackSkills) {
-      lookup.attack_skill.set(manual.id, { name: manual.name, rarity: manual.rarity ?? null });
+      lookup.attack_skill.set(manual.id, {
+        name: manual.name,
+        rarity: manual.rarity ?? null,
+      });
     }
     for (const manual of gameData.defenseSkills) {
-      lookup.defense_skill.set(manual.id, { name: manual.name, rarity: manual.rarity ?? null });
+      lookup.defense_skill.set(manual.id, {
+        name: manual.name,
+        rarity: manual.rarity ?? null,
+      });
     }
     return lookup;
   }, [gameData]);
 
   const resolveManualName = useCallback(
     (type: ManualType, id: string) => {
-      if (!id) return '未指定';
+      if (!id) return "未指定";
       const fallback =
-        type === 'internal'
-          ? '未命名内功'
-          : type === 'attack_skill'
-          ? '未命名攻击武技'
-          : '未命名防御武技';
-      if (type === 'internal') return nameLookup.internal.get(id) ?? fallback;
-      if (type === 'attack_skill') return nameLookup.attack_skill.get(id) ?? fallback;
+        type === "internal"
+          ? "未命名内功"
+          : type === "attack_skill"
+            ? "未命名攻击武技"
+            : "未命名防御武技";
+      if (type === "internal") return nameLookup.internal.get(id) ?? fallback;
+      if (type === "attack_skill")
+        return nameLookup.attack_skill.get(id) ?? fallback;
       return nameLookup.defense_skill.get(id) ?? fallback;
     },
-    [nameLookup]
+    [nameLookup],
   );
 
   const resolveManualLabel = useCallback(
     (type: ManualType, id: string, level?: number) => {
-      if (!id) return '未指定';
+      if (!id) return "未指定";
       const meta = manualMetaLookup[type].get(id);
       const name = meta?.name ?? resolveManualName(type, id);
       const parts = [name];
-      parts.push(level !== undefined ? `Lv.${level}` : 'Lv.?');
+      parts.push(level !== undefined ? `Lv.${level}` : "Lv.?");
       if (meta?.rarity !== null && meta?.rarity !== undefined) {
         parts.push(`稀有度 ${meta.rarity}`);
       } else {
-        parts.push('稀有度 ?');
+        parts.push("稀有度 ?");
       }
-      return parts.join(' · ');
+      return parts.join(" · ");
     },
-    [manualMetaLookup, resolveManualName]
+    [manualMetaLookup, resolveManualName],
   );
 
   const resolveTraitName = useCallback(
-    (id: string) => nameLookup.trait.get(id) ?? '未命名特性',
-    [nameLookup]
+    (id: string) => nameLookup.trait.get(id) ?? "未命名特性",
+    [nameLookup],
   );
 
   const entryDescriptionResolver = useMemo(
@@ -413,40 +502,42 @@ export default function GamePage() {
       resolveManualName,
       resolveTraitName,
     }),
-    [resolveManualName, resolveTraitName]
+    [resolveManualName, resolveTraitName],
   );
 
   const getOwnedManual = useCallback(
     (type: ManualType, id: string) => {
       if (!view || !id) return null;
       const owned =
-        type === 'internal'
+        type === "internal"
           ? view.save.current_character.internals.owned
-          : type === 'attack_skill'
-          ? view.save.current_character.attack_skills.owned
-          : view.save.current_character.defense_skills.owned;
+          : type === "attack_skill"
+            ? view.save.current_character.attack_skills.owned
+            : view.save.current_character.defense_skills.owned;
       return owned.find((item) => item.id === id) ?? null;
     },
-    [view]
+    [view],
   );
 
   const getOwnedManualLevel = useCallback(
     (type: ManualType, id: string) => {
       if (!view || !id) return undefined;
       const owned =
-        type === 'internal'
+        type === "internal"
           ? view.save.current_character.internals.owned
-          : type === 'attack_skill'
-          ? view.save.current_character.attack_skills.owned
-          : view.save.current_character.defense_skills.owned;
+          : type === "attack_skill"
+            ? view.save.current_character.attack_skills.owned
+            : view.save.current_character.defense_skills.owned;
       return owned.find((item) => item.id === id)?.level;
     },
-    [view]
+    [view],
   );
 
   const activeStoryline = useMemo(() => {
     if (!gameData || !view?.storyline?.id) return null;
-    return gameData.storylines.find((line) => line.id === view.storyline?.id) ?? null;
+    return (
+      gameData.storylines.find((line) => line.id === view.storyline?.id) ?? null
+    );
   }, [gameData, view?.storyline?.id]);
 
   const storyEventLookup = useMemo(() => {
@@ -479,7 +570,7 @@ export default function GamePage() {
   }, [gameData]);
 
   const traitLookup = useMemo(() => {
-    const map = new Map<string, GameData['traits'][number]>();
+    const map = new Map<string, GameData["traits"][number]>();
     if (!gameData) return map;
     for (const trait of gameData.traits) {
       map.set(trait.id, trait);
@@ -489,14 +580,17 @@ export default function GamePage() {
 
   const manualDataLookup = useMemo(() => {
     const lookup = {
-      internal: new Map<string, GameData['internals'][number]>(),
-      attack_skill: new Map<string, GameData['attackSkills'][number]>(),
-      defense_skill: new Map<string, GameData['defenseSkills'][number]>(),
+      internal: new Map<string, GameData["internals"][number]>(),
+      attack_skill: new Map<string, GameData["attackSkills"][number]>(),
+      defense_skill: new Map<string, GameData["defenseSkills"][number]>(),
     };
     if (!gameData) return lookup;
-    for (const manual of gameData.internals) lookup.internal.set(manual.id, manual);
-    for (const manual of gameData.attackSkills) lookup.attack_skill.set(manual.id, manual);
-    for (const manual of gameData.defenseSkills) lookup.defense_skill.set(manual.id, manual);
+    for (const manual of gameData.internals)
+      lookup.internal.set(manual.id, manual);
+    for (const manual of gameData.attackSkills)
+      lookup.attack_skill.set(manual.id, manual);
+    for (const manual of gameData.defenseSkills)
+      lookup.defense_skill.set(manual.id, manual);
     return lookup;
   }, [gameData]);
 
@@ -508,35 +602,37 @@ export default function GamePage() {
   const manualDetailData = useMemo(() => {
     if (!manualDetail) return null;
     const manual =
-      manualDetail.type === 'internal'
+      manualDetail.type === "internal"
         ? manualDataLookup.internal.get(manualDetail.id)
-        : manualDetail.type === 'attack_skill'
-        ? manualDataLookup.attack_skill.get(manualDetail.id)
-        : manualDataLookup.defense_skill.get(manualDetail.id);
+        : manualDetail.type === "attack_skill"
+          ? manualDataLookup.attack_skill.get(manualDetail.id)
+          : manualDataLookup.defense_skill.get(manualDetail.id);
     return manual ?? null;
   }, [manualDetail, manualDataLookup]);
 
   const manualMaps = useMemo<ManualMaps>(() => {
-    const internals: ManualMaps['internals'] = {};
-    const attackSkills: ManualMaps['attackSkills'] = {};
-    const defenseSkills: ManualMaps['defenseSkills'] = {};
+    const internals: ManualMaps["internals"] = {};
+    const attackSkills: ManualMaps["attackSkills"] = {};
+    const defenseSkills: ManualMaps["defenseSkills"] = {};
     if (gameData) {
       for (const manual of gameData.internals) internals[manual.id] = manual;
-      for (const manual of gameData.attackSkills) attackSkills[manual.id] = manual;
-      for (const manual of gameData.defenseSkills) defenseSkills[manual.id] = manual;
+      for (const manual of gameData.attackSkills)
+        attackSkills[manual.id] = manual;
+      for (const manual of gameData.defenseSkills)
+        defenseSkills[manual.id] = manual;
     }
     return { internals, attackSkills, defenseSkills };
   }, [gameData]);
 
   const resolveDecisionOptions = useCallback(
-    (entry: Extract<LogItem, { kind: 'decision' }>): DecisionOptionMeta[] => {
+    (entry: Extract<LogItem, { kind: "decision" }>): DecisionOptionMeta[] => {
       if (!gameData) {
         return entry.options.map((option) => ({ ...option }));
       }
-      const entryId = entry.id.split(':').slice(2).join(':');
-      if (entry.scope === 'story') {
+      const entryId = entry.id.split(":").slice(2).join(":");
+      if (entry.scope === "story") {
         const event = storyEventLookup.get(entryId);
-        if (event?.content.type === 'decision') {
+        if (event?.content.type === "decision") {
           return event.content.options.map((option) => ({
             id: option.id,
             text: option.text,
@@ -544,41 +640,215 @@ export default function GamePage() {
           }));
         }
       }
-      if (entry.scope === 'adventure') {
+      if (entry.scope === "adventure") {
         const adventure = adventureLookup.get(entryId);
-        if (adventure?.content.type === 'decision') {
+        if (adventure?.content.type === "decision") {
           return adventure.content.options.map((option) => ({
             id: option.id,
             text: option.text,
             condition: option.condition ?? null,
-            enemy: option.result.type === 'battle' ? option.result.enemy : null,
+            enemy: option.result.type === "battle" ? option.result.enemy : null,
           }));
         }
       }
       return entry.options.map((option) => ({ ...option }));
     },
-    [adventureLookup, gameData, storyEventLookup]
+    [adventureLookup, gameData, storyEventLookup],
   );
 
   const resolveAdventureBattleEnemy = useCallback(
     (name: string, text?: string | null) => {
       if (!gameData) return null;
       const candidates = gameData.adventures.filter(
-        (adventure) => adventure.name === name && adventure.content.type === 'battle'
+        (adventure) =>
+          adventure.name === name && adventure.content.type === "battle",
       );
       if (candidates.length === 0) return null;
       const matched = candidates.find(
-        (adventure) => adventure.content.type === 'battle' && (!text || adventure.content.text === text)
+        (adventure) =>
+          adventure.content.type === "battle" &&
+          (!text || adventure.content.text === text),
       );
       const target = matched ?? candidates[0];
-      return target.content.type === 'battle' ? target.content.enemy : null;
+      return target.content.type === "battle" ? target.content.enemy : null;
     },
-    [gameData]
+    [gameData],
   );
 
-  const openEnemyPreview = useCallback((enemy: EnemyTemplate, title?: string) => {
-    setEnemyPreview({ enemy, title: title ?? enemy.name });
-  }, []);
+  const buildLogEntriesFromHistory = useCallback(
+    (
+      history: StoryHistoryRecord[],
+      options: { currentEventId?: string | null; phase?: GamePhase | null },
+    ) => {
+      const entries: LogItem[] = [];
+      const seen = new Set<string>();
+      const pushEntry = (entry: LogItem) => {
+        if (seen.has(entry.id)) return;
+        seen.add(entry.id);
+        entries.push(entry);
+      };
+
+      for (const record of history) {
+        const battleResultText =
+          record.battle_win === undefined || record.battle_win === null
+            ? undefined
+            : record.battle_win
+              ? "胜利"
+              : "失败";
+        if (record.scope === "story") {
+          const event = storyEventLookup.get(record.event_id);
+          if (!event) continue;
+          pushEntry({
+            id: `story:${event.id}`,
+            kind: "text",
+            title: event.name,
+            text: event.content.text,
+            tone: "story",
+          });
+          if (event.content.type === "decision") {
+            pushEntry({
+              id: `decision:story:${event.id}`,
+              kind: "decision",
+              scope: "story",
+              title: event.name,
+              options: event.content.options,
+              chosenId: record.option_id ?? undefined,
+            });
+          } else {
+            const actionType =
+              event.content.type === "battle"
+                ? "story_battle"
+                : event.content.type === "end"
+                  ? "story_end"
+                  : "story_continue";
+            pushEntry({
+              id: `action:${event.id}`,
+              kind: "action",
+              label: `阶段：${
+                event.content.type === "battle"
+                  ? "战斗"
+                  : event.content.type === "end"
+                    ? "结局"
+                    : "剧情推进"
+              }`,
+              actionType,
+            });
+            if (event.content.type === "battle" && battleResultText) {
+              pushEntry({
+                id: `battle:story:${event.id}`,
+                kind: "battle",
+                data: null,
+                viewed: true,
+                resultText: battleResultText,
+                enemy: event.content.enemy,
+              });
+            }
+          }
+        }
+        if (record.scope === "adventure") {
+          const adventure = adventureLookup.get(record.event_id);
+          if (!adventure) continue;
+          const titleText = `【奇遇】${adventure.name}`;
+          pushEntry({
+            id: `adventure:${adventure.id}:title`,
+            kind: "text",
+            text: titleText,
+            tone: "system",
+          });
+          if (adventure.content.type === "decision") {
+            if (adventure.content.text) {
+              pushEntry({
+                id: `adventure:${adventure.id}:text`,
+                kind: "text",
+                text: adventure.content.text,
+                tone: "story",
+              });
+            }
+            let battleEnemy: EnemyTemplate | null = null;
+            pushEntry({
+              id: `decision:adventure:${adventure.id}`,
+              kind: "decision",
+              scope: "adventure",
+              title: adventure.name,
+              options: adventure.content.options.map((option) => ({
+                id: option.id,
+                text: option.text,
+                condition: option.condition ?? null,
+              })),
+              chosenId: record.option_id ?? undefined,
+            });
+            if (record.option_id) {
+              const option = adventure.content.options.find(
+                (item) => item.id === record.option_id,
+              );
+              if (option?.result.type === "battle") {
+                battleEnemy = option.result.enemy;
+              }
+              if (option?.result.text) {
+                pushEntry({
+                  id: `adventure:${adventure.id}:result:title`,
+                  kind: "text",
+                  text: titleText,
+                  tone: "system",
+                });
+                pushEntry({
+                  id: `adventure:${adventure.id}:result:text`,
+                  kind: "text",
+                  text: option.result.text,
+                  tone: "story",
+                });
+              }
+            }
+            if (battleEnemy && battleResultText) {
+              pushEntry({
+                id: `battle:adventure:${adventure.id}:${record.option_id ?? "unknown"}`,
+                kind: "battle",
+                data: null,
+                viewed: true,
+                resultText: battleResultText,
+                enemy: battleEnemy,
+              });
+            }
+          } else if (adventure.content.text) {
+            pushEntry({
+              id: `adventure:${adventure.id}:text`,
+              kind: "text",
+              text: adventure.content.text,
+              tone: "story",
+            });
+          }
+          if (adventure.content.type === "battle" && battleResultText) {
+            pushEntry({
+              id: `battle:adventure:${adventure.id}`,
+              kind: "battle",
+              data: null,
+              viewed: true,
+              resultText: battleResultText,
+              enemy: adventure.content.enemy,
+            });
+          }
+        }
+      }
+
+      if (options.phase === "action" && options.currentEventId) {
+        const blocked = new Set([
+          `story:${options.currentEventId}`,
+          `decision:story:${options.currentEventId}`,
+          `action:${options.currentEventId}`,
+        ]);
+        return entries.filter((entry) => !blocked.has(entry.id));
+      }
+      return entries;
+    },
+    [adventureLookup, storyEventLookup],
+  );
+
+  const openEnemyPreview = useCallback(
+    (enemy: EnemyTemplate, title?: string) => {
+      setEnemyPreview({ enemy, title: title ?? enemy.name });
+    },
+    [],
+  );
 
   const closeEnemyPreview = useCallback(() => {
     setEnemyPreview(null);
@@ -588,11 +858,11 @@ export default function GamePage() {
     (type: ManualType, owned?: OwnedManualTemplate | null) => {
       if (!owned) return null;
       const manual =
-        type === 'internal'
+        type === "internal"
           ? manualDataLookup.internal.get(owned.id)
-          : type === 'attack_skill'
-          ? manualDataLookup.attack_skill.get(owned.id)
-          : manualDataLookup.defense_skill.get(owned.id);
+          : type === "attack_skill"
+            ? manualDataLookup.attack_skill.get(owned.id)
+            : manualDataLookup.defense_skill.get(owned.id);
       const realms = manual?.realms;
       const realm =
         realms?.find((item) => item.level === owned.level) ??
@@ -604,7 +874,7 @@ export default function GamePage() {
         entries: realm?.entries ?? [],
       };
     },
-    [manualDataLookup]
+    [manualDataLookup],
   );
 
   const renderEntryBlocks = (entries: Entry[]) => {
@@ -625,7 +895,13 @@ export default function GamePage() {
     );
   };
 
-  const renderManualRealmDetails = (type: ManualType, manual: GameData['internals'][number] | GameData['attackSkills'][number] | GameData['defenseSkills'][number]) => {
+  const renderManualRealmDetails = (
+    type: ManualType,
+    manual:
+      | GameData["internals"][number]
+      | GameData["attackSkills"][number]
+      | GameData["defenseSkills"][number],
+  ) => {
     const realms = manual?.realms ?? [];
     if (realms.length === 0) {
       return <div className="text-sm text-gray-500">暂无境界数据</div>;
@@ -638,18 +914,30 @@ export default function GamePage() {
             className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2"
           >
             <div className="flex items-center justify-between">
-              <div className="font-medium text-gray-900">境界 {realm.level}</div>
-              <span className="text-xs text-gray-500">经验需求 {realm.exp_required}</span>
+              <div className="font-medium text-gray-900">
+                境界 {realm.level}
+              </div>
+              <span className="text-xs text-gray-500">
+                经验需求 {realm.exp_required}
+              </span>
             </div>
             <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
               <div>武学素养 {realm.martial_arts_attainment}</div>
-              <div>内息获取 {'qi_gain' in realm ? realm.qi_gain : '-'}</div>
-              {'qi_quality' in realm && <div>内息质量 {realm.qi_quality}</div>}
-              {'attack_speed' in realm && <div>出手速度 {realm.attack_speed}</div>}
-              {'qi_recovery_rate' in realm && <div>回气率 {realm.qi_recovery_rate}</div>}
-              {'power' in realm && <div>威能 {realm.power}</div>}
-              {'charge_time' in realm && <div>蓄力时间 {realm.charge_time}</div>}
-              {'defense_power' in realm && <div>守御 {realm.defense_power}</div>}
+              <div>内息获取 {"qi_gain" in realm ? realm.qi_gain : "-"}</div>
+              {"qi_quality" in realm && <div>内息质量 {realm.qi_quality}</div>}
+              {"attack_speed" in realm && (
+                <div>出手速度 {realm.attack_speed}</div>
+              )}
+              {"qi_recovery_rate" in realm && (
+                <div>回气率 {realm.qi_recovery_rate}</div>
+              )}
+              {"power" in realm && <div>威能 {realm.power}</div>}
+              {"charge_time" in realm && (
+                <div>蓄力时间 {realm.charge_time}</div>
+              )}
+              {"defense_power" in realm && (
+                <div>守御 {realm.defense_power}</div>
+              )}
             </div>
             <div className="text-xs text-gray-500">词条特效</div>
             {renderEntryBlocks(realm.entries ?? [])}
@@ -660,14 +948,22 @@ export default function GamePage() {
   };
 
   const renderEnemyPanel = (enemy: EnemyTemplate) => {
-    const internal = getManualRealmEntries('internal', enemy.internal ?? null);
-    const attack = getManualRealmEntries('attack_skill', enemy.attack_skill ?? null);
-    const defense = getManualRealmEntries('defense_skill', enemy.defense_skill ?? null);
+    const internal = getManualRealmEntries("internal", enemy.internal ?? null);
+    const attack = getManualRealmEntries(
+      "attack_skill",
+      enemy.attack_skill ?? null,
+    );
+    const defense = getManualRealmEntries(
+      "defense_skill",
+      enemy.defense_skill ?? null,
+    );
     const traitIds = enemy.traits ?? [];
     return (
       <div className="space-y-4 text-sm text-gray-700">
         <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
-          <div className="text-sm font-semibold text-gray-900 mb-3">基础面板</div>
+          <div className="text-sm font-semibold text-gray-900 mb-3">
+            基础面板
+          </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>悟性 {enemy.three_d.comprehension}</div>
             <div>根骨 {enemy.three_d.bone_structure}</div>
@@ -675,10 +971,13 @@ export default function GamePage() {
             {enemy.max_qi !== null && enemy.max_qi !== undefined && (
               <div>内息上限 {enemy.max_qi}</div>
             )}
-            {enemy.qi !== null && enemy.qi !== undefined && <div>内息 {enemy.qi}</div>}
-            {enemy.martial_arts_attainment !== null && enemy.martial_arts_attainment !== undefined && (
-              <div>武学素养 {enemy.martial_arts_attainment}</div>
+            {enemy.qi !== null && enemy.qi !== undefined && (
+              <div>内息 {enemy.qi}</div>
             )}
+            {enemy.martial_arts_attainment !== null &&
+              enemy.martial_arts_attainment !== undefined && (
+                <div>武学素养 {enemy.martial_arts_attainment}</div>
+              )}
           </div>
         </div>
 
@@ -686,29 +985,49 @@ export default function GamePage() {
           <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2">
             <div className="text-xs text-gray-500">内功</div>
             <div className="font-medium text-gray-900">
-              {internal ? resolveManualLabel('internal', internal.id, internal.level) : '未修炼'}
+              {internal
+                ? resolveManualLabel("internal", internal.id, internal.level)
+                : "未修炼"}
             </div>
-            {internal ? renderEntryBlocks(internal.entries) : <div className="text-xs text-gray-500">暂无词条</div>}
+            {internal ? (
+              renderEntryBlocks(internal.entries)
+            ) : (
+              <div className="text-xs text-gray-500">暂无词条</div>
+            )}
           </div>
           <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2">
             <div className="text-xs text-gray-500">攻击武技</div>
             <div className="font-medium text-gray-900">
-              {attack ? resolveManualLabel('attack_skill', attack.id, attack.level) : '未修炼'}
+              {attack
+                ? resolveManualLabel("attack_skill", attack.id, attack.level)
+                : "未修炼"}
             </div>
-            {attack ? renderEntryBlocks(attack.entries) : <div className="text-xs text-gray-500">暂无词条</div>}
+            {attack ? (
+              renderEntryBlocks(attack.entries)
+            ) : (
+              <div className="text-xs text-gray-500">暂无词条</div>
+            )}
           </div>
           <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2">
             <div className="text-xs text-gray-500">防御武技</div>
             <div className="font-medium text-gray-900">
-              {defense ? resolveManualLabel('defense_skill', defense.id, defense.level) : '未修炼'}
+              {defense
+                ? resolveManualLabel("defense_skill", defense.id, defense.level)
+                : "未修炼"}
             </div>
-            {defense ? renderEntryBlocks(defense.entries) : <div className="text-xs text-gray-500">暂无词条</div>}
+            {defense ? (
+              renderEntryBlocks(defense.entries)
+            ) : (
+              <div className="text-xs text-gray-500">暂无词条</div>
+            )}
           </div>
         </div>
 
         <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 space-y-3">
           <div className="text-sm font-semibold text-gray-900">特性词条</div>
-          {traitIds.length === 0 && <div className="text-xs text-gray-500">暂无特性</div>}
+          {traitIds.length === 0 && (
+            <div className="text-xs text-gray-500">暂无特性</div>
+          )}
           {traitIds.map((traitId) => {
             const trait = traitLookup.get(traitId);
             return (
@@ -716,8 +1035,14 @@ export default function GamePage() {
                 key={`trait-${traitId}`}
                 className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-3 space-y-2"
               >
-                <div className="font-medium text-gray-900">{resolveTraitName(traitId)}</div>
-                {trait ? renderEntryBlocks(trait.entries) : <div className="text-xs text-gray-500">暂无词条</div>}
+                <div className="font-medium text-gray-900">
+                  {resolveTraitName(traitId)}
+                </div>
+                {trait ? (
+                  renderEntryBlocks(trait.entries)
+                ) : (
+                  <div className="text-xs text-gray-500">暂无词条</div>
+                )}
               </div>
             );
           })}
@@ -728,14 +1053,18 @@ export default function GamePage() {
 
   const battleRecordsAll = useMemo<BattleRecord[]>(
     () => (battleData ? battleData.records : []),
-    [battleData]
+    [battleData],
   );
 
   const battleCutoffIndex = useMemo(() => {
     if (battleRecordsAll.length === 0) return -1;
     for (let i = battleRecordsAll.length - 1; i >= 0; i -= 1) {
       const record = battleRecordsAll[i];
-      if (record.log_kind === 'effect' && record.text && record.text.trim().length > 0) {
+      if (
+        record.log_kind === "effect" &&
+        record.text &&
+        record.text.trim().length > 0
+      ) {
         return i;
       }
     }
@@ -749,7 +1078,7 @@ export default function GamePage() {
       if (i > battleCutoffIndex) continue;
       const record = battleRecordsAll[i];
       if (!record.text || record.text.trim().length === 0) continue;
-      if (!showValueLogs && record.log_kind === 'value') continue;
+      if (!showValueLogs && record.log_kind === "value") continue;
       indices.push(i);
     }
     return indices;
@@ -757,11 +1086,11 @@ export default function GamePage() {
 
   const battleRecords = useMemo(
     () => battleDisplayIndices.map((index) => battleRecordsAll[index]),
-    [battleDisplayIndices, battleRecordsAll]
+    [battleDisplayIndices, battleRecordsAll],
   );
 
   const hasUnviewedBattle = useMemo(() => {
-    const check = (entry: LogItem) => entry.kind === 'battle' && !entry.viewed;
+    const check = (entry: LogItem) => entry.kind === "battle" && !entry.viewed;
     return logEntries.some(check) || pendingEntries.some(check);
   }, [logEntries, pendingEntries]);
 
@@ -802,13 +1131,18 @@ export default function GamePage() {
   }, [battleApplyLimit, battleInitialPanels, battleRecordsAll]);
 
   const battleSpeed = BATTLE_SPEEDS[battleSpeedIndex]?.value ?? 600;
-  const battleSpeedLabel = BATTLE_SPEEDS[battleSpeedIndex]?.label ?? '中';
+  const battleSpeedLabel = BATTLE_SPEEDS[battleSpeedIndex]?.label ?? "中";
 
-  const clampAttributeValue = useCallback((value: number, otherA: number, otherB: number) => {
-    const numeric = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
-    const maxAllowed = Math.max(0, 100 - otherA - otherB);
-    return Math.min(numeric, maxAllowed);
-  }, []);
+  const clampAttributeValue = useCallback(
+    (value: number, otherA: number, otherB: number) => {
+      const numeric = Number.isFinite(value)
+        ? Math.max(0, Math.floor(value))
+        : 0;
+      const maxAllowed = Math.max(0, 100 - otherA - otherB);
+      return Math.min(numeric, maxAllowed);
+    },
+    [],
+  );
 
   const parseQiOutputRate = useCallback((value: string) => {
     if (!value) return undefined;
@@ -819,77 +1153,96 @@ export default function GamePage() {
   }, []);
 
   const formatQiOutputRate = useCallback((value?: number) => {
-    if (value === undefined || Number.isNaN(value)) return '';
+    if (value === undefined || Number.isNaN(value)) return "";
     const scaled = Math.round(value * 1000) / 10;
     return scaled.toString();
   }, []);
 
   const formatTimestamp = useCallback((value?: number) => {
-    if (!value) return '未知时间';
+    if (!value) return "未知时间";
     const ms = value < 1_000_000_000_000 ? value * 1000 : value;
-    return new Date(ms).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
+    return new Date(ms).toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   }, []);
 
   const resolveRewardLabel = useCallback(
     (reward: Reward) => {
       switch (reward.type) {
-        case 'attribute': {
+        case "attribute": {
           const targetLabel = ATTRIBUTE_LABELS[reward.target] ?? reward.target;
-          const op = reward.operation === 'add'
-            ? '+'
-            : reward.operation === 'subtract'
-            ? '-'
-            : reward.operation === 'multiply'
-            ? '×'
-            : '设为';
-          const value = reward.operation === 'set' ? `${reward.value}` : `${op}${reward.value}`;
+          const op =
+            reward.operation === "add"
+              ? "+"
+              : reward.operation === "subtract"
+                ? "-"
+                : reward.operation === "multiply"
+                  ? "×"
+                  : "设为";
+          const value =
+            reward.operation === "set"
+              ? `${reward.value}`
+              : `${op}${reward.value}`;
           return {
-            title: '属性提升',
+            title: "属性提升",
             value: `${targetLabel} ${value}`,
-            detail: reward.can_exceed_limit ? '可突破上限' : undefined,
+            detail: reward.can_exceed_limit ? "可突破上限" : undefined,
           };
         }
-        case 'trait':
-          return { title: '特性', value: resolveTraitName(reward.id) };
-        case 'start_trait_pool':
-          return { title: '开局特性池', value: resolveTraitName(reward.id) };
-        case 'internal':
-          return { title: '内功', value: resolveManualName('internal', reward.id) };
-        case 'attack_skill':
-          return { title: '攻击武技', value: resolveManualName('attack_skill', reward.id) };
-        case 'defense_skill':
-          return { title: '防御武技', value: resolveManualName('defense_skill', reward.id) };
-        case 'random_manual': {
-          const kind = reward.manual_kind ? MANUAL_KIND_LABELS[reward.manual_kind] ?? reward.manual_kind : '随机功法';
+        case "trait":
+          return { title: "特性", value: resolveTraitName(reward.id) };
+        case "start_trait_pool":
+          return { title: "开局特性池", value: resolveTraitName(reward.id) };
+        case "internal":
+          return {
+            title: "内功",
+            value: resolveManualName("internal", reward.id),
+          };
+        case "attack_skill":
+          return {
+            title: "攻击武技",
+            value: resolveManualName("attack_skill", reward.id),
+          };
+        case "defense_skill":
+          return {
+            title: "防御武技",
+            value: resolveManualName("defense_skill", reward.id),
+          };
+        case "random_manual": {
+          const kind = reward.manual_kind
+            ? (MANUAL_KIND_LABELS[reward.manual_kind] ?? reward.manual_kind)
+            : "随机功法";
           const count = reward.count ?? 1;
           const detailParts = [];
-          if (reward.rarity !== null && reward.rarity !== undefined) detailParts.push(`稀有度 ${reward.rarity}`);
+          if (reward.rarity !== null && reward.rarity !== undefined)
+            detailParts.push(`稀有度 ${reward.rarity}`);
           if (reward.manual_type) detailParts.push(reward.manual_type);
           return {
-            title: '随机功法',
+            title: "随机功法",
             value: `${kind} ×${count}`,
-            detail: detailParts.length > 0 ? detailParts.join(' · ') : undefined,
+            detail:
+              detailParts.length > 0 ? detailParts.join(" · ") : undefined,
           };
         }
         default:
-          return { title: '奖励', value: '未知奖励' };
+          return { title: "奖励", value: "未知奖励" };
       }
     },
-    [nameLookup, resolveTraitName]
+    [nameLookup, resolveTraitName],
   );
 
   const resetNarrative = useCallback(() => {
     setLogEntries([]);
     setPendingEntries([]);
     setTypingEntry(null);
-    setTypedText('');
+    setTypedText("");
     seenEntryIds.current.clear();
+    resumeRequestedRef.current = false;
+    restoredHistoryRef.current = false;
     lastOutcomeRef.current = null;
     deferredViewRef.current = null;
     lastCultivationRef.current = null;
@@ -903,28 +1256,42 @@ export default function GamePage() {
   }, []);
 
   const enqueueItem = useCallback((entry: LogItem) => {
-    if (entry.kind === 'text' && (!entry.text || entry.text.trim().length === 0)) return;
+    if (
+      entry.kind === "text" &&
+      (!entry.text || entry.text.trim().length === 0)
+    )
+      return;
     if (seenEntryIds.current.has(entry.id)) return;
     seenEntryIds.current.add(entry.id);
     setPendingEntries((prev) => [...prev, entry]);
   }, []);
 
-  const openBattleDialog = useCallback((result: BattleResult, autoOpen = true) => {
-    setBattleData(result);
-    setBattleStep(0);
-    setBattleAuto(false);
-    setBattleTypingIndex(null);
-    setBattleTypedText('');
-    setBattleStickToBottom(true);
-    if (autoOpen) setBattleDialogOpen(true);
-  }, []);
+  const openBattleDialog = useCallback(
+    (result: BattleResult, autoOpen = true) => {
+      setBattleData(result);
+      setBattleStep(0);
+      setBattleAuto(false);
+      setBattleTypingIndex(null);
+      setBattleTypedText("");
+      setBattleStickToBottom(true);
+      if (autoOpen) setBattleDialogOpen(true);
+    },
+    [],
+  );
 
   const prepareBattleEntry = useCallback(
-    (result: BattleResult, summary?: { resultText?: string; rewards?: Reward[]; enemy?: EnemyTemplate | null }) => {
+    (
+      result: BattleResult,
+      summary?: {
+        resultText?: string;
+        rewards?: Reward[];
+        enemy?: EnemyTemplate | null;
+      },
+    ) => {
       const id = `battle-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
       enqueueItem({
         id,
-        kind: 'battle',
+        kind: "battle",
         data: result,
         viewed: false,
         resultText: summary?.resultText,
@@ -935,21 +1302,29 @@ export default function GamePage() {
       setBattleData(null);
       setBattleDialogOpen(false);
     },
-    [enqueueItem]
+    [enqueueItem],
   );
 
   useEffect(() => {
     const init = async () => {
-      const [packList, order] = await Promise.all([listPacks(), getPackOrder()]);
+      const [packList, order] = await Promise.all([
+        listPacks(),
+        getPackOrder(),
+      ]);
       setPacks(packList);
       setPackOrder(order ?? []);
       const fallbackSelection =
         order && order.length > 0 ? order : packList.map((pack) => pack.id);
-      const stored = typeof window !== 'undefined' ? window.localStorage.getItem(PACK_SELECTION_KEY) : null;
+      const stored =
+        typeof window !== "undefined"
+          ? window.localStorage.getItem(PACK_SELECTION_KEY)
+          : null;
       if (stored) {
         try {
           const parsed = JSON.parse(stored) as string[];
-          setSelectedPacks(parsed.filter((id) => packList.some((pack) => pack.id === id)));
+          setSelectedPacks(
+            parsed.filter((id) => packList.some((pack) => pack.id === id)),
+          );
         } catch {
           setSelectedPacks(fallbackSelection);
         }
@@ -962,8 +1337,11 @@ export default function GamePage() {
   }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    window.localStorage.setItem(PACK_SELECTION_KEY, JSON.stringify(selectedPacks));
+    if (typeof window === "undefined") return;
+    window.localStorage.setItem(
+      PACK_SELECTION_KEY,
+      JSON.stringify(selectedPacks),
+    );
   }, [selectedPacks]);
 
   useEffect(() => {
@@ -971,18 +1349,17 @@ export default function GamePage() {
     const internals = view.save.current_character.internals;
     const attacks = view.save.current_character.attack_skills;
     const defenses = view.save.current_character.defense_skills;
-    setEquipInternalId(internals.equipped ?? internals.owned[0]?.id ?? '');
-    setEquipAttackSkillId(attacks.equipped ?? attacks.owned[0]?.id ?? '');
-    setEquipDefenseSkillId(defenses.equipped ?? defenses.owned[0]?.id ?? '');
+    setEquipInternalId(internals.equipped ?? internals.owned[0]?.id ?? "");
+    setEquipAttackSkillId(attacks.equipped ?? attacks.owned[0]?.id ?? "");
+    setEquipDefenseSkillId(defenses.equipped ?? defenses.owned[0]?.id ?? "");
   }, [view]);
-
 
   useEffect(() => {
     if (!view || gameData || orderedSelectedPackIds.length === 0) return;
     loadMergedGameData(orderedSelectedPackIds)
       .then((merged) => setGameData(merged))
       .catch((error) => {
-        console.error('加载名称映射失败:', error);
+        console.error("加载名称映射失败:", error);
       });
   }, [gameData, orderedSelectedPackIds, view]);
 
@@ -990,9 +1367,9 @@ export default function GamePage() {
     if (!typingEntry && pendingEntries.length > 0) {
       const [next, ...rest] = pendingEntries;
       setPendingEntries(rest);
-      if (next.kind === 'text') {
+      if (next.kind === "text") {
         setTypingEntry(next);
-        setTypedText('');
+        setTypedText("");
       } else {
         setLogEntries((prev) => [...prev, next]);
       }
@@ -1000,7 +1377,7 @@ export default function GamePage() {
   }, [pendingEntries, typingEntry]);
 
   useEffect(() => {
-    if (!typingEntry || typingEntry.kind !== 'text') return;
+    if (!typingEntry || typingEntry.kind !== "text") return;
     let index = 0;
     const text = typingEntry.text;
     const interval = setInterval(() => {
@@ -1021,7 +1398,8 @@ export default function GamePage() {
   }, [logEntries, typedText]);
 
   useEffect(() => {
-    if (!battleDialogOpen || !battleLogRef.current || !battleStickToBottom) return;
+    if (!battleDialogOpen || !battleLogRef.current || !battleStickToBottom)
+      return;
     battleLogRef.current.scrollTop = battleLogRef.current.scrollHeight;
   }, [battleDialogOpen, battleStep, battleTypedText, battleStickToBottom]);
 
@@ -1029,7 +1407,7 @@ export default function GamePage() {
     if (battleStep > battleRecords.length) {
       setBattleStep(battleRecords.length);
       setBattleTypingIndex(null);
-      setBattleTypedText('');
+      setBattleTypedText("");
     }
   }, [battleRecords.length, battleStep]);
 
@@ -1050,33 +1428,40 @@ export default function GamePage() {
       setBattleStep((prev) => Math.min(prev + 1, battleRecords.length));
     }, battleSpeed);
     return () => clearTimeout(timer);
-  }, [battleAuto, battleDialogOpen, battleStep, battleRecords.length, battleSpeed, battleTypingIndex]);
+  }, [
+    battleAuto,
+    battleDialogOpen,
+    battleStep,
+    battleRecords.length,
+    battleSpeed,
+    battleTypingIndex,
+  ]);
 
   const battleStepRef = useRef(0);
   useEffect(() => {
     if (!battleDialogOpen) return;
     if (battleStep <= 0 || battleStep > battleRecords.length) {
       setBattleTypingIndex(null);
-      setBattleTypedText('');
+      setBattleTypedText("");
       battleStepRef.current = battleStep;
       return;
     }
     if (battleStep <= battleStepRef.current) {
       setBattleTypingIndex(null);
-      setBattleTypedText('');
+      setBattleTypedText("");
       battleStepRef.current = battleStep;
       return;
     }
     const record = battleRecords[battleStep - 1];
     if (!record || !record.text) {
       setBattleTypingIndex(null);
-      setBattleTypedText('');
+      setBattleTypedText("");
       battleStepRef.current = battleStep;
       return;
     }
     battleStepRef.current = battleStep;
     setBattleTypingIndex(battleStep - 1);
-    setBattleTypedText('');
+    setBattleTypedText("");
     let index = 0;
     const text = record.text;
     const interval = setInterval(() => {
@@ -1091,37 +1476,71 @@ export default function GamePage() {
   }, [battleDialogOpen, battleRecords, battleStep]);
 
   useEffect(() => {
+    if (!resumeRequestedRef.current) return;
+    if (!view) return;
+    const history = view.save.story_history ?? [];
+    if (history.length === 0) {
+      resumeRequestedRef.current = false;
+      return;
+    }
+    if (!gameData) return;
+    const entries = buildLogEntriesFromHistory(history, {
+      currentEventId: view.current_event?.id ?? null,
+      phase: view.phase,
+    });
+    if (view.phase === "completed") {
+      entries.push({
+        id: `completed:${view.save.id}`,
+        kind: "phase",
+        label: "阶段：结局",
+        message: "剧情已完成，角色已保存至完成列表。",
+      });
+    }
+    setLogEntries(entries);
+    setPendingEntries([]);
+    setTypingEntry(null);
+    setTypedText("");
+    seenEntryIds.current = new Set(entries.map((entry) => entry.id));
+    restoredHistoryRef.current = true;
+    resumeRequestedRef.current = false;
+  }, [buildLogEntriesFromHistory, gameData, view]);
+
+  useEffect(() => {
     if (outcome && outcome !== lastOutcomeRef.current) {
       lastOutcomeRef.current = outcome;
-      if (outcome.type === 'info') {
+      if (outcome.type === "info") {
         enqueueItem({
           id: `info:${Date.now()}`,
-          kind: 'text',
+          kind: "text",
           text: outcome.message,
-          tone: 'system',
+          tone: "system",
         });
         return;
       }
-      if (outcome.type === 'cultivation') {
+      if (outcome.type === "cultivation") {
         const lastCultivation = lastCultivationRef.current;
         const manualLabel = lastCultivation
           ? `${MANUAL_KIND_LABELS[lastCultivation.type]}《${resolveManualName(
               lastCultivation.type,
-              lastCultivation.id
+              lastCultivation.id,
             )}》`
-          : '功法';
+          : "功法";
         enqueueItem({
           id: `cultivation:${Date.now()}`,
-          kind: 'text',
+          kind: "text",
           text: `修行：${manualLabel}，经验 +${outcome.exp_gain.toFixed(1)}（等级 ${outcome.old_level} → ${outcome.new_level}）`,
-          tone: 'system',
+          tone: "system",
         });
         return;
       }
-      if (outcome.type === 'story') {
+      if (outcome.type === "story") {
         if (outcome.battle_result) {
           const resultText =
-            outcome.win !== undefined && outcome.win !== null ? (outcome.win ? '胜利' : '失败') : undefined;
+            outcome.win !== undefined && outcome.win !== null
+              ? outcome.win
+                ? "胜利"
+                : "失败"
+              : undefined;
           const enemy = pendingBattleEnemyRef.current;
           pendingBattleEnemyRef.current = null;
           prepareBattleEntry(outcome.battle_result, {
@@ -1132,37 +1551,46 @@ export default function GamePage() {
           maybeAutoEquipManuals(outcome.rewards);
           return;
         }
-        if (!outcome.battle_result && outcome.rewards && outcome.rewards.length > 0) {
+        if (
+          !outcome.battle_result &&
+          outcome.rewards &&
+          outcome.rewards.length > 0
+        ) {
           enqueueItem({
             id: `reward:${Date.now()}`,
-            kind: 'reward',
-            title: '奖励结算',
+            kind: "reward",
+            title: "奖励结算",
             rewards: outcome.rewards,
           });
         }
         maybeAutoEquipManuals(outcome.rewards);
         return;
       }
-      if (outcome.type === 'adventure') {
+      if (outcome.type === "adventure") {
         enqueueItem({
           id: `adventure-title:${Date.now()}`,
-          kind: 'text',
+          kind: "text",
           text: `【奇遇】${outcome.name}`,
-          tone: 'system',
+          tone: "system",
         });
         if (outcome.text) {
           enqueueItem({
             id: `adventure-text:${Date.now()}`,
-            kind: 'text',
+            kind: "text",
             text: outcome.text,
-            tone: 'story',
+            tone: "story",
           });
         }
         if (outcome.battle_result) {
           const resultText =
-            outcome.win !== undefined && outcome.win !== null ? (outcome.win ? '胜利' : '失败') : undefined;
+            outcome.win !== undefined && outcome.win !== null
+              ? outcome.win
+                ? "胜利"
+                : "失败"
+              : undefined;
           const enemy =
-            pendingBattleEnemyRef.current ?? resolveAdventureBattleEnemy(outcome.name, outcome.text ?? null);
+            pendingBattleEnemyRef.current ??
+            resolveAdventureBattleEnemy(outcome.name, outcome.text ?? null);
           pendingBattleEnemyRef.current = null;
           prepareBattleEntry(outcome.battle_result, {
             resultText,
@@ -1172,85 +1600,101 @@ export default function GamePage() {
           maybeAutoEquipManuals(outcome.rewards);
           return;
         }
-        if (!outcome.battle_result && outcome.rewards && outcome.rewards.length > 0) {
+        if (
+          !outcome.battle_result &&
+          outcome.rewards &&
+          outcome.rewards.length > 0
+        ) {
           enqueueItem({
             id: `reward:${Date.now()}`,
-            kind: 'reward',
-            title: '奖励结算',
+            kind: "reward",
+            title: "奖励结算",
             rewards: outcome.rewards,
           });
         }
         maybeAutoEquipManuals(outcome.rewards);
       }
     }
-  }, [enqueueItem, outcome, prepareBattleEntry, resolveAdventureBattleEnemy, resolveManualName]);
+  }, [
+    enqueueItem,
+    outcome,
+    prepareBattleEntry,
+    resolveAdventureBattleEnemy,
+    resolveManualName,
+  ]);
 
   useEffect(() => {
     if (!view) return;
+    if (resumeRequestedRef.current && !restoredHistoryRef.current) {
+      const history = view.save.story_history ?? [];
+      if (history.length > 0) {
+        return;
+      }
+    }
     if (hasUnviewedBattle || pendingBattleViewRef.current) {
       deferredViewRef.current = view;
       return;
     }
     const targetView = deferredViewRef.current ?? view;
     deferredViewRef.current = null;
-    if (targetView.phase === 'completed') {
+    if (targetView.phase === "completed") {
       enqueueItem({
         id: `completed:${targetView.save.id}`,
-        kind: 'phase',
-        label: '阶段：结局',
-        message: '剧情已完成，角色已保存至完成列表。',
+        kind: "phase",
+        label: "阶段：结局",
+        message: "剧情已完成，角色已保存至完成列表。",
       });
     }
-    if (targetView.phase === 'adventure_decision' && targetView.adventure) {
+    if (targetView.phase === "adventure_decision" && targetView.adventure) {
       enqueueItem({
         id: `adventure:${targetView.adventure.id}:title`,
-        kind: 'text',
+        kind: "text",
         text: `【奇遇】${targetView.adventure.name}`,
-        tone: 'system',
+        tone: "system",
       });
       if (targetView.adventure.text) {
         enqueueItem({
           id: `adventure:${targetView.adventure.id}:text`,
-          kind: 'text',
+          kind: "text",
           text: targetView.adventure.text,
-          tone: 'story',
+          tone: "story",
         });
       }
       enqueueItem({
         id: `decision:adventure:${targetView.adventure.id}`,
-        kind: 'decision',
-        scope: 'adventure',
+        kind: "decision",
+        scope: "adventure",
         title: targetView.adventure.name,
         options: targetView.adventure.options,
       });
     }
-    if (targetView.phase === 'story' && targetView.story_event) {
+    if (targetView.phase === "story" && targetView.story_event) {
       enqueueItem({
         id: `story:${targetView.story_event.id}`,
-        kind: 'text',
+        kind: "text",
         title: targetView.story_event.name,
         text: targetView.story_event.content.text,
-        tone: 'story',
+        tone: "story",
       });
-      if (targetView.story_event.content.type === 'decision') {
+      if (targetView.story_event.content.type === "decision") {
         enqueueItem({
           id: `decision:story:${targetView.story_event.id}`,
-          kind: 'decision',
-          scope: 'story',
+          kind: "decision",
+          scope: "story",
           title: targetView.story_event.name,
           options: targetView.story_event.content.options,
         });
       } else {
         enqueueItem({
           id: `action:${targetView.story_event.id}`,
-          kind: 'action',
-          label: `阶段：${targetView.story_event.content.type === 'battle' ? '战斗' : targetView.story_event.content.type === 'end' ? '结局' : '剧情推进'}`,
+          kind: "action",
+          label: `阶段：${targetView.story_event.content.type === "battle" ? "战斗" : targetView.story_event.content.type === "end" ? "结局" : "剧情推进"}`,
           actionType:
-            targetView.story_event.content.type === 'battle'
-              ? 'story_battle'
-              : targetView.story_event.content.type === 'end'
-              ? 'story_end'
-              : 'story_continue',
+            targetView.story_event.content.type === "battle"
+              ? "story_battle"
+              : targetView.story_event.content.type === "end"
+                ? "story_end"
+                : "story_continue",
         });
       }
     }
@@ -1262,7 +1706,7 @@ export default function GamePage() {
     }
   }, [view]);
 
-  const openNoticeDialog = useCallback((message: string, title = '提示') => {
+  const openNoticeDialog = useCallback((message: string, title = "提示") => {
     setNoticeDialog({
       open: true,
       title,
@@ -1275,7 +1719,13 @@ export default function GamePage() {
   }, []);
 
   const openConfirmDialog = useCallback(
-    (options: { title: string; message: string; confirmText?: string; cancelText?: string; onConfirm: () => void }) => {
+    (options: {
+      title: string;
+      message: string;
+      confirmText?: string;
+      cancelText?: string;
+      onConfirm: () => void;
+    }) => {
       confirmActionRef.current = options.onConfirm;
       setConfirmDialog({
         open: true,
@@ -1285,7 +1735,7 @@ export default function GamePage() {
         cancelText: options.cancelText,
       });
     },
-    []
+    [],
   );
 
   const closeConfirmDialog = useCallback(() => {
@@ -1313,13 +1763,15 @@ export default function GamePage() {
 
   const togglePack = (packId: string) => {
     setSelectedPacks((prev) =>
-      prev.includes(packId) ? prev.filter((id) => id !== packId) : [...prev, packId]
+      prev.includes(packId)
+        ? prev.filter((id) => id !== packId)
+        : [...prev, packId],
     );
   };
 
   const loadData = async () => {
     if (orderedSelectedPackIds.length === 0) {
-      openNoticeDialog('请至少选择一个模组包');
+      openNoticeDialog("请至少选择一个模组包");
       return;
     }
     try {
@@ -1333,8 +1785,8 @@ export default function GamePage() {
       const merged = await loadMergedGameData(orderedSelectedPackIds);
       setGameData(merged);
     } catch (error) {
-      console.error('加载数据失败:', error);
-      openNoticeDialog('加载数据失败: ' + (error as Error).message, '错误');
+      console.error("加载数据失败:", error);
+      openNoticeDialog("加载数据失败: " + (error as Error).message, "错误");
     } finally {
       setDataLoading(false);
     }
@@ -1351,30 +1803,31 @@ export default function GamePage() {
       handleResponse(res);
       return res;
     } catch (error) {
-      console.error('游戏指令失败:', error);
-      openNoticeDialog('操作失败: ' + (error as Error).message, '错误');
+      console.error("游戏指令失败:", error);
+      openNoticeDialog("操作失败: " + (error as Error).message, "错误");
       return null;
     }
   };
 
   const startNewGame = async () => {
     if (!storylineId) {
-      openNoticeDialog('请选择剧情线');
+      openNoticeDialog("请选择剧情线");
       return;
     }
     if (!characterName.trim()) {
-      openNoticeDialog('请输入角色姓名');
+      openNoticeDialog("请输入角色姓名");
       return;
     }
     if (comprehension === 0 || boneStructure === 0 || physique === 0) {
-      openNoticeDialog('三维最小值为1，不能为0');
+      openNoticeDialog("三维最小值为1，不能为0");
       return;
     }
     if (attributeSum > 100) {
-      openNoticeDialog('三维总点数不能超过 100');
+      openNoticeDialog("三维总点数不能超过 100");
       return;
     }
     resetNarrative();
+    resumeRequestedRef.current = false;
     setStartTraitModalOpen(false);
     const res = await runGameAction(() =>
       gameStartNew({
@@ -1386,7 +1839,7 @@ export default function GamePage() {
           bone_structure: boneStructure,
           physique,
         },
-      })
+      }),
     );
     if (res) {
       const traits = res.view.save.current_character.traits ?? [];
@@ -1397,15 +1850,19 @@ export default function GamePage() {
 
   const resumeSave = async (id: string) => {
     resetNarrative();
-    await runGameAction(() => gameResumeSave(id));
+    resumeRequestedRef.current = true;
+    const res = await runGameAction(() => gameResumeSave(id));
+    if (!res) {
+      resumeRequestedRef.current = false;
+    }
   };
 
   const removeSave = async (id: string) => {
     openConfirmDialog({
-      title: '删除存档',
-      message: '确定要删除该存档吗？此操作不可撤销。',
-      confirmText: '删除',
-      cancelText: '取消',
+      title: "删除存档",
+      message: "确定要删除该存档吗？此操作不可撤销。",
+      confirmText: "删除",
+      cancelText: "取消",
       onConfirm: async () => {
         await deleteSave(id);
         refreshSaves();
@@ -1416,47 +1873,73 @@ export default function GamePage() {
 
   const handleCultivation = async (type: ManualType, id: string) => {
     if (!id) {
-      openNoticeDialog('当前没有可修行的功法');
+      openNoticeDialog("当前没有可修行的功法");
       return;
     }
     lastCultivationRef.current = { id, type };
-    if (type === 'internal' && view?.save.current_character.internals.equipped !== id) {
-      await runGameAction(() => gameEquipManual(id, 'internal'));
+    if (
+      type === "internal" &&
+      view?.save.current_character.internals.equipped !== id
+    ) {
+      await runGameAction(() => gameEquipManual(id, "internal"));
     }
     await runGameAction(() => gameCultivate(id, type));
   };
 
   const handleEquipManual = async (id: string, type: ManualType) => {
     if (!id) {
-      openNoticeDialog('请选择要装备的功法');
+      openNoticeDialog("请选择要装备的功法");
       return;
     }
     await runGameAction(() => gameEquipManual(id, type));
   };
 
-  const maybeAutoEquipManuals = async (rewards: Reward[] | null | undefined) => {
+  const maybeAutoEquipManuals = async (
+    rewards: Reward[] | null | undefined,
+  ) => {
     if (!rewards || rewards.length === 0 || !view) return;
     const hasManualReward = rewards.some((reward) =>
-      ['internal', 'attack_skill', 'defense_skill', 'random_manual'].includes(reward.type)
+      ["internal", "attack_skill", "defense_skill", "random_manual"].includes(
+        reward.type,
+      ),
     );
     if (!hasManualReward) return;
-    const { internals, attack_skills, defense_skills } = view.save.current_character;
+    const { internals, attack_skills, defense_skills } =
+      view.save.current_character;
     const prevView = prevViewRef.current;
-    const prevInternals = prevView?.save.current_character.internals.owned.length ?? null;
-    const prevAttacks = prevView?.save.current_character.attack_skills.owned.length ?? null;
-    const prevDefenses = prevView?.save.current_character.defense_skills.owned.length ?? null;
-    const gainedInternal = (prevInternals === null ? internals.owned.length === 1 : prevInternals === 0 && internals.owned.length === 1);
-    const gainedAttack = (prevAttacks === null ? attack_skills.owned.length === 1 : prevAttacks === 0 && attack_skills.owned.length === 1);
-    const gainedDefense = (prevDefenses === null ? defense_skills.owned.length === 1 : prevDefenses === 0 && defense_skills.owned.length === 1);
+    const prevInternals =
+      prevView?.save.current_character.internals.owned.length ?? null;
+    const prevAttacks =
+      prevView?.save.current_character.attack_skills.owned.length ?? null;
+    const prevDefenses =
+      prevView?.save.current_character.defense_skills.owned.length ?? null;
+    const gainedInternal =
+      prevInternals === null
+        ? internals.owned.length === 1
+        : prevInternals === 0 && internals.owned.length === 1;
+    const gainedAttack =
+      prevAttacks === null
+        ? attack_skills.owned.length === 1
+        : prevAttacks === 0 && attack_skills.owned.length === 1;
+    const gainedDefense =
+      prevDefenses === null
+        ? defense_skills.owned.length === 1
+        : prevDefenses === 0 && defense_skills.owned.length === 1;
 
     if (!internals.equipped && gainedInternal) {
-      await runGameAction(() => gameEquipManual(internals.owned[0].id, 'internal'));
+      await runGameAction(() =>
+        gameEquipManual(internals.owned[0].id, "internal"),
+      );
     }
     if (!attack_skills.equipped && gainedAttack) {
-      await runGameAction(() => gameEquipManual(attack_skills.owned[0].id, 'attack_skill'));
+      await runGameAction(() =>
+        gameEquipManual(attack_skills.owned[0].id, "attack_skill"),
+      );
     }
     if (!defense_skills.equipped && gainedDefense) {
-      await runGameAction(() => gameEquipManual(defense_skills.owned[0].id, 'defense_skill'));
+      await runGameAction(() =>
+        gameEquipManual(defense_skills.owned[0].id, "defense_skill"),
+      );
     }
   };
 
@@ -1466,16 +1949,17 @@ export default function GamePage() {
   };
 
   const handleStoryOption = async (optionId: string) => {
-    if (view?.story_event?.content.type === 'decision') {
+    if (view?.story_event?.content.type === "decision") {
       markDecisionChoice(`decision:story:${view.story_event.id}`, optionId);
     }
     await runGameAction(() => gameStoryOption(optionId));
   };
 
   const handleStoryBattle = async () => {
-    if (view?.story_event?.content.type === 'battle') {
+    if (view?.story_event?.content.type === "battle") {
       const event = storyEventLookup.get(view.story_event.id);
-      pendingBattleEnemyRef.current = event?.content.type === 'battle' ? event.content.enemy : null;
+      pendingBattleEnemyRef.current =
+        event?.content.type === "battle" ? event.content.enemy : null;
     } else {
       pendingBattleEnemyRef.current = null;
     }
@@ -1490,14 +1974,19 @@ export default function GamePage() {
     if (view?.adventure) {
       markDecisionChoice(`decision:adventure:${view.adventure.id}`, optionId);
       const adventure = adventureLookup.get(view.adventure.id);
-      if (adventure?.content.type === 'decision') {
-        const option = adventure.content.options.find((item) => item.id === optionId);
-        pendingBattleEnemyRef.current = option?.result.type === 'battle' ? option.result.enemy : null;
+      if (adventure?.content.type === "decision") {
+        const option = adventure.content.options.find(
+          (item) => item.id === optionId,
+        );
+        pendingBattleEnemyRef.current =
+          option?.result.type === "battle" ? option.result.enemy : null;
       } else {
         pendingBattleEnemyRef.current = null;
       }
     }
-    await runGameAction(() => gameAdventureOption(optionId, attackerQiOutputRate));
+    await runGameAction(() =>
+      gameAdventureOption(optionId, attackerQiOutputRate),
+    );
   };
 
   const handleFinish = async () => {
@@ -1506,12 +1995,12 @@ export default function GamePage() {
 
   const isTyping = Boolean(typingEntry);
 
-  
-
   const battleVisibleRecords = battleRecords.slice(0, battleStep);
   const battleFinished = battleStep >= battleRecords.length;
-  const currentAttackerPanel = battleCurrentPanels?.attacker ?? battleData?.attacker_panel ?? null;
-  const currentDefenderPanel = battleCurrentPanels?.defender ?? battleData?.defender_panel ?? null;
+  const currentAttackerPanel =
+    battleCurrentPanels?.attacker ?? battleData?.attacker_panel ?? null;
+  const currentDefenderPanel =
+    battleCurrentPanels?.defender ?? battleData?.defender_panel ?? null;
   const handleBattleNextRecord = () => {
     setBattleStep((prev) => Math.min(prev + 1, battleRecords.length));
   };
@@ -1519,13 +2008,13 @@ export default function GamePage() {
     setBattleStep(0);
     setBattleAuto(false);
     setBattleTypingIndex(null);
-    setBattleTypedText('');
+    setBattleTypedText("");
   };
   const handleBattleClose = () => {
     setBattleDialogOpen(false);
     setBattleAuto(false);
     setBattleTypingIndex(null);
-    setBattleTypedText('');
+    setBattleTypedText("");
   };
   const handleBattleSpeedCycle = () => {
     setBattleSpeedIndex((prev) => (prev + 1) % BATTLE_SPEEDS.length);
@@ -1537,55 +2026,78 @@ export default function GamePage() {
     setBattleStickToBottom(nearBottom);
   }, []);
 
-  const markDecisionChoice = useCallback((decisionId: string, optionId: string) => {
-    const applyChoice = (item: LogItem) =>
-      item.kind === 'decision' && item.id === decisionId ? { ...item, chosenId: optionId } : item;
-    setLogEntries((prev) => prev.map(applyChoice));
-    setPendingEntries((prev) => prev.map(applyChoice));
-  }, []);
+  const markDecisionChoice = useCallback(
+    (decisionId: string, optionId: string) => {
+      const applyChoice = (item: LogItem) =>
+        item.kind === "decision" && item.id === decisionId
+          ? { ...item, chosenId: optionId }
+          : item;
+      setLogEntries((prev) => prev.map(applyChoice));
+      setPendingEntries((prev) => prev.map(applyChoice));
+    },
+    [],
+  );
 
   const handleBattleView = useCallback(
-    (entry: Extract<LogItem, { kind: 'battle' }>) => {
+    (entry: Extract<LogItem, { kind: "battle" }>) => {
+      if (!entry.data) {
+        openNoticeDialog("战斗过程未保存，仅提供结果记录。");
+        return;
+      }
       pendingBattleViewRef.current = false;
       setLogEntries((prev) =>
-        prev.map((item) => (item.kind === 'battle' && item.id === entry.id ? { ...item, viewed: true } : item))
+        prev.map((item) =>
+          item.kind === "battle" && item.id === entry.id
+            ? { ...item, viewed: true }
+            : item,
+        ),
       );
       openBattleDialog(entry.data, true);
     },
-    [openBattleDialog]
+    [openBattleDialog, openNoticeDialog],
   );
 
   const isInGame = Boolean(view);
-  const isActionPhase = view?.phase === 'action';
-  const equippedInternalId = view?.save.current_character.internals.equipped ?? '';
+  const isActionPhase = view?.phase === "action";
+  const equippedInternalId =
+    view?.save.current_character.internals.equipped ?? "";
   const canCultivateInternal = Boolean(equipInternalId);
   const canCultivateAttack = Boolean(equipAttackSkillId);
   const canCultivateDefense = Boolean(equipDefenseSkillId);
 
   return (
-    <div className={`page-shell${isInGame ? ' game-shell' : ''}`}>
+    <div className={`page-shell${isInGame ? " game-shell" : ""}`}>
       <div
         className={`container mx-auto w-full max-w-[110rem] px-4 ${
-          isInGame ? 'game-shell__container' : 'py-8'
+          isInGame ? "game-shell__container" : "py-8"
         } lg:px-6`}
       >
         {!isInGame && (
           <div className="surface-card p-6 mb-6">
-            <h1 className="font-bold text-gray-900 reveal-text text-3xl mb-2">武神 · 正式游戏</h1>
-            <p className="reveal-text reveal-delay-1 text-gray-600">选择模组包 → 创建角色 → 进入剧情线。</p>
+            <h1 className="font-bold text-gray-900 reveal-text text-3xl mb-2">
+              武神 · 正式游戏
+            </h1>
+            <p className="reveal-text reveal-delay-1 text-gray-600">
+              选择模组包 → 创建角色 → 进入剧情线。
+            </p>
           </div>
         )}
 
         {!view && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
             <section className="surface-panel p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">1. 选择模组包</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                1. 选择模组包
+              </h2>
               {orderedPacks.length === 0 ? (
                 <p className="text-gray-500">暂无可用模组包</p>
               ) : (
                 <div className="space-y-3">
                   {orderedPacks.map((pack) => (
-                    <label key={pack.id} className="flex items-center gap-3 border border-gray-200 rounded-lg p-3">
+                    <label
+                      key={pack.id}
+                      className="flex items-center gap-3 border border-gray-200 rounded-lg p-3"
+                    >
                       <input
                         type="checkbox"
                         className="h-4 w-4"
@@ -1593,16 +2105,23 @@ export default function GamePage() {
                         onChange={() => togglePack(pack.id)}
                       />
                       <div>
-                        <div className="text-sm font-semibold text-gray-900">{pack.name}</div>
-                        <div className="text-xs text-gray-500">v{pack.version}</div>
+                        <div className="text-sm font-semibold text-gray-900">
+                          {pack.name}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          v{pack.version}
+                        </div>
                       </div>
                     </label>
                   ))}
                 </div>
               )}
               <div className="mt-4 flex items-center gap-3">
-                <Button onClick={loadData} disabled={dataLoading || orderedSelectedPackIds.length === 0}>
-                  {dataLoading ? '加载中...' : '加载模组数据'}
+                <Button
+                  onClick={loadData}
+                  disabled={dataLoading || orderedSelectedPackIds.length === 0}
+                >
+                  {dataLoading ? "加载中..." : "加载模组数据"}
                 </Button>
                 <span className="text-sm text-gray-500">
                   已选 {orderedSelectedPackIds.length} 个
@@ -1611,7 +2130,9 @@ export default function GamePage() {
             </section>
 
             <section className="surface-panel p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">2. 选择剧情线与创建角色</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-4">
+                2. 选择剧情线与创建角色
+              </h2>
               <div className="space-y-4">
                 <SearchableSelect
                   label="剧情线"
@@ -1620,10 +2141,15 @@ export default function GamePage() {
                   onChange={(value) => setStorylineId(value)}
                   options={
                     storylines.length > 0
-                      ? storylines.map((line) => ({ value: line.id, label: line.name }))
-                      : [{ value: '', label: '请先加载模组数据' }]
+                      ? storylines.map((line) => ({
+                          value: line.id,
+                          label: line.name,
+                        }))
+                      : [{ value: "", label: "请先加载模组数据" }]
                   }
-                  placeholder={storylines.length > 0 ? '搜索剧情线...' : '请先加载模组数据'}
+                  placeholder={
+                    storylines.length > 0 ? "搜索剧情线..." : "请先加载模组数据"
+                  }
                 />
                 <Input
                   label="角色姓名"
@@ -1640,7 +2166,11 @@ export default function GamePage() {
                     value={comprehension.toString()}
                     onChange={(e) =>
                       setComprehension(
-                        clampAttributeValue(Number(e.target.value), boneStructure, physique)
+                        clampAttributeValue(
+                          Number(e.target.value),
+                          boneStructure,
+                          physique,
+                        ),
                       )
                     }
                   />
@@ -1652,7 +2182,11 @@ export default function GamePage() {
                     value={boneStructure.toString()}
                     onChange={(e) =>
                       setBoneStructure(
-                        clampAttributeValue(Number(e.target.value), comprehension, physique)
+                        clampAttributeValue(
+                          Number(e.target.value),
+                          comprehension,
+                          physique,
+                        ),
                       )
                     }
                   />
@@ -1664,7 +2198,11 @@ export default function GamePage() {
                     value={physique.toString()}
                     onChange={(e) =>
                       setPhysique(
-                        clampAttributeValue(Number(e.target.value), comprehension, boneStructure)
+                        clampAttributeValue(
+                          Number(e.target.value),
+                          comprehension,
+                          boneStructure,
+                        ),
                       )
                     }
                   />
@@ -1672,7 +2210,10 @@ export default function GamePage() {
                 <div className="text-sm text-gray-500">
                   剩余点数：{attributeRemaining}（总点数上限 100）
                 </div>
-                <Button onClick={startNewGame} disabled={storylines.length === 0}>
+                <Button
+                  onClick={startNewGame}
+                  disabled={storylines.length === 0}
+                >
                   开始剧情
                 </Button>
               </div>
@@ -1682,23 +2223,42 @@ export default function GamePage() {
 
         {!view && (
           <section className="surface-panel p-6 mb-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">继续存档</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">
+              继续存档
+            </h2>
             {saves.length === 0 ? (
               <p className="text-gray-500">暂无存档</p>
             ) : (
               <div className="space-y-3">
                 {saves.map((save) => (
-                  <div key={save.id} className="flex items-center justify-between border border-gray-200 rounded-lg p-3">
+                  <div
+                    key={save.id}
+                    className="flex items-center justify-between border border-gray-200 rounded-lg p-3"
+                  >
                     <div>
-                      <div className="text-sm font-semibold text-gray-900">{save.name}</div>
-                      <div className="text-xs text-gray-500">存档名：{save.name}</div>
-                      <div className="text-xs text-gray-500">创建时间：{formatTimestamp(save.created_at)}</div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        {save.name}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        存档名：{save.name}
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        创建时间：{formatTimestamp(save.created_at)}
+                      </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button size="sm" onClick={() => resumeSave(save.id)} disabled={storylines.length === 0}>
+                      <Button
+                        size="sm"
+                        onClick={() => resumeSave(save.id)}
+                        disabled={storylines.length === 0}
+                      >
                         继续
                       </Button>
-                      <Button size="sm" variant="danger" onClick={() => removeSave(save.id)}>
+                      <Button
+                        size="sm"
+                        variant="danger"
+                        onClick={() => removeSave(save.id)}
+                      >
                         删除
                       </Button>
                     </div>
@@ -1711,47 +2271,68 @@ export default function GamePage() {
 
         {view && (
           <>
-          <div className="grid grid-cols-1 grid-rows-2 lg:grid-cols-12 lg:grid-rows-1 gap-2 [@media(max-height:720px)]:gap-1.5 flex-1 min-h-0">
-            <section className="surface-panel p-2 [@media(max-height:820px)]:p-1.5 lg:col-span-4 flex flex-col min-h-0 overflow-hidden">
+            <div className="grid grid-cols-1 grid-rows-2 lg:grid-cols-12 lg:grid-rows-1 gap-2 [@media(max-height:720px)]:gap-1.5 flex-1 min-h-0">
+              <section className="surface-panel p-2 [@media(max-height:820px)]:p-1.5 lg:col-span-4 flex flex-col min-h-0 overflow-hidden">
                 <div className="flex items-center justify-between mb-2 [@media(max-height:820px)]:mb-1.5 shrink-0">
-                  <h2 className="text-xl [@media(max-height:820px)]:text-lg font-semibold text-gray-900">角色面板</h2>
-                  <span className="text-xs text-gray-500">{view.save.name}</span>
+                  <h2 className="text-xl [@media(max-height:820px)]:text-lg font-semibold text-gray-900">
+                    角色面板
+                  </h2>
+                  <span className="text-xs text-gray-500">
+                    {view.save.name}
+                  </span>
                 </div>
                 <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pr-2">
                   <div className="space-y-2 [@media(max-height:820px)]:space-y-1.5 text-sm [@media(max-height:820px)]:text-xs text-gray-700">
                     <div>
                       <div className="text-xs text-gray-500">姓名</div>
-                      <div className="font-medium">{view.save.current_character.name}</div>
+                      <div className="font-medium">
+                        {view.save.current_character.name}
+                      </div>
                     </div>
                     <div className="grid grid-cols-3 gap-2">
                       <div>
                         <div className="text-xs text-gray-500">悟性</div>
-                        <div className="font-medium">{view.save.current_character.three_d.comprehension}</div>
+                        <div className="font-medium">
+                          {view.save.current_character.three_d.comprehension}
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-500">根骨</div>
-                        <div className="font-medium">{view.save.current_character.three_d.bone_structure}</div>
+                        <div className="font-medium">
+                          {view.save.current_character.three_d.bone_structure}
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-500">体魄</div>
-                        <div className="font-medium">{view.save.current_character.three_d.physique}</div>
+                        <div className="font-medium">
+                          {view.save.current_character.three_d.physique}
+                        </div>
                       </div>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <div className="text-xs text-gray-500">武学素养</div>
-                        <div className="font-medium">{(view.save.current_character.martial_arts_attainment ?? 0).toFixed(1)}</div>
+                        <div className="font-medium">
+                          {(
+                            view.save.current_character
+                              .martial_arts_attainment ?? 0
+                          ).toFixed(1)}
+                        </div>
                       </div>
                       <div>
                         <div className="text-xs text-gray-500">行动点</div>
-                        <div className="font-medium">{view.save.current_character.action_points}</div>
+                        <div className="font-medium">
+                          {view.save.current_character.action_points}
+                        </div>
                       </div>
                     </div>
                   </div>
 
                   <div className="mt-2 [@media(max-height:820px)]:mt-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 [@media(max-height:820px)]:p-1.5">
                     <div className="flex items-center justify-between mb-2 [@media(max-height:820px)]:mb-1.5">
-                      <div className="text-sm font-semibold text-gray-900">角色特性</div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        角色特性
+                      </div>
                       <span className="text-xs text-gray-500">
                         {(view.save.current_character.traits ?? []).length} 条
                       </span>
@@ -1776,37 +2357,62 @@ export default function GamePage() {
 
                   <div className="mt-2 [@media(max-height:820px)]:mt-1.5 rounded-xl border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-2 [@media(max-height:820px)]:p-1.5">
                     <div className="flex items-center justify-between mb-2 [@media(max-height:820px)]:mb-1.5">
-                      <div className="text-sm font-semibold text-gray-900">战斗功法配置</div>
-                      <div className="text-xs text-gray-500">主修 / 出战设置</div>
+                      <div className="text-sm font-semibold text-gray-900">
+                        战斗功法配置
+                      </div>
+                      <div className="text-xs text-gray-500">
+                        主修 / 出战设置
+                      </div>
                     </div>
                     <div className="space-y-2 [@media(max-height:820px)]:space-y-1.5 text-sm [@media(max-height:820px)]:text-xs text-gray-700">
                       <div>
-                        <div className="text-xs text-gray-500">当前主修内功</div>
+                        <div className="text-xs text-gray-500">
+                          当前主修内功
+                        </div>
                         <div className="font-medium">
                           {resolveManualLabel(
-                            'internal',
-                            view.save.current_character.internals.equipped ?? '',
-                            getOwnedManualLevel('internal', view.save.current_character.internals.equipped ?? '')
+                            "internal",
+                            view.save.current_character.internals.equipped ??
+                              "",
+                            getOwnedManualLevel(
+                              "internal",
+                              view.save.current_character.internals.equipped ??
+                                "",
+                            ),
                           )}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">当前攻击武技</div>
+                        <div className="text-xs text-gray-500">
+                          当前攻击武技
+                        </div>
                         <div className="font-medium">
                           {resolveManualLabel(
-                            'attack_skill',
-                            view.save.current_character.attack_skills.equipped ?? '',
-                            getOwnedManualLevel('attack_skill', view.save.current_character.attack_skills.equipped ?? '')
+                            "attack_skill",
+                            view.save.current_character.attack_skills
+                              .equipped ?? "",
+                            getOwnedManualLevel(
+                              "attack_skill",
+                              view.save.current_character.attack_skills
+                                .equipped ?? "",
+                            ),
                           )}
                         </div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500">当前防御武技</div>
+                        <div className="text-xs text-gray-500">
+                          当前防御武技
+                        </div>
                         <div className="font-medium">
                           {resolveManualLabel(
-                            'defense_skill',
-                            view.save.current_character.defense_skills.equipped ?? '',
-                            getOwnedManualLevel('defense_skill', view.save.current_character.defense_skills.equipped ?? '')
+                            "defense_skill",
+                            view.save.current_character.defense_skills
+                              .equipped ?? "",
+                            getOwnedManualLevel(
+                              "defense_skill",
+                              view.save.current_character.defense_skills
+                                .equipped ?? "",
+                            ),
                           )}
                         </div>
                       </div>
@@ -1820,13 +2426,18 @@ export default function GamePage() {
                             value={equipInternalId}
                             onChange={(value) => setEquipInternalId(value)}
                             options={(() => {
-                              const owned = view.save.current_character.internals.owned;
+                              const owned =
+                                view.save.current_character.internals.owned;
                               if (owned.length === 0) {
-                                return [{ value: '', label: '暂无内功' }];
+                                return [{ value: "", label: "暂无内功" }];
                               }
                               return owned.map((item) => ({
                                 value: item.id,
-                                label: resolveManualLabel('internal', item.id, item.level),
+                                label: resolveManualLabel(
+                                  "internal",
+                                  item.id,
+                                  item.level,
+                                ),
                               }));
                             })()}
                             placeholder="搜索内功..."
@@ -1835,7 +2446,9 @@ export default function GamePage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => openManualDetail('internal', equipInternalId)}
+                          onClick={() =>
+                            openManualDetail("internal", equipInternalId)
+                          }
                           disabled={!equipInternalId}
                         >
                           查看详情
@@ -1844,18 +2457,29 @@ export default function GamePage() {
                       <div className="flex flex-wrap gap-2">
                         <Button
                           variant="secondary"
-                        onClick={() => handleEquipManual(equipInternalId, 'internal')}
-                        disabled={!equipInternalId || equipInternalId === view.save.current_character.internals.equipped}
-                      >
-                        {equipInternalId === view.save.current_character.internals.equipped ? '已主修' : '转修内功'}
-                      </Button>
-                      <Button
-                        onClick={() => handleCultivation('internal', equipInternalId)}
-                        disabled={!isActionPhase || !canCultivateInternal}
-                      >
-                        修行
-                      </Button>
-                    </div>
+                          onClick={() =>
+                            handleEquipManual(equipInternalId, "internal")
+                          }
+                          disabled={
+                            !equipInternalId ||
+                            equipInternalId ===
+                              view.save.current_character.internals.equipped
+                          }
+                        >
+                          {equipInternalId ===
+                          view.save.current_character.internals.equipped
+                            ? "已主修"
+                            : "转修内功"}
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            handleCultivation("internal", equipInternalId)
+                          }
+                          disabled={!isActionPhase || !canCultivateInternal}
+                        >
+                          修行
+                        </Button>
+                      </div>
                       <p className="text-xs text-gray-500">
                         修行会以当前选择的内功为主修，若不同将自动转修并触发内息亏损。
                       </p>
@@ -1867,13 +2491,18 @@ export default function GamePage() {
                             value={equipAttackSkillId}
                             onChange={(value) => setEquipAttackSkillId(value)}
                             options={(() => {
-                              const owned = view.save.current_character.attack_skills.owned;
+                              const owned =
+                                view.save.current_character.attack_skills.owned;
                               if (owned.length === 0) {
-                                return [{ value: '', label: '暂无攻击武技' }];
+                                return [{ value: "", label: "暂无攻击武技" }];
                               }
                               return owned.map((item) => ({
                                 value: item.id,
-                                label: resolveManualLabel('attack_skill', item.id, item.level),
+                                label: resolveManualLabel(
+                                  "attack_skill",
+                                  item.id,
+                                  item.level,
+                                ),
                               }));
                             })()}
                             placeholder="搜索攻击武技..."
@@ -1882,7 +2511,9 @@ export default function GamePage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => openManualDetail('attack_skill', equipAttackSkillId)}
+                          onClick={() =>
+                            openManualDetail("attack_skill", equipAttackSkillId)
+                          }
                           disabled={!equipAttackSkillId}
                         >
                           查看详情
@@ -1891,18 +2522,35 @@ export default function GamePage() {
                       <div className="flex flex-wrap gap-2">
                         <Button
                           variant="secondary"
-                        onClick={() => handleEquipManual(equipAttackSkillId, 'attack_skill')}
-                        disabled={!equipAttackSkillId || equipAttackSkillId === view.save.current_character.attack_skills.equipped}
-                      >
-                        {equipAttackSkillId === view.save.current_character.attack_skills.equipped ? '已装备' : '切换攻击武技'}
-                      </Button>
-                      <Button
-                        onClick={() => handleCultivation('attack_skill', equipAttackSkillId)}
-                        disabled={!isActionPhase || !canCultivateAttack}
-                      >
-                        修行
-                      </Button>
-                    </div>
+                          onClick={() =>
+                            handleEquipManual(
+                              equipAttackSkillId,
+                              "attack_skill",
+                            )
+                          }
+                          disabled={
+                            !equipAttackSkillId ||
+                            equipAttackSkillId ===
+                              view.save.current_character.attack_skills.equipped
+                          }
+                        >
+                          {equipAttackSkillId ===
+                          view.save.current_character.attack_skills.equipped
+                            ? "已装备"
+                            : "切换攻击武技"}
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            handleCultivation(
+                              "attack_skill",
+                              equipAttackSkillId,
+                            )
+                          }
+                          disabled={!isActionPhase || !canCultivateAttack}
+                        >
+                          修行
+                        </Button>
+                      </div>
 
                       <div className="flex items-end gap-2">
                         <div className="flex-1">
@@ -1911,13 +2559,19 @@ export default function GamePage() {
                             value={equipDefenseSkillId}
                             onChange={(value) => setEquipDefenseSkillId(value)}
                             options={(() => {
-                              const owned = view.save.current_character.defense_skills.owned;
+                              const owned =
+                                view.save.current_character.defense_skills
+                                  .owned;
                               if (owned.length === 0) {
-                                return [{ value: '', label: '暂无防御武技' }];
+                                return [{ value: "", label: "暂无防御武技" }];
                               }
                               return owned.map((item) => ({
                                 value: item.id,
-                                label: resolveManualLabel('defense_skill', item.id, item.level),
+                                label: resolveManualLabel(
+                                  "defense_skill",
+                                  item.id,
+                                  item.level,
+                                ),
                               }));
                             })()}
                             placeholder="搜索防御武技..."
@@ -1926,31 +2580,56 @@ export default function GamePage() {
                         <Button
                           size="sm"
                           variant="secondary"
-                          onClick={() => openManualDetail('defense_skill', equipDefenseSkillId)}
+                          onClick={() =>
+                            openManualDetail(
+                              "defense_skill",
+                              equipDefenseSkillId,
+                            )
+                          }
                           disabled={!equipDefenseSkillId}
                         >
                           查看详情
                         </Button>
                       </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => handleEquipManual(equipDefenseSkillId, 'defense_skill')}
-                        disabled={!equipDefenseSkillId || equipDefenseSkillId === view.save.current_character.defense_skills.equipped}
-                      >
-                        {equipDefenseSkillId === view.save.current_character.defense_skills.equipped ? '已装备' : '切换防御武技'}
-                      </Button>
-                      <Button
-                        onClick={() => handleCultivation('defense_skill', equipDefenseSkillId)}
-                        disabled={!isActionPhase || !canCultivateDefense}
-                      >
-                        修行
-                      </Button>
-                    </div>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() =>
+                            handleEquipManual(
+                              equipDefenseSkillId,
+                              "defense_skill",
+                            )
+                          }
+                          disabled={
+                            !equipDefenseSkillId ||
+                            equipDefenseSkillId ===
+                              view.save.current_character.defense_skills
+                                .equipped
+                          }
+                        >
+                          {equipDefenseSkillId ===
+                          view.save.current_character.defense_skills.equipped
+                            ? "已装备"
+                            : "切换防御武技"}
+                        </Button>
+                        <Button
+                          onClick={() =>
+                            handleCultivation(
+                              "defense_skill",
+                              equipDefenseSkillId,
+                            )
+                          }
+                          disabled={!isActionPhase || !canCultivateDefense}
+                        >
+                          修行
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="mt-2 [@media(max-height:820px)]:mt-1.5 border-t border-[var(--app-border)] pt-2 [@media(max-height:820px)]:pt-1.5">
-                      <div className="text-sm font-semibold text-gray-900 mb-2">战斗设置</div>
+                      <div className="text-sm font-semibold text-gray-900 mb-2">
+                        战斗设置
+                      </div>
                       <Input
                         label="进攻方内息输出 (%)"
                         type="number"
@@ -1959,22 +2638,33 @@ export default function GamePage() {
                         step={0.1}
                         placeholder="留空使用最大值"
                         value={formatQiOutputRate(attackerQiOutputRate)}
-                        onChange={(e) => setAttackerQiOutputRate(parseQiOutputRate(e.target.value))}
+                        onChange={(e) =>
+                          setAttackerQiOutputRate(
+                            parseQiOutputRate(e.target.value),
+                          )
+                        }
                       />
                       <p className="text-xs text-gray-500 mt-2">
                         留空表示使用角色的最大内息输出，敌人默认使用最大内息输出。
                       </p>
                     </div>
 
-                    {view.phase === 'action' && (
+                    {view.phase === "action" && (
                       <div className="mt-2 [@media(max-height:820px)]:mt-1.5 border-t border-[var(--app-border)] pt-2 [@media(max-height:820px)]:pt-1.5 space-y-2 [@media(max-height:820px)]:space-y-1.5">
                         <div className="flex items-center justify-between">
-                          <div className="text-sm font-semibold text-gray-900">行动点操作</div>
-                          <span className="text-xs text-gray-500">可用行动点：{view.save.current_character.action_points}</span>
+                          <div className="text-sm font-semibold text-gray-900">
+                            行动点操作
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            可用行动点：
+                            {view.save.current_character.action_points}
+                          </span>
                         </div>
                         <div className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] p-3 space-y-2">
                           <div className="font-medium text-gray-900">游历</div>
-                          <p className="text-xs text-gray-500">消耗 1 点行动点，随机触发奇遇。</p>
+                          <p className="text-xs text-gray-500">
+                            消耗 1 点行动点，随机触发奇遇。
+                          </p>
                           <Button variant="secondary" onClick={handleTravel}>
                             立即游历
                           </Button>
@@ -1988,9 +2678,11 @@ export default function GamePage() {
               <section className="surface-panel p-2 [@media(max-height:820px)]:p-1.5 lg:col-span-8 flex flex-col min-h-0">
                 <div className="flex items-start justify-between mb-2 [@media(max-height:820px)]:mb-1.5">
                   <div>
-                    <h2 className="text-xl [@media(max-height:820px)]:text-lg font-semibold text-gray-900">{view.storyline?.name ?? '剧情线'}</h2>
+                    <h2 className="text-xl [@media(max-height:820px)]:text-lg font-semibold text-gray-900">
+                      {view.storyline?.name ?? "剧情线"}
+                    </h2>
                   </div>
-                  {view.phase === 'action' && (
+                  {view.phase === "action" && (
                     <div className="text-xs text-gray-500">行动点阶段</div>
                   )}
                 </div>
@@ -2001,17 +2693,19 @@ export default function GamePage() {
                 >
                   <div className="space-y-2 [@media(max-height:820px)]:space-y-1.5 flex-1 min-h-0">
                     {logEntries.length === 0 && !typingEntry && (
-                      <div className="text-gray-500">剧情文本将在这里出现。</div>
+                      <div className="text-gray-500">
+                        剧情文本将在这里出现。
+                      </div>
                     )}
                     {logEntries.map((entry) => {
-                      if (entry.kind === 'text') {
+                      if (entry.kind === "text") {
                         return (
                           <div
                             key={entry.id}
                             className={
-                              entry.tone === 'story'
-                                ? 'rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-[var(--app-ink)] shadow-sm'
-                                : 'text-[var(--app-ink-muted)]'
+                              entry.tone === "story"
+                                ? "rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-[var(--app-ink)] shadow-sm"
+                                : "text-[var(--app-ink-muted)]"
                             }
                           >
                             {entry.title && (
@@ -2019,19 +2713,27 @@ export default function GamePage() {
                                 {entry.title}
                               </div>
                             )}
-                            <span className="whitespace-pre-wrap">{entry.text}</span>
+                            <span className="whitespace-pre-wrap">
+                              {entry.text}
+                            </span>
                           </div>
                         );
                       }
-                      if (entry.kind === 'decision') {
+                      if (entry.kind === "decision") {
                         const activeDecisionId =
-                          view?.phase === 'story' && view.story_event?.content.type === 'decision'
+                          view?.phase === "story" &&
+                          view.story_event?.content.type === "decision"
                             ? `decision:story:${view.story_event.id}`
-                            : view?.phase === 'adventure_decision' && view.adventure
-                            ? `decision:adventure:${view.adventure.id}`
-                            : null;
-                        const isActive = entry.id === activeDecisionId && !entry.chosenId;
-                        const handleDecision = entry.scope === 'adventure' ? handleAdventureOption : handleStoryOption;
+                            : view?.phase === "adventure_decision" &&
+                                view.adventure
+                              ? `decision:adventure:${view.adventure.id}`
+                              : null;
+                        const isActive =
+                          entry.id === activeDecisionId && !entry.chosenId;
+                        const handleDecision =
+                          entry.scope === "adventure"
+                            ? handleAdventureOption
+                            : handleStoryOption;
                         const decisionOptions = resolveDecisionOptions(entry);
                         return (
                           <div
@@ -2047,38 +2749,52 @@ export default function GamePage() {
                             <div className="flex flex-col gap-3">
                               {decisionOptions.map((option) => {
                                 const conditionText = option.condition
-                                  ? describeCondition(option.condition, undefined, entryDescriptionResolver)
-                                  : '';
+                                  ? describeCondition(
+                                      option.condition,
+                                      undefined,
+                                      entryDescriptionResolver,
+                                    )
+                                  : "";
                                 const conditionMet =
                                   option.condition && view
-                                    ? isConditionMet(option.condition, view.save.current_character, manualMaps)
+                                    ? isConditionMet(
+                                        option.condition,
+                                        view.save.current_character,
+                                        manualMaps,
+                                      )
                                     : true;
                                 const isChosen = option.id === entry.chosenId;
-                                const isDisabled = !isActive || isTyping || !conditionMet;
+                                const isDisabled =
+                                  !isActive || isTyping || !conditionMet;
                                 const enemy = option.enemy ?? null;
                                 return (
                                   <div key={option.id} className="space-y-2">
                                     <Button
                                       variant="secondary"
                                       size="lg"
-                                      onClick={() => !isDisabled && handleDecision(option.id)}
+                                      onClick={() =>
+                                        !isDisabled && handleDecision(option.id)
+                                      }
                                       disabled={isDisabled}
                                       className={[
-                                        'w-full flex text-left leading-7 rounded-xl border-2',
+                                        "w-full flex text-left leading-7 rounded-xl border-2",
                                         isChosen
-                                          ? 'border-[var(--app-accent)] text-[var(--app-accent-strong)] bg-[var(--app-accent-soft)] shadow-sm'
+                                          ? "border-[var(--app-accent)] text-[var(--app-accent-strong)] bg-[var(--app-accent-soft)] shadow-sm"
                                           : !conditionMet
-                                          ? 'border-[var(--app-border)] bg-[var(--app-surface)] text-[var(--app-ink-muted)] opacity-60 cursor-not-allowed'
-                                          : !isActive
-                                          ? 'border-[var(--app-border)] bg-[var(--app-surface)] opacity-70'
-                                          : 'border-[var(--app-border)] bg-[var(--app-surface-muted)] hover:bg-[var(--app-surface)]',
-                                      ].join(' ')}
+                                            ? "border-[var(--app-border)] bg-[var(--app-surface)] text-[var(--app-ink-muted)] opacity-60 cursor-not-allowed"
+                                            : !isActive
+                                              ? "border-[var(--app-border)] bg-[var(--app-surface)] opacity-70"
+                                              : "border-[var(--app-border)] bg-[var(--app-surface-muted)] hover:bg-[var(--app-surface)]",
+                                      ].join(" ")}
                                     >
                                       <div className="flex flex-col gap-1">
-                                        <span className="font-semibold">{option.text}</span>
+                                        <span className="font-semibold">
+                                          {option.text}
+                                        </span>
                                         {option.condition && !conditionMet && (
                                           <span className="text-sm text-rose-600">
-                                            未满足条件：{conditionText || '条件未满足'}
+                                            未满足条件：
+                                            {conditionText || "条件未满足"}
                                           </span>
                                         )}
                                       </div>
@@ -2087,7 +2803,9 @@ export default function GamePage() {
                                       <Button
                                         variant="secondary"
                                         size="sm"
-                                        onClick={() => openEnemyPreview(enemy, enemy.name)}
+                                        onClick={() =>
+                                          openEnemyPreview(enemy, enemy.name)
+                                        }
                                         disabled={!gameData}
                                       >
                                         查看敌人面板
@@ -2100,8 +2818,9 @@ export default function GamePage() {
                           </div>
                         );
                       }
-                      if (entry.kind === 'battle') {
+                      if (entry.kind === "battle") {
                         const enemy = entry.enemy ?? null;
+                        const canViewBattle = Boolean(entry.data);
                         return (
                           <div
                             key={entry.id}
@@ -2112,26 +2831,34 @@ export default function GamePage() {
                                 <span className="inline-flex items-center rounded-full bg-[var(--app-surface-muted)] px-2 py-0.5">
                                   阶段：战斗
                                 </span>
-                                <span>战斗过程可查看</span>
+                                <span>
+                                  {canViewBattle
+                                    ? "战斗过程可查看"
+                                    : "战斗结果已记录"}
+                                </span>
                               </div>
                               <div className="flex flex-wrap gap-2">
                                 {enemy && (
                                   <Button
                                     variant="secondary"
                                     size="sm"
-                                    onClick={() => openEnemyPreview(enemy, enemy.name)}
+                                    onClick={() =>
+                                      openEnemyPreview(enemy, enemy.name)
+                                    }
                                     disabled={!gameData}
                                   >
                                     查看敌人面板
                                   </Button>
                                 )}
-                                <Button
-                                  variant="secondary"
-                                  size="sm"
-                                  onClick={() => handleBattleView(entry)}
-                                >
-                                  查看战斗过程
-                                </Button>
+                                {canViewBattle && (
+                                  <Button
+                                    variant="secondary"
+                                    size="sm"
+                                    onClick={() => handleBattleView(entry)}
+                                  >
+                                    查看战斗过程
+                                  </Button>
+                                )}
                               </div>
                             </div>
                             {entry.viewed && (
@@ -2143,18 +2870,29 @@ export default function GamePage() {
                                 )}
                                 {entry.rewards && entry.rewards.length > 0 && (
                                   <div>
-                                    <div className="text-sm font-semibold text-gray-900 mb-2">奖励结算</div>
+                                    <div className="text-sm font-semibold text-gray-900 mb-2">
+                                      奖励结算
+                                    </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       {entry.rewards.map((reward, index) => {
-                                        const { title, value, detail } = resolveRewardLabel(reward);
+                                        const { title, value, detail } =
+                                          resolveRewardLabel(reward);
                                         return (
                                           <div
                                             key={`battle-${entry.id}-${title}-${value}-${index}`}
                                             className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] px-3 py-2"
                                           >
-                                            <div className="text-xs text-gray-500">{title}</div>
-                                            <div className="font-medium text-gray-900">{value}</div>
-                                            {detail && <div className="text-xs text-gray-500 mt-1">{detail}</div>}
+                                            <div className="text-xs text-gray-500">
+                                              {title}
+                                            </div>
+                                            <div className="font-medium text-gray-900">
+                                              {value}
+                                            </div>
+                                            {detail && (
+                                              <div className="text-xs text-gray-500 mt-1">
+                                                {detail}
+                                              </div>
+                                            )}
                                           </div>
                                         );
                                       })}
@@ -2166,7 +2904,7 @@ export default function GamePage() {
                           </div>
                         );
                       }
-                      if (entry.kind === 'reward') {
+                      if (entry.kind === "reward") {
                         return (
                           <div
                             key={entry.id}
@@ -2180,15 +2918,24 @@ export default function GamePage() {
                             </div>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                               {entry.rewards.map((reward, index) => {
-                                const { title, value, detail } = resolveRewardLabel(reward);
+                                const { title, value, detail } =
+                                  resolveRewardLabel(reward);
                                 return (
                                   <div
                                     key={`reward-${entry.id}-${title}-${value}-${index}`}
                                     className="rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] px-3 py-2"
                                   >
-                                    <div className="text-xs text-gray-500">{title}</div>
-                                    <div className="font-medium text-gray-900">{value}</div>
-                                    {detail && <div className="text-xs text-gray-500 mt-1">{detail}</div>}
+                                    <div className="text-xs text-gray-500">
+                                      {title}
+                                    </div>
+                                    <div className="font-medium text-gray-900">
+                                      {value}
+                                    </div>
+                                    {detail && (
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {detail}
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })}
@@ -2196,7 +2943,7 @@ export default function GamePage() {
                           </div>
                         );
                       }
-                      if (entry.kind === 'phase') {
+                      if (entry.kind === "phase") {
                         return (
                           <div
                             key={entry.id}
@@ -2212,31 +2959,42 @@ export default function GamePage() {
                           </div>
                         );
                       }
-                      if (entry.kind === 'action') {
+                      if (entry.kind === "action") {
                         const activeActionId =
-                          view?.phase === 'story' &&
+                          view?.phase === "story" &&
                           view.story_event &&
-                          view.story_event.content.type !== 'decision'
+                          view.story_event.content.type !== "decision"
                             ? `action:${view.story_event.id}`
                             : null;
                         const isActive = entry.id === activeActionId;
-                        const actionEventId = entry.id.split(':').slice(1).join(':');
+                        const actionEventId = entry.id
+                          .split(":")
+                          .slice(1)
+                          .join(":");
                         const battleEvent =
-                          entry.actionType === 'story_battle' ? storyEventLookup.get(actionEventId) : null;
+                          entry.actionType === "story_battle"
+                            ? storyEventLookup.get(actionEventId)
+                            : null;
                         const battleEnemy =
-                          battleEvent && battleEvent.content.type === 'battle' ? battleEvent.content.enemy : null;
+                          battleEvent && battleEvent.content.type === "battle"
+                            ? battleEvent.content.enemy
+                            : null;
                         const actionLabel =
-                          entry.actionType === 'story_battle'
-                            ? '进入战斗'
-                            : entry.actionType === 'story_end'
-                            ? '完成结局并保存角色'
-                            : '进入下一个事件';
+                          entry.actionType === "story_battle"
+                            ? isActive
+                              ? "进入战斗"
+                              : "战斗已结束"
+                            : entry.actionType === "story_end"
+                              ? "完成结局并保存角色"
+                              : isActive
+                                ? "进入下一个事件"
+                                : "已进入下一事件";
                         const onAction =
-                          entry.actionType === 'story_battle'
+                          entry.actionType === "story_battle"
                             ? handleStoryBattle
-                            : entry.actionType === 'story_end'
-                            ? handleFinish
-                            : handleStoryContinue;
+                            : entry.actionType === "story_end"
+                              ? handleFinish
+                              : handleStoryContinue;
                         return (
                           <div
                             key={entry.id}
@@ -2248,17 +3006,27 @@ export default function GamePage() {
                               </span>
                             </div>
                             <div className="flex flex-wrap gap-2">
-                              {entry.actionType === 'story_battle' && (
+                              {entry.actionType === "story_battle" && (
                                 <Button
                                   variant="secondary"
                                   size="sm"
-                                  onClick={() => battleEnemy && openEnemyPreview(battleEnemy, battleEnemy.name)}
+                                  onClick={() =>
+                                    battleEnemy &&
+                                    openEnemyPreview(
+                                      battleEnemy,
+                                      battleEnemy.name,
+                                    )
+                                  }
                                   disabled={!battleEnemy || !gameData}
                                 >
                                   查看敌人面板
                                 </Button>
                               )}
-                              <Button variant="secondary" onClick={onAction} disabled={!isActive || isTyping}>
+                              <Button
+                                variant="secondary"
+                                onClick={onAction}
+                                disabled={!isActive || isTyping}
+                              >
                                 {actionLabel}
                               </Button>
                             </div>
@@ -2267,12 +3035,12 @@ export default function GamePage() {
                       }
                       return null;
                     })}
-                    {typingEntry && typingEntry.kind === 'text' && (
+                    {typingEntry && typingEntry.kind === "text" && (
                       <div
                         className={
-                          typingEntry.tone === 'story'
-                            ? 'rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-[var(--app-ink)] shadow-sm'
-                            : 'text-[var(--app-ink-muted)]'
+                          typingEntry.tone === "story"
+                            ? "rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-[var(--app-ink)] shadow-sm"
+                            : "text-[var(--app-ink-muted)]"
                         }
                       >
                         {typingEntry.title && (
@@ -2299,10 +3067,16 @@ export default function GamePage() {
                 footer={
                   <div className="flex flex-wrap items-center justify-between w-full gap-3">
                     <div className="text-xs text-gray-500">
-                      进度 {Math.min(battleStep, battleRecords.length)} / {battleRecords.length}
+                      进度 {Math.min(battleStep, battleRecords.length)} /{" "}
+                      {battleRecords.length}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      <Button variant="secondary" size="sm" onClick={handleBattleReset} disabled={battleStep === 0}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleBattleReset}
+                        disabled={battleStep === 0}
+                      >
                         重置
                       </Button>
                       <Button
@@ -2319,12 +3093,20 @@ export default function GamePage() {
                         onClick={() => setBattleAuto((prev) => !prev)}
                         disabled={battleFinished}
                       >
-                        {battleAuto ? '停止自动' : '自动播放'}
+                        {battleAuto ? "停止自动" : "自动播放"}
                       </Button>
-                      <Button variant="secondary" size="sm" onClick={handleBattleSpeedCycle}>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={handleBattleSpeedCycle}
+                      >
                         速度：{battleSpeedLabel}
                       </Button>
-                      <Button size="sm" onClick={() => setBattleStep(battleRecords.length)} disabled={battleFinished}>
+                      <Button
+                        size="sm"
+                        onClick={() => setBattleStep(battleRecords.length)}
+                        disabled={battleFinished}
+                      >
                         播放完
                       </Button>
                     </div>
@@ -2334,25 +3116,79 @@ export default function GamePage() {
                 <div className="grid grid-cols-1 lg:grid-cols-[1fr_2fr_1fr] gap-4 min-h-[560px] h-[70vh]">
                   <section className="surface-panel p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base font-semibold text-gray-800">进攻方</h3>
+                      <h3 className="text-base font-semibold text-gray-800">
+                        进攻方
+                      </h3>
                       <span className="text-sm text-gray-500">面板同步</span>
                     </div>
                     {currentAttackerPanel && (
                       <div className="text-base text-gray-700 space-y-2">
-                        <div className="font-semibold">{currentAttackerPanel.name}</div>
-                        <div>生命值 {currentAttackerPanel.hp.toFixed(1)} / {currentAttackerPanel.max_hp.toFixed(1)}</div>
-                        <div>内息量 {currentAttackerPanel.qi.toFixed(1)} / {currentAttackerPanel.max_qi.toFixed(1)}</div>
+                        <div className="font-semibold">
+                          {currentAttackerPanel.name}
+                        </div>
+                        <div>
+                          生命值 {currentAttackerPanel.hp.toFixed(1)} /{" "}
+                          {currentAttackerPanel.max_hp.toFixed(1)}
+                        </div>
+                        <div>
+                          内息量 {currentAttackerPanel.qi.toFixed(1)} /{" "}
+                          {currentAttackerPanel.max_qi.toFixed(1)}
+                        </div>
                         <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 pt-2 border-t border-gray-200">
-                          <div>基础攻击 {currentAttackerPanel.base_attack.toFixed(1)}</div>
-                          <div>基础防御 {currentAttackerPanel.base_defense.toFixed(1)}</div>
-                          <div>内息输出 {(currentAttackerPanel.qi_output_rate * 100).toFixed(1)}%</div>
-                          <div>内息质量 {currentAttackerPanel.qi_quality.toFixed(2)}</div>
-                          <div>增伤 {(currentAttackerPanel.damage_bonus * 100).toFixed(1)}%</div>
-                          <div>减伤 {(currentAttackerPanel.damage_reduction * 100).toFixed(1)}%</div>
-                          <div>威能 {currentAttackerPanel.power.toFixed(2)}</div>
-                          <div>守御 {currentAttackerPanel.defense_power.toFixed(2)}</div>
-                          <div>出手速度 {currentAttackerPanel.attack_speed.toFixed(2)}</div>
-                          <div>回气率 {(currentAttackerPanel.qi_recovery_rate * 100).toFixed(1)}%</div>
+                          <div>
+                            基础攻击{" "}
+                            {currentAttackerPanel.base_attack.toFixed(1)}
+                          </div>
+                          <div>
+                            基础防御{" "}
+                            {currentAttackerPanel.base_defense.toFixed(1)}
+                          </div>
+                          <div>
+                            内息输出{" "}
+                            {(
+                              currentAttackerPanel.qi_output_rate * 100
+                            ).toFixed(1)}
+                            %
+                          </div>
+                          <div>
+                            内息质量{" "}
+                            {currentAttackerPanel.qi_quality.toFixed(2)}
+                          </div>
+                          <div>
+                            增伤{" "}
+                            {(currentAttackerPanel.damage_bonus * 100).toFixed(
+                              1,
+                            )}
+                            %
+                          </div>
+                          <div>
+                            减伤{" "}
+                            {(
+                              currentAttackerPanel.damage_reduction * 100
+                            ).toFixed(1)}
+                            %
+                          </div>
+                          <div>
+                            威能 {currentAttackerPanel.power.toFixed(2)}
+                          </div>
+                          <div>
+                            守御 {currentAttackerPanel.defense_power.toFixed(2)}
+                          </div>
+                          <div>
+                            出手速度{" "}
+                            {currentAttackerPanel.attack_speed.toFixed(2)}
+                          </div>
+                          <div>
+                            回气率{" "}
+                            {(
+                              currentAttackerPanel.qi_recovery_rate * 100
+                            ).toFixed(1)}
+                            %
+                          </div>
+                          <div>
+                            蓄力时间{" "}
+                            {currentAttackerPanel.charge_time.toFixed(2)}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -2360,18 +3196,24 @@ export default function GamePage() {
 
                   <section className="surface-panel p-4 flex flex-col min-h-0">
                     <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-lg font-semibold text-gray-800">战斗日志</h3>
+                      <h3 className="text-lg font-semibold text-gray-800">
+                        战斗日志
+                      </h3>
                       <div className="flex items-center gap-3 text-sm text-gray-500">
                         <label className="flex items-center gap-2">
                           <input
                             type="checkbox"
                             className="h-3.5 w-3.5 rounded border-gray-300 text-indigo-600"
                             checked={showValueLogs}
-                            onChange={(event) => setShowValueLogs(event.target.checked)}
+                            onChange={(event) =>
+                              setShowValueLogs(event.target.checked)
+                            }
                           />
                           显示数值变化
                         </label>
-                        <span className="text-xs text-gray-400">自动聚焦最新</span>
+                        <span className="text-xs text-gray-400">
+                          自动聚焦最新
+                        </span>
                       </div>
                     </div>
                     <div
@@ -2380,17 +3222,19 @@ export default function GamePage() {
                       className="space-y-2 text-lg leading-7 text-gray-700 flex-1 min-h-0 overflow-y-auto overscroll-contain rounded-lg border border-gray-200 bg-[var(--app-surface-soft)] p-3 pr-4"
                     >
                       {battleVisibleRecords.length === 0 ? (
-                        <div className="text-gray-400">点击“下一条”开始战斗</div>
+                        <div className="text-gray-400">
+                          点击“下一条”开始战斗
+                        </div>
                       ) : (
                         battleVisibleRecords.map((record, index) => (
                           <div
                             key={index}
                             className={`border-b border-gray-100 pb-2 ${
-                              record.log_kind === 'effect'
-                                ? 'text-white'
-                                : record.log_kind === 'value'
-                                ? 'text-emerald-700'
-                                : 'text-gray-700'
+                              record.log_kind === "effect"
+                                ? "text-white"
+                                : record.log_kind === "value"
+                                  ? "text-emerald-700"
+                                  : "text-gray-700"
                             }`}
                           >
                             {battleTypingIndex === index ? (
@@ -2409,25 +3253,79 @@ export default function GamePage() {
 
                   <section className="surface-panel p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                      <h3 className="text-base font-semibold text-gray-800">防守方</h3>
+                      <h3 className="text-base font-semibold text-gray-800">
+                        防守方
+                      </h3>
                       <span className="text-sm text-gray-500">面板同步</span>
                     </div>
                     {currentDefenderPanel && (
                       <div className="text-base text-gray-700 space-y-2">
-                        <div className="font-semibold">{currentDefenderPanel.name}</div>
-                        <div>生命值 {currentDefenderPanel.hp.toFixed(1)} / {currentDefenderPanel.max_hp.toFixed(1)}</div>
-                        <div>内息量 {currentDefenderPanel.qi.toFixed(1)} / {currentDefenderPanel.max_qi.toFixed(1)}</div>
+                        <div className="font-semibold">
+                          {currentDefenderPanel.name}
+                        </div>
+                        <div>
+                          生命值 {currentDefenderPanel.hp.toFixed(1)} /{" "}
+                          {currentDefenderPanel.max_hp.toFixed(1)}
+                        </div>
+                        <div>
+                          内息量 {currentDefenderPanel.qi.toFixed(1)} /{" "}
+                          {currentDefenderPanel.max_qi.toFixed(1)}
+                        </div>
                         <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 pt-2 border-t border-gray-200">
-                          <div>基础攻击 {currentDefenderPanel.base_attack.toFixed(1)}</div>
-                          <div>基础防御 {currentDefenderPanel.base_defense.toFixed(1)}</div>
-                          <div>内息输出 {(currentDefenderPanel.qi_output_rate * 100).toFixed(1)}%</div>
-                          <div>内息质量 {currentDefenderPanel.qi_quality.toFixed(2)}</div>
-                          <div>增伤 {(currentDefenderPanel.damage_bonus * 100).toFixed(1)}%</div>
-                          <div>减伤 {(currentDefenderPanel.damage_reduction * 100).toFixed(1)}%</div>
-                          <div>威能 {currentDefenderPanel.power.toFixed(2)}</div>
-                          <div>守御 {currentDefenderPanel.defense_power.toFixed(2)}</div>
-                          <div>出手速度 {currentDefenderPanel.attack_speed.toFixed(2)}</div>
-                          <div>回气率 {(currentDefenderPanel.qi_recovery_rate * 100).toFixed(1)}%</div>
+                          <div>
+                            基础攻击{" "}
+                            {currentDefenderPanel.base_attack.toFixed(1)}
+                          </div>
+                          <div>
+                            基础防御{" "}
+                            {currentDefenderPanel.base_defense.toFixed(1)}
+                          </div>
+                          <div>
+                            内息输出{" "}
+                            {(
+                              currentDefenderPanel.qi_output_rate * 100
+                            ).toFixed(1)}
+                            %
+                          </div>
+                          <div>
+                            内息质量{" "}
+                            {currentDefenderPanel.qi_quality.toFixed(2)}
+                          </div>
+                          <div>
+                            增伤{" "}
+                            {(currentDefenderPanel.damage_bonus * 100).toFixed(
+                              1,
+                            )}
+                            %
+                          </div>
+                          <div>
+                            减伤{" "}
+                            {(
+                              currentDefenderPanel.damage_reduction * 100
+                            ).toFixed(1)}
+                            %
+                          </div>
+                          <div>
+                            威能 {currentDefenderPanel.power.toFixed(2)}
+                          </div>
+                          <div>
+                            守御 {currentDefenderPanel.defense_power.toFixed(2)}
+                          </div>
+                          <div>
+                            出手速度{" "}
+                            {currentDefenderPanel.attack_speed.toFixed(2)}
+                          </div>
+                          <div>
+                            回气率{" "}
+                            {(
+                              currentDefenderPanel.qi_recovery_rate * 100
+                            ).toFixed(1)}
+                            %
+                          </div>
+                          <div>
+                            蓄力时间{" "}
+                            {currentDefenderPanel.charge_time.toFixed(2)}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -2435,7 +3333,12 @@ export default function GamePage() {
                 </div>
                 {battleFinished && (
                   <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-base text-emerald-700">
-                    战斗结束：{battleData.result === 'attacker_win' ? '进攻方胜利' : battleData.result === 'defender_win' ? '防守方胜利' : '平局'}
+                    战斗结束：
+                    {battleData.result === "attacker_win"
+                      ? `${battleData.attacker_panel.name} 胜利`
+                      : battleData.result === "defender_win"
+                        ? `${battleData.defender_panel.name} 胜利`
+                        : "平局"}
                   </div>
                 )}
               </Modal>
@@ -2466,36 +3369,56 @@ export default function GamePage() {
                     <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div className="text-base font-semibold text-gray-900">
-                          {resolveManualName(manualDetail.type, manualDetail.id)}
+                          {resolveManualName(
+                            manualDetail.type,
+                            manualDetail.id,
+                          )}
                         </div>
                         <span className="text-xs text-gray-500">
                           {MANUAL_KIND_LABELS[manualDetail.type]}
                         </span>
                       </div>
                       {manualDetailData.description && (
-                        <p className="text-sm text-gray-600">{manualDetailData.description}</p>
+                        <p className="text-sm text-gray-600">
+                          {manualDetailData.description}
+                        </p>
                       )}
                       <div className="grid grid-cols-2 gap-2 text-xs text-gray-600">
                         <div>
-                          当前境界{' '}
-                          {getOwnedManual(manualDetail.type, manualDetail.id)?.level ?? '未修炼'}
+                          当前境界{" "}
+                          {getOwnedManual(manualDetail.type, manualDetail.id)
+                            ?.level ?? "未修炼"}
                         </div>
                         <div>
-                          当前经验 {getOwnedManual(manualDetail.type, manualDetail.id)?.exp ?? 0}
+                          当前经验{" "}
+                          {getOwnedManual(manualDetail.type, manualDetail.id)
+                            ?.exp ?? 0}
                         </div>
                         <div>稀有度 {manualDetailData.rarity}</div>
-                        <div>功法类型 {manualDetailData.manual_type || MANUAL_KIND_LABELS[manualDetail.type]}</div>
+                        <div>
+                          功法类型{" "}
+                          {manualDetailData.manual_type ||
+                            MANUAL_KIND_LABELS[manualDetail.type]}
+                        </div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-500 mb-1">修行公式</div>
+                        <div className="text-xs text-gray-500 mb-1">
+                          修行公式
+                        </div>
                         <pre className="whitespace-pre-wrap rounded-lg border border-[var(--app-border)] bg-[var(--app-surface-soft)] p-3 text-xs text-gray-700">
-                          {manualDetailData.cultivation_formula || '暂无修行公式'}
+                          {manualDetailData.cultivation_formula ||
+                            "暂无修行公式"}
                         </pre>
                       </div>
                     </div>
                     <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
-                      <div className="text-sm font-semibold text-gray-900 mb-3">境界需求与效果</div>
-                      {renderManualRealmDetails(manualDetail.type, manualDetailData)}
+                      <div className="text-sm font-semibold text-gray-900 mb-3">
+                        境界需求与效果
+                      </div>
+                      {renderManualRealmDetails(
+                        manualDetail.type,
+                        manualDetailData,
+                      )}
                     </div>
                   </div>
                 ) : (
@@ -2513,16 +3436,26 @@ export default function GamePage() {
                 {(() => {
                   const trait = traitLookup.get(traitDetailId);
                   if (!trait) {
-                    return <p className="text-sm text-gray-500">特性数据加载中...</p>;
+                    return (
+                      <p className="text-sm text-gray-500">特性数据加载中...</p>
+                    );
                   }
                   return (
                     <div className="space-y-4 text-sm text-gray-700">
                       <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
-                        <div className="text-base font-semibold text-gray-900 mb-2">{trait.name}</div>
-                        {trait.description && <p className="text-sm text-gray-600">{trait.description}</p>}
+                        <div className="text-base font-semibold text-gray-900 mb-2">
+                          {trait.name}
+                        </div>
+                        {trait.description && (
+                          <p className="text-sm text-gray-600">
+                            {trait.description}
+                          </p>
+                        )}
                       </div>
                       <div className="rounded-xl border border-[var(--app-border)] bg-[var(--app-surface)] p-4">
-                        <div className="text-sm font-semibold text-gray-900 mb-3">词条特效</div>
+                        <div className="text-sm font-semibold text-gray-900 mb-3">
+                          词条特效
+                        </div>
                         {renderEntryBlocks(trait.entries ?? [])}
                       </div>
                     </div>
@@ -2537,7 +3470,10 @@ export default function GamePage() {
                 title="开局特性"
                 contentClassName="!max-w-xl"
                 footer={
-                  <Button size="sm" onClick={() => setStartTraitModalOpen(false)}>
+                  <Button
+                    size="sm"
+                    onClick={() => setStartTraitModalOpen(false)}
+                  >
                     知道了
                   </Button>
                 }
@@ -2571,15 +3507,23 @@ export default function GamePage() {
           <Modal
             isOpen={confirmDialog.open}
             onClose={closeConfirmDialog}
-            title={confirmDialog.title || '确认操作'}
+            title={confirmDialog.title || "确认操作"}
             contentClassName="!max-w-lg"
             footer={
               <div className="flex w-full justify-end gap-2">
-                <Button variant="secondary" size="sm" onClick={closeConfirmDialog}>
-                  {confirmDialog.cancelText ?? '取消'}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={closeConfirmDialog}
+                >
+                  {confirmDialog.cancelText ?? "取消"}
                 </Button>
-                <Button variant="danger" size="sm" onClick={handleConfirmDialog}>
-                  {confirmDialog.confirmText ?? '确认'}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  onClick={handleConfirmDialog}
+                >
+                  {confirmDialog.confirmText ?? "确认"}
                 </Button>
               </div>
             }
@@ -2591,7 +3535,7 @@ export default function GamePage() {
           <Modal
             isOpen={noticeDialog.open}
             onClose={closeNoticeDialog}
-            title={noticeDialog.title || '提示'}
+            title={noticeDialog.title || "提示"}
             contentClassName="!max-w-lg"
             footer={
               <div className="flex w-full justify-end">

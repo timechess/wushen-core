@@ -1,19 +1,22 @@
 /// 存档管理
 
-import type { Character } from '@/types/character';
-import type { SaveGame } from '@/types/save';
-import fs from 'fs/promises';
-import path from 'path';
+import type { Character } from "@/types/character";
+import type { SaveGame } from "@/types/save";
+import fs from "fs/promises";
+import path from "path";
 
-const SAVES_DIR = path.join(process.cwd(), 'saves');
+const SAVES_DIR = path.join(process.cwd(), "saves");
 
 function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
-  if (raw && typeof raw === 'object' && 'current_character' in raw) {
+  if (raw && typeof raw === "object" && "current_character" in raw) {
     const save = raw as SaveGame;
     const current = save.current_character;
     const id = save.id || current?.id || fallbackId;
     const name = save.name || current?.name || id;
-    const created_at = typeof save.created_at === 'number' ? save.created_at : Math.floor(Date.now() / 1000);
+    const created_at =
+      typeof save.created_at === "number"
+        ? save.created_at
+        : Math.floor(Date.now() / 1000);
     return {
       id,
       name,
@@ -21,9 +24,16 @@ function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
       current_character: current,
       storyline_progress: save.storyline_progress ?? null,
       active_adventure_id: save.active_adventure_id ?? null,
-      start_trait_pool: Array.isArray(save.start_trait_pool) ? save.start_trait_pool : [],
-      completed_characters: Array.isArray(save.completed_characters) ? save.completed_characters : [],
+      start_trait_pool: Array.isArray(save.start_trait_pool)
+        ? save.start_trait_pool
+        : [],
+      completed_characters: Array.isArray(save.completed_characters)
+        ? save.completed_characters
+        : [],
       rng_state: save.rng_state ?? 0,
+      story_history: Array.isArray(save.story_history)
+        ? save.story_history
+        : [],
     };
   }
 
@@ -40,6 +50,7 @@ function normalizeSave(raw: unknown, fallbackId: string): SaveGame {
     start_trait_pool: [],
     completed_characters: [],
     rng_state: 0,
+    story_history: [],
   };
 }
 
@@ -57,7 +68,9 @@ async function ensureSavesDir(): Promise<void> {
 /**
  * 获取所有存档列表
  */
-export async function listSaves(): Promise<Array<{ id: string; name: string }>> {
+export async function listSaves(): Promise<
+  Array<{ id: string; name: string }>
+> {
   await ensureSavesDir();
 
   try {
@@ -65,9 +78,9 @@ export async function listSaves(): Promise<Array<{ id: string; name: string }>> 
     const saves: Array<{ id: string; name: string }> = [];
 
     for (const file of files) {
-      if (file.endsWith('.json')) {
+      if (file.endsWith(".json")) {
         const filePath = path.join(SAVES_DIR, file);
-        const content = await fs.readFile(filePath, 'utf-8');
+        const content = await fs.readFile(filePath, "utf-8");
         const raw = JSON.parse(content) as unknown;
         const fallbackId = path.parse(file).name;
         const save = normalizeSave(raw, fallbackId);
@@ -80,7 +93,7 @@ export async function listSaves(): Promise<Array<{ id: string; name: string }>> 
 
     return saves;
   } catch (error) {
-    console.error('读取存档列表失败:', error);
+    console.error("读取存档列表失败:", error);
     return [];
   }
 }
@@ -93,7 +106,7 @@ export async function loadSave(id: string): Promise<SaveGame | null> {
 
   try {
     const filePath = path.join(SAVES_DIR, `${id}.json`);
-    const content = await fs.readFile(filePath, 'utf-8');
+    const content = await fs.readFile(filePath, "utf-8");
     const raw = JSON.parse(content) as unknown;
     return normalizeSave(raw, id);
   } catch (error) {
@@ -120,9 +133,10 @@ export async function saveGame(save: SaveGame): Promise<void> {
     start_trait_pool: save.start_trait_pool ?? [],
     completed_characters: save.completed_characters ?? [],
     rng_state: save.rng_state ?? 0,
+    story_history: save.story_history ?? [],
   };
   const filePath = path.join(SAVES_DIR, `${id}.json`);
-  await fs.writeFile(filePath, JSON.stringify(normalized, null, 2), 'utf-8');
+  await fs.writeFile(filePath, JSON.stringify(normalized, null, 2), "utf-8");
 }
 
 export async function saveCharacter(character: Character): Promise<void> {
@@ -134,6 +148,7 @@ export async function saveCharacter(character: Character): Promise<void> {
     active_adventure_id: null,
     start_trait_pool: [],
     completed_characters: [],
+    story_history: [],
   };
   await saveGame(save);
 }
