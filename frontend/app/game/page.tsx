@@ -323,6 +323,7 @@ export default function GamePage() {
   const [pendingEntries, setPendingEntries] = useState<LogItem[]>([]);
   const [typingEntry, setTypingEntry] = useState<LogItem | null>(null);
   const [typedText, setTypedText] = useState("");
+  const typingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const seenEntryIds = useRef(new Set<string>());
   const resumeRequestedRef = useRef(false);
   const restoredHistoryRef = useRef(false);
@@ -1378,18 +1379,40 @@ export default function GamePage() {
 
   useEffect(() => {
     if (!typingEntry || typingEntry.kind !== "text") return;
-    let index = 0;
     const text = typingEntry.text;
-    const interval = setInterval(() => {
+    let index = 0;
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+    }
+    typingIntervalRef.current = setInterval(() => {
       index += 1;
       setTypedText(text.slice(0, index));
       if (index >= text.length) {
-        clearInterval(interval);
+        if (typingIntervalRef.current) {
+          clearInterval(typingIntervalRef.current);
+          typingIntervalRef.current = null;
+        }
         setLogEntries((prev) => [...prev, typingEntry]);
         setTypingEntry(null);
       }
     }, LOG_TYPING_INTERVAL_MS);
-    return () => clearInterval(interval);
+    return () => {
+      if (typingIntervalRef.current) {
+        clearInterval(typingIntervalRef.current);
+        typingIntervalRef.current = null;
+      }
+    };
+  }, [typingEntry]);
+
+  const handleRevealTypingEntry = useCallback(() => {
+    if (!typingEntry || typingEntry.kind !== "text") return;
+    if (typingIntervalRef.current) {
+      clearInterval(typingIntervalRef.current);
+      typingIntervalRef.current = null;
+    }
+    setTypedText(typingEntry.text);
+    setLogEntries((prev) => [...prev, typingEntry]);
+    setTypingEntry(null);
   }, [typingEntry]);
 
   useEffect(() => {
@@ -3042,6 +3065,7 @@ export default function GamePage() {
                             ? "rounded-lg border border-[var(--app-border)] bg-[var(--app-surface)] px-3 py-2 text-[var(--app-ink)] shadow-sm"
                             : "text-[var(--app-ink-muted)]"
                         }
+                        onDoubleClick={handleRevealTypingEntry}
                       >
                         {typingEntry.title && (
                           <div className="mb-2 text-xs font-semibold text-[var(--app-ink-faint)]">
@@ -3050,6 +3074,9 @@ export default function GamePage() {
                         )}
                         <span className="whitespace-pre-wrap">{typedText}</span>
                         <span className="ml-1 animate-pulse">▍</span>
+                        <div className="mt-2 text-[11px] text-gray-400">
+                          双击跳过
+                        </div>
                       </div>
                     )}
                   </div>

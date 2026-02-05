@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 import type { ActivePack } from "@/types/mod";
 
 const ACTIVE_PACK_KEY = "wushen_active_pack";
+const ACTIVE_PACK_EVENT = "wushen_active_pack_change";
 
 export function readActivePack(): ActivePack | null {
   if (typeof window === "undefined") return null;
@@ -28,30 +29,37 @@ export function writeActivePack(pack: ActivePack | null): void {
 }
 
 export function useActivePack() {
-  const [activePack, setActivePack] = useState<ActivePack | null>(() =>
-    readActivePack(),
+  const activePack = useSyncExternalStore(
+    (callback) => {
+      if (typeof window === "undefined") return () => {};
+      const handler = (event: StorageEvent) => {
+        if (event.key === ACTIVE_PACK_KEY) {
+          callback();
+        }
+      };
+      const customHandler = () => callback();
+      window.addEventListener("storage", handler);
+      window.addEventListener(ACTIVE_PACK_EVENT, customHandler);
+      return () => {
+        window.removeEventListener("storage", handler);
+        window.removeEventListener(ACTIVE_PACK_EVENT, customHandler);
+      };
+    },
+    () => readActivePack(),
+    () => null,
   );
-  const [ready] = useState(true);
 
-  useEffect(() => {
-    const handler = (event: StorageEvent) => {
-      if (event.key === ACTIVE_PACK_KEY) {
-        setActivePack(readActivePack());
-      }
-    };
-    window.addEventListener("storage", handler);
-    return () => window.removeEventListener("storage", handler);
-  }, []);
-
-  useEffect(() => {
-    if (activePack) {
-      writeActivePack(activePack);
-    }
-  }, [activePack]);
+  const ready = useSyncExternalStore(
+    () => () => {},
+    () => true,
+    () => false,
+  );
 
   const updateActivePack = (pack: ActivePack | null) => {
     writeActivePack(pack);
-    setActivePack(pack);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new Event(ACTIVE_PACK_EVENT));
+    }
   };
 
   return { activePack, ready, setActivePack: updateActivePack };
