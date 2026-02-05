@@ -28,17 +28,12 @@ export function writeActivePack(pack: ActivePack | null): void {
 }
 
 export function useActivePack() {
-  const [activePack, setActivePack] = useState<ActivePack | null>(null);
-  const [ready, setReady] = useState(false);
+  const [activePack, setActivePack] = useState<ActivePack | null>(() =>
+    readActivePack(),
+  );
+  const [ready] = useState(true);
 
   useEffect(() => {
-    const stored = readActivePack();
-    if (stored) {
-      writeActivePack(stored);
-    }
-    setActivePack(stored);
-    setReady(true);
-
     const handler = (event: StorageEvent) => {
       if (event.key === ACTIVE_PACK_KEY) {
         setActivePack(readActivePack());
@@ -47,6 +42,12 @@ export function useActivePack() {
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
   }, []);
+
+  useEffect(() => {
+    if (activePack) {
+      writeActivePack(activePack);
+    }
+  }, [activePack]);
 
   const updateActivePack = (pack: ActivePack | null) => {
     writeActivePack(pack);

@@ -301,9 +301,7 @@ impl WushenCore {
                     .manual_manager
                     .get_internal(manual_id)
                     .ok_or_else(|| format!("内功 {} 不存在", manual_id))?;
-                internal
-                    .manual
-                    .calculate_exp_gain(x, y, z, a)?
+                internal.manual.calculate_exp_gain(x, y, z, a)?
             }
             "attack_skill" => {
                 let skill = self
@@ -769,14 +767,16 @@ impl WushenCore {
                 self.manual_manager
                     .cultivate_internal(&mut panel, Some(&mut executor))?
             }
-            "attack_skill" => self
-                .manual_manager
-                .cultivate_attack_skill(manual_id, &mut panel, Some(&mut executor))
-                ?,
-            "defense_skill" => self
-                .manual_manager
-                .cultivate_defense_skill(manual_id, &mut panel, Some(&mut executor))
-                ?,
+            "attack_skill" => self.manual_manager.cultivate_attack_skill(
+                manual_id,
+                &mut panel,
+                Some(&mut executor),
+            )?,
+            "defense_skill" => self.manual_manager.cultivate_defense_skill(
+                manual_id,
+                &mut panel,
+                Some(&mut executor),
+            )?,
             _ => unreachable!(),
         };
 
@@ -1287,7 +1287,12 @@ impl WushenCore {
                 .ok_or_else(|| "游戏尚未初始化".to_string())?;
             runtime.save.current_character = character;
             runtime.save.start_trait_pool = start_trait_pool;
-            Self::record_battle_result(&mut runtime.save, StoryHistoryScope::Story, &event.id, win_flag);
+            Self::record_battle_result(
+                &mut runtime.save,
+                StoryHistoryScope::Story,
+                &event.id,
+                win_flag,
+            );
             Self::advance_to_event(runtime, &storyline, &next_event_id)?;
         }
 

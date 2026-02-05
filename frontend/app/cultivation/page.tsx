@@ -4,7 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { CharacterPanel, OwnedManual } from "@/types/character";
 import { CultivationResult } from "@/types/game";
-import { ManualType, ManualListItem } from "@/types/manual";
+import type {
+  ManualType,
+  ManualListItem,
+  Internal,
+  AttackSkill,
+  DefenseSkill,
+} from "@/types/manual";
 import { TraitListItem } from "@/types/trait";
 import {
   initCore,
@@ -159,13 +165,15 @@ export default function CultivationPage() {
           (i): i is NonNullable<typeof i> => i !== null,
         );
         // 转换数据格式：manual_type -> type，移除前端特有字段
-        const transformedInternals = validInternalsData.map((internal: any) => {
-          const { level, current_exp, manual_type, ...rest } = internal;
-          return {
-            ...rest,
-            type: manual_type,
-          };
-        });
+        const transformedInternals = validInternalsData.map(
+          (internal: Internal) => {
+            const { level, current_exp, manual_type, ...rest } = internal;
+            return {
+              ...rest,
+              type: manual_type,
+            };
+          },
+        );
         if (transformedInternals.length > 0) {
           await loadInternals(
             JSON.stringify({ internals: transformedInternals }),
@@ -181,13 +189,15 @@ export default function CultivationPage() {
           (a): a is NonNullable<typeof a> => a !== null,
         );
         // 转换数据格式：manual_type -> type，移除前端特有字段
-        const transformedAttackSkills = validAttackData.map((skill: any) => {
-          const { level, current_exp, manual_type, ...rest } = skill;
-          return {
-            ...rest,
-            type: manual_type,
-          };
-        });
+        const transformedAttackSkills = validAttackData.map(
+          (skill: AttackSkill) => {
+            const { level, current_exp, manual_type, ...rest } = skill;
+            return {
+              ...rest,
+              type: manual_type,
+            };
+          },
+        );
         if (transformedAttackSkills.length > 0) {
           await loadAttackSkills(
             JSON.stringify({ attack_skills: transformedAttackSkills }),
@@ -203,13 +213,15 @@ export default function CultivationPage() {
           (d): d is NonNullable<typeof d> => d !== null,
         );
         // 转换数据格式：manual_type -> type，移除前端特有字段
-        const transformedDefenseSkills = validDefenseData.map((skill: any) => {
-          const { level, current_exp, manual_type, ...rest } = skill;
-          return {
-            ...rest,
-            type: manual_type,
-          };
-        });
+        const transformedDefenseSkills = validDefenseData.map(
+          (skill: DefenseSkill) => {
+            const { level, current_exp, manual_type, ...rest } = skill;
+            return {
+              ...rest,
+              type: manual_type,
+            };
+          },
+        );
         if (transformedDefenseSkills.length > 0) {
           await loadDefenseSkills(
             JSON.stringify({ defense_skills: transformedDefenseSkills }),

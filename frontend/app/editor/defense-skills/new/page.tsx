@@ -14,6 +14,11 @@ import {
 import RequireActivePack from "@/components/mod/RequireActivePack";
 import { useActivePack } from "@/lib/mods/active-pack";
 import { saveDefenseSkill } from "@/lib/tauri/commands";
+import {
+  applyRealmEntryChange,
+  ensureEntryIdsInRealms,
+  type RealmEntryChangeOptions,
+} from "@/lib/utils/entryInheritance";
 
 const DRAFT_KEY = "defense_skill_new";
 
@@ -36,12 +41,14 @@ export default function NewDefenseSkillPage() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [formulaError, setFormulaError] = useState<string | null>(null);
   const [formulaPreview, setFormulaPreview] = useState<string | null>(null);
+  const [realmNotices, setRealmNotices] = useState<Record<number, string>>({});
 
   useEffect(() => {
     const draft = loadDraft<DefenseSkill>(DRAFT_KEY);
     if (draft) {
       if (confirm("检测到未保存的草稿，是否恢复？")) {
-        setSkill(draft);
+        const ensured = ensureEntryIdsInRealms(draft.realms);
+        setSkill({ ...draft, realms: ensured.realms });
         setHasUnsavedChanges(true);
       }
     } else {
@@ -362,10 +369,31 @@ export default function NewDefenseSkillPage() {
                         previousRealm={
                           index > 0 ? skill.realms[index - 1] : undefined
                         }
-                        onChange={(newRealm) => {
-                          const newRealms = [...skill.realms];
-                          newRealms[index] = newRealm as DefenseSkillRealm;
-                          setSkill({ ...skill, realms: newRealms });
+                        notice={realmNotices[index] || null}
+                        onChange={(
+                          newRealm,
+                          options?: RealmEntryChangeOptions,
+                        ) => {
+                          const result = applyRealmEntryChange(
+                            skill.realms,
+                            index,
+                            newRealm as DefenseSkillRealm,
+                            options,
+                          );
+                          setSkill({ ...skill, realms: result.realms });
+                          if (result.notice) {
+                            setRealmNotices((prev) => ({
+                              ...prev,
+                              [index]: result.notice as string,
+                            }));
+                            window.setTimeout(() => {
+                              setRealmNotices((prev) => {
+                                const next = { ...prev };
+                                delete next[index];
+                                return next;
+                              });
+                            }, 2500);
+                          }
                         }}
                         onDelete={
                           skill.realms.length > 1

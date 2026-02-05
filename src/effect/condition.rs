@@ -244,26 +244,18 @@ pub struct BattleContext {
 impl CultivationCondition {
     fn check(&self, context: &CultivationContext) -> bool {
         match self {
-            CultivationCondition::InternalIs(id) => {
-                context.internal_id.as_ref() == Some(id)
+            CultivationCondition::InternalIs(id) => context.internal_id.as_ref() == Some(id),
+            CultivationCondition::InternalTypeIs(ty) => context.internal_type.as_ref() == Some(ty),
+            CultivationCondition::AttackSkillIs(id) => context.attack_skill_id.as_ref() == Some(id),
+            CultivationCondition::AttackSkillTypeIs(ty) => {
+                context.attack_skill_type.as_ref() == Some(ty)
             }
-            CultivationCondition::InternalTypeIs(ty) => {
-                context.internal_type.as_ref() == Some(ty)
-            }
-            CultivationCondition::AttackSkillIs(id) => {
-                context.attack_skill_id.as_ref() == Some(id)
-            }
-            CultivationCondition::AttackSkillTypeIs(ty) => context
-                .attack_skill_type
-                .as_ref()
-                == Some(ty),
             CultivationCondition::DefenseSkillIs(id) => {
                 context.defense_skill_id.as_ref() == Some(id)
             }
-            CultivationCondition::DefenseSkillTypeIs(ty) => context
-                .defense_skill_type
-                .as_ref()
-                == Some(ty),
+            CultivationCondition::DefenseSkillTypeIs(ty) => {
+                context.defense_skill_type.as_ref() == Some(ty)
+            }
             CultivationCondition::HasTrait(trait_id) => context.traits.contains(trait_id),
             CultivationCondition::AttributeComparison {
                 attribute,
@@ -403,30 +395,24 @@ impl BattleCondition {
                     ComparisonOp::GreaterThanOrEqual => attr_value >= comparison_value,
                 }
             }
-            BattleCondition::OpponentInternalIs(id) => context
-                .opponent_internal_id
-                .as_ref()
-                == Some(id),
-            BattleCondition::OpponentAttackSkillIs(id) => context
-                .opponent_attack_skill_id
-                .as_ref()
-                == Some(id),
-            BattleCondition::OpponentDefenseSkillIs(id) => context
-                .opponent_defense_skill_id
-                .as_ref()
-                == Some(id),
-            BattleCondition::OpponentInternalTypeIs(ty) => context
-                .opponent_internal_type
-                .as_ref()
-                == Some(ty),
-            BattleCondition::OpponentAttackSkillTypeIs(ty) => context
-                .opponent_attack_skill_type
-                .as_ref()
-                == Some(ty),
-            BattleCondition::OpponentDefenseSkillTypeIs(ty) => context
-                .opponent_defense_skill_type
-                .as_ref()
-                == Some(ty),
+            BattleCondition::OpponentInternalIs(id) => {
+                context.opponent_internal_id.as_ref() == Some(id)
+            }
+            BattleCondition::OpponentAttackSkillIs(id) => {
+                context.opponent_attack_skill_id.as_ref() == Some(id)
+            }
+            BattleCondition::OpponentDefenseSkillIs(id) => {
+                context.opponent_defense_skill_id.as_ref() == Some(id)
+            }
+            BattleCondition::OpponentInternalTypeIs(ty) => {
+                context.opponent_internal_type.as_ref() == Some(ty)
+            }
+            BattleCondition::OpponentAttackSkillTypeIs(ty) => {
+                context.opponent_attack_skill_type.as_ref() == Some(ty)
+            }
+            BattleCondition::OpponentDefenseSkillTypeIs(ty) => {
+                context.opponent_defense_skill_type.as_ref() == Some(ty)
+            }
             BattleCondition::AttackBrokeQiDefense => context.attack_broke_qi_defense == Some(true),
             BattleCondition::AttackDidNotBreakQiDefense => {
                 context.attack_broke_qi_defense == Some(false)

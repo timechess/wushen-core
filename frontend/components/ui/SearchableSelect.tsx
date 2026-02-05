@@ -69,6 +69,15 @@ export default function SearchableSelect({
     }
   }, [isOpen]);
 
+  const handleSelect = (selectedValue: string) => {
+    if (disabled) return;
+    onChange(selectedValue);
+    setIsOpen(false);
+    setSearchTerm("");
+    setHighlightedIndex(-1);
+    inputRef.current?.blur();
+  };
+
   // 键盘导航
   useEffect(() => {
     if (!isOpen) return;
@@ -115,15 +124,6 @@ export default function SearchableSelect({
       }
     }
   }, [highlightedIndex]);
-
-  const handleSelect = (selectedValue: string) => {
-    if (disabled) return;
-    onChange(selectedValue);
-    setIsOpen(false);
-    setSearchTerm("");
-    setHighlightedIndex(-1);
-    inputRef.current?.blur();
-  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (disabled) return;

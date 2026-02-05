@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 export default function Navbar() {
@@ -39,29 +40,29 @@ export default function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex flex-col gap-3 py-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-4">
-            <a href="/" className="nav-brand">
+            <Link href="/" className="nav-brand">
               武神·工坊
-            </a>
+            </Link>
             <span className="panel-kicker">WUSHEN CORE</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            <a href="/" className={linkClass("/")}>
+            <Link href="/" className={linkClass("/")}>
               工作台
-            </a>
+            </Link>
 
             <div className="nav-divider hidden lg:block" />
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="nav-group-title">游戏</span>
               {gameItems.map((item) => (
-                <a
+                <Link
                   key={item.href}
                   href={item.href}
                   className={linkClass(item.href)}
                 >
                   {item.label}
-                </a>
+                </Link>
               ))}
             </div>
 
@@ -69,25 +70,15 @@ export default function Navbar() {
 
             <div className="flex flex-wrap items-center gap-2">
               <span className="nav-group-title">编辑</span>
-              {editorItems.map((item) =>
-                item.href === "/mods/order" ? (
-                  <a
-                    key={item.href}
-                    href="/mods/order/"
-                    className={linkClass(item.href)}
-                  >
-                    {item.label}
-                  </a>
-                ) : (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    className={linkClass(item.href)}
-                  >
-                    {item.label}
-                  </a>
-                ),
-              )}
+              {editorItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={linkClass(item.href)}
+                >
+                  {item.label}
+                </Link>
+              ))}
             </div>
           </div>
         </div>

@@ -5,7 +5,7 @@ const STORAGE_PREFIX = "wushen_editor_draft_";
 /**
  * 保存草稿到 localStorage
  */
-export function saveDraft(key: string, data: any): void {
+export function saveDraft<T>(key: string, data: T): void {
   try {
     const storageKey = `${STORAGE_PREFIX}${key}`;
     const jsonData = JSON.stringify(data);

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import type { BattleResult } from "@/types/game";
@@ -22,20 +22,18 @@ function resultText(
 function BattleViewContent() {
   const params = useSearchParams();
   const sessionId = params.get("session");
-  const [session, setSession] = useState<BattleSession | null>(null);
   const [showValueLogs, setShowValueLogs] = useState(true);
 
-  useEffect(() => {
-    if (!sessionId || typeof window === "undefined") return;
+  const session = useMemo<BattleSession | null>(() => {
+    if (!sessionId || typeof window === "undefined") return null;
     const raw = window.localStorage.getItem(
       `wushen_battle_session_${sessionId}`,
     );
-    if (!raw) return;
+    if (!raw) return null;
     try {
-      const parsed = JSON.parse(raw) as BattleSession;
-      setSession(parsed);
+      return JSON.parse(raw) as BattleSession;
     } catch {
-      setSession(null);
+      return null;
     }
   }, [sessionId]);
 

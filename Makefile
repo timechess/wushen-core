@@ -8,7 +8,8 @@ fmt:
 lint:
 	cargo clippy --manifest-path Cargo.toml -- -D warnings
 	cargo clippy --manifest-path src-tauri/Cargo.toml -- -D warnings
-	npm --prefix frontend exec -- prettier --check .
+	npm --prefix frontend exec -- tsc -p frontend/tsconfig.json --noEmit
+	(cd frontend && npm run lint)
 
 dev:
 	(cd src-tauri && cargo tauri dev)

@@ -37,7 +37,11 @@ impl BattleCalculator {
     pub fn calculate_attack_output(attacker: &BattlePanel) -> f64 {
         let qi_used = attacker.qi.min(attacker.max_qi * attacker.qi_output_rate);
         let base_with_qi = attacker.base_attack + qi_used;
-        let qi_quality = if qi_used > 0.0 { attacker.qi_quality } else { 1.0 };
+        let qi_quality = if qi_used > 0.0 {
+            attacker.qi_quality
+        } else {
+            1.0
+        };
         let output = base_with_qi * qi_quality * attacker.power * (1.0 + attacker.damage_bonus);
         output.max(0.0)
     }
@@ -47,7 +51,11 @@ impl BattleCalculator {
     pub fn calculate_defense(defender: &BattlePanel) -> f64 {
         let qi_used = defender.qi.min(defender.max_qi * defender.qi_output_rate);
         let base_with_qi = defender.base_defense + qi_used;
-        let qi_quality = if qi_used > 0.0 { defender.qi_quality } else { 1.0 };
+        let qi_quality = if qi_used > 0.0 {
+            defender.qi_quality
+        } else {
+            1.0
+        };
         let defense = base_with_qi * qi_quality * defender.defense_power;
         defense.max(0.0)
     }

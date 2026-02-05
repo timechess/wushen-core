@@ -13,6 +13,11 @@ import {
 import RequireActivePack from "@/components/mod/RequireActivePack";
 import { useActivePack } from "@/lib/mods/active-pack";
 import { getInternal, saveInternal } from "@/lib/tauri/commands";
+import {
+  applyRealmEntryChange,
+  ensureEntryIdsInRealms,
+  type RealmEntryChangeOptions,
+} from "@/lib/utils/entryInheritance";
 
 export default function EditInternalPage() {
   const router = useRouter();
@@ -24,6 +29,7 @@ export default function EditInternalPage() {
   const [saving, setSaving] = useState(false);
   const [formulaError, setFormulaError] = useState<string | null>(null);
   const [formulaPreview, setFormulaPreview] = useState<string | null>(null);
+  const [realmNotices, setRealmNotices] = useState<Record<number, string>>({});
   const { activePack } = useActivePack();
 
   useEffect(() => {
@@ -45,7 +51,8 @@ export default function EditInternalPage() {
         router.push("/editor/internals");
         return;
       }
-      setInternal(internalData);
+      const ensured = ensureEntryIdsInRealms(internalData.realms);
+      setInternal({ ...internalData, realms: ensured.realms });
     } catch (error) {
       console.error("加载内功失败:", error);
       alert("加载内功失败");
@@ -325,13 +332,34 @@ export default function EditInternalPage() {
                       previousRealm={
                         index > 0 ? internal.realms[index - 1] : undefined
                       }
-                      onChange={(newRealm) => {
-                        const newRealms = [...internal.realms];
-                        newRealms[index] = newRealm as InternalRealm;
+                      notice={realmNotices[index] || null}
+                      onChange={(
+                        newRealm,
+                        options?: RealmEntryChangeOptions,
+                      ) => {
+                        const result = applyRealmEntryChange(
+                          internal.realms,
+                          index,
+                          newRealm as InternalRealm,
+                          options,
+                        );
                         setInternal({
                           ...internal,
-                          realms: newRealms,
+                          realms: result.realms,
                         });
+                        if (result.notice) {
+                          setRealmNotices((prev) => ({
+                            ...prev,
+                            [index]: result.notice as string,
+                          }));
+                          window.setTimeout(() => {
+                            setRealmNotices((prev) => {
+                              const next = { ...prev };
+                              delete next[index];
+                              return next;
+                            });
+                          }, 2500);
+                        }
                       }}
                       onDelete={
                         internal.realms.length > 1
