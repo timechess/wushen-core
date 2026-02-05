@@ -1096,8 +1096,8 @@ export default function GamePage() {
 
   const battleInitialPanels = useMemo(() => {
     if (!battleData) return null;
-    let attacker: BattlePanel = { ...battleData.attacker_panel };
-    let defender: BattlePanel = { ...battleData.defender_panel };
+    const attacker: BattlePanel = { ...battleData.attacker_panel };
+    const defender: BattlePanel = { ...battleData.defender_panel };
     for (let i = battleRecordsAll.length - 1; i >= 0; i -= 1) {
       const record = battleRecordsAll[i];
       applyPanelDelta(attacker, record.attacker_panel_delta, true);
@@ -1119,8 +1119,8 @@ export default function GamePage() {
 
   const battleCurrentPanels = useMemo(() => {
     if (!battleInitialPanels) return null;
-    let attacker: BattlePanel = { ...battleInitialPanels.attacker };
-    let defender: BattlePanel = { ...battleInitialPanels.defender };
+    const attacker: BattlePanel = { ...battleInitialPanels.attacker };
+    const defender: BattlePanel = { ...battleInitialPanels.defender };
     const limit = Math.min(battleApplyLimit, battleRecordsAll.length);
     for (let i = 0; i < limit; i += 1) {
       const record = battleRecordsAll[i];

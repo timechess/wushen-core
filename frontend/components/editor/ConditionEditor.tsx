@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Condition } from "@/types/trait";
-import { ManualListItem } from "@/types/manual";
-import { TraitListItem } from "@/types/trait";
+import type {
+  AttributeType,
+  BattleAttributeType,
+  ComparisonOp,
+  Condition,
+} from "@/types/trait";
+import type { ManualListItem } from "@/types/manual";
+import type { TraitListItem } from "@/types/trait";
 import Button from "@/components/ui/Button";
 import Select from "@/components/ui/Select";
 import SearchableSelect from "@/components/ui/SearchableSelect";
@@ -56,20 +61,7 @@ function FormulaValueInput({
   onChange: (newValue: number | string) => void;
   label: string;
 }) {
-  const isFormula = typeof value === "string";
-  const [valueType, setValueType] = useState<"fixed" | "formula">(
-    isFormula ? "formula" : "fixed",
-  );
-
-  // 当 value 类型改变时，同步更新 valueType
-  useEffect(() => {
-    const currentIsFormula = typeof value === "string";
-    if (currentIsFormula && valueType === "fixed") {
-      setValueType("formula");
-    } else if (!currentIsFormula && valueType === "formula") {
-      setValueType("fixed");
-    }
-  }, [value, valueType]);
+  const valueType = typeof value === "string" ? "formula" : "fixed";
 
   return (
     <div className="space-y-2">
@@ -82,7 +74,6 @@ function FormulaValueInput({
         value={valueType}
         onChange={(e) => {
           const newType = e.target.value as "fixed" | "formula";
-          setValueType(newType);
           if (newType === "fixed") {
             // 如果从公式切换到固定值，尝试解析为数字，否则使用0
             const numValue =
@@ -180,21 +171,28 @@ export default function ConditionEditor({
     loadData();
   }, [activePack]);
 
+  function isAndCondition(cond: Condition): cond is { and: Condition[] } {
+    return "and" in cond && Array.isArray(cond.and);
+  }
+
+  function isOrCondition(cond: Condition): cond is { or: Condition[] } {
+    return "or" in cond && Array.isArray(cond.or);
+  }
+
   function getConditionType(
     cond: Condition,
   ): "cultivation" | "battle" | "and" | "or" {
-    if ("and" in cond && Array.isArray((cond as any).and)) return "and";
-    if ("or" in cond && Array.isArray((cond as any).or)) return "or";
-    const condObj = cond as any;
+    if (isAndCondition(cond)) return "and";
+    if (isOrCondition(cond)) return "or";
     if (
-      "internal_is" in condObj ||
-      "internal_type_is" in condObj ||
-      "attack_skill_is" in condObj ||
-      "attack_skill_type_is" in condObj ||
-      "defense_skill_is" in condObj ||
-      "defense_skill_type_is" in condObj ||
-      "has_trait" in condObj ||
-      "attribute_comparison" in condObj
+      "internal_is" in cond ||
+      "internal_type_is" in cond ||
+      "attack_skill_is" in cond ||
+      "attack_skill_type_is" in cond ||
+      "defense_skill_is" in cond ||
+      "defense_skill_type_is" in cond ||
+      "has_trait" in cond ||
+      "attribute_comparison" in cond
     ) {
       return "cultivation";
     }
@@ -279,7 +277,7 @@ export default function ConditionEditor({
                 // 保持当前属性比较设置
                 return;
               } else {
-                onChange({ [key]: "" } as any);
+                onChange({ [key]: "" } as Condition);
               }
             }}
           />
@@ -291,7 +289,7 @@ export default function ConditionEditor({
               onChange({
                 attribute_comparison: {
                   ...attrComp,
-                  attribute: e.target.value as any,
+                  attribute: e.target.value as AttributeType,
                 },
               })
             }
@@ -304,7 +302,7 @@ export default function ConditionEditor({
               onChange({
                 attribute_comparison: {
                   ...attrComp,
-                  op: e.target.value as any,
+                  op: e.target.value as ComparisonOp,
                 },
               })
             }
@@ -328,7 +326,9 @@ export default function ConditionEditor({
 
     // 其他修行条件
     const conditionKey = Object.keys(condition)[0];
-    const conditionValue = (condition as any)[conditionKey];
+    const conditionValue = (
+      condition as Record<string, string | null | undefined>
+    )[conditionKey];
 
     // 判断是否需要ID选择器
     const needsIdSelector =
@@ -406,7 +406,7 @@ export default function ConditionEditor({
                 },
               });
             } else {
-              onChange({ [key]: "" } as any);
+              onChange({ [key]: "" } as Condition);
             }
           }}
         />
@@ -431,7 +431,7 @@ export default function ConditionEditor({
               }
               value={conditionValue || ""}
               onChange={(selectedValue) =>
-                onChange({ [conditionKey]: selectedValue } as any)
+                onChange({ [conditionKey]: selectedValue } as Condition)
               }
               placeholder={`搜索${
                 conditionKey === "internal_is"
@@ -448,7 +448,7 @@ export default function ConditionEditor({
               label="值"
               value={conditionValue || ""}
               onChange={(e) =>
-                onChange({ [conditionKey]: e.target.value } as any)
+                onChange({ [conditionKey]: e.target.value } as Condition)
               }
             />
           ))}
@@ -549,9 +549,9 @@ export default function ConditionEditor({
                   },
                 });
               } else if (key.includes("_is")) {
-                onChange({ [key]: "" } as any);
+                onChange({ [key]: "" } as Condition);
               } else {
-                onChange({ [key]: null } as any);
+                onChange({ [key]: null } as Condition);
               }
             }}
           />
@@ -563,7 +563,7 @@ export default function ConditionEditor({
               onChange({
                 self_attribute_comparison: {
                   ...attrComp,
-                  attribute: e.target.value as any,
+                  attribute: e.target.value as BattleAttributeType,
                 },
               })
             }
@@ -576,7 +576,7 @@ export default function ConditionEditor({
               onChange({
                 self_attribute_comparison: {
                   ...attrComp,
-                  op: e.target.value as any,
+                  op: e.target.value as ComparisonOp,
                 },
               })
             }
@@ -675,9 +675,9 @@ export default function ConditionEditor({
                   },
                 });
               } else if (key.includes("_is")) {
-                onChange({ [key]: "" } as any);
+                onChange({ [key]: "" } as Condition);
               } else {
-                onChange({ [key]: null } as any);
+                onChange({ [key]: null } as Condition);
               }
             }}
           />
@@ -689,7 +689,7 @@ export default function ConditionEditor({
               onChange({
                 opponent_attribute_comparison: {
                   ...attrComp,
-                  attribute: e.target.value as any,
+                  attribute: e.target.value as BattleAttributeType,
                 },
               })
             }
@@ -702,7 +702,7 @@ export default function ConditionEditor({
               onChange({
                 opponent_attribute_comparison: {
                   ...attrComp,
-                  op: e.target.value as any,
+                  op: e.target.value as ComparisonOp,
                 },
               })
             }
@@ -724,7 +724,9 @@ export default function ConditionEditor({
 
     // 其他战斗条件
     const conditionKey = Object.keys(condition)[0];
-    const conditionValue = (condition as any)[conditionKey];
+    const conditionValue = (
+      condition as Record<string, string | null | undefined>
+    )[conditionKey];
 
     // 判断是否需要ID选择器
     const needsIdSelector =
@@ -829,9 +831,9 @@ export default function ConditionEditor({
                 },
               });
             } else if (key.includes("_is")) {
-              onChange({ [key]: "" } as any);
+              onChange({ [key]: "" } as Condition);
             } else {
-              onChange({ [key]: null } as any);
+              onChange({ [key]: null } as Condition);
             }
           }}
         />
@@ -854,7 +856,7 @@ export default function ConditionEditor({
               }
               value={conditionValue || ""}
               onChange={(selectedValue) =>
-                onChange({ [conditionKey]: selectedValue } as any)
+                onChange({ [conditionKey]: selectedValue } as Condition)
               }
               placeholder={`搜索${
                 conditionKey === "opponent_internal_is"
@@ -869,7 +871,7 @@ export default function ConditionEditor({
               label="值"
               value={conditionValue || ""}
               onChange={(e) =>
-                onChange({ [conditionKey]: e.target.value } as any)
+                onChange({ [conditionKey]: e.target.value } as Condition)
               }
             />
           ))}
@@ -881,8 +883,11 @@ export default function ConditionEditor({
     if (!condition || (conditionType !== "and" && conditionType !== "or"))
       return null;
 
-    const conditions =
-      conditionType === "and" ? (condition as any).and : (condition as any).or;
+    const conditions = isAndCondition(condition)
+      ? condition.and
+      : isOrCondition(condition)
+        ? condition.or
+        : [];
 
     return (
       <div className="space-y-3 p-4 bg-white rounded-lg border-2 border-teal-200 shadow-sm">
@@ -907,9 +912,16 @@ export default function ConditionEditor({
             <ConditionEditor
               condition={subCond}
               onChange={(newCond) => {
+                if (newCond === null) {
+                  const newConditions = conditions.filter(
+                    (_, i: number) => i !== index,
+                  );
+                  onChange({ [conditionType]: newConditions } as Condition);
+                  return;
+                }
                 const newConditions = [...conditions];
                 newConditions[index] = newCond;
-                onChange({ [conditionType]: newConditions } as any);
+                onChange({ [conditionType]: newConditions } as Condition);
               }}
             />
             <Button
@@ -917,9 +929,9 @@ export default function ConditionEditor({
               variant="danger"
               onClick={() => {
                 const newConditions = conditions.filter(
-                  (_: any, i: number) => i !== index,
+                  (_, i: number) => i !== index,
                 );
-                onChange({ [conditionType]: newConditions } as any);
+                onChange({ [conditionType]: newConditions } as Condition);
               }}
               className="mt-2"
             >
@@ -940,7 +952,7 @@ export default function ConditionEditor({
                 },
               },
             ];
-            onChange({ [conditionType]: newConditions } as any);
+            onChange({ [conditionType]: newConditions } as Condition);
           }}
         >
           添加子条件
@@ -961,7 +973,11 @@ export default function ConditionEditor({
           { value: "or", label: "OR 组合" },
         ]}
         value={conditionType}
-        onChange={(e) => handleTypeChange(e.target.value as any)}
+        onChange={(e) =>
+          handleTypeChange(
+            e.target.value as "none" | "cultivation" | "battle" | "and" | "or",
+          )
+        }
       />
       {conditionType === "cultivation" && renderCultivationCondition()}
       {conditionType === "battle" && renderBattleCondition()}

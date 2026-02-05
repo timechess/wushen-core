@@ -9,6 +9,7 @@ import {
   BattlePanel,
   BattleRecord,
 } from "@/types/game";
+import type { Internal, AttackSkill, DefenseSkill } from "@/types/manual";
 import {
   initCore,
   loadTraits,
@@ -376,7 +377,7 @@ export default function BattlePage() {
           if (validInternalsData.length > 0) {
             // 转换数据格式：manual_type -> type，移除前端特有字段
             const transformedInternals = validInternalsData.map(
-              (internal: any) => {
+              (internal: Internal) => {
                 const { level, current_exp, manual_type, ...rest } = internal;
                 return {
                   ...rest,
@@ -418,7 +419,7 @@ export default function BattlePage() {
           if (validAttackData.length > 0) {
             // 转换数据格式：manual_type -> type，移除前端特有字段
             const transformedAttackSkills = validAttackData.map(
-              (skill: any) => {
+              (skill: AttackSkill) => {
                 const { level, current_exp, manual_type, ...rest } = skill;
                 return {
                   ...rest,
@@ -460,7 +461,7 @@ export default function BattlePage() {
           if (validDefenseData.length > 0) {
             // 转换数据格式：manual_type -> type，移除前端特有字段
             const transformedDefenseSkills = validDefenseData.map(
-              (skill: any) => {
+              (skill: DefenseSkill) => {
                 const { level, current_exp, manual_type, ...rest } = skill;
                 return {
                   ...rest,
@@ -587,8 +588,8 @@ export default function BattlePage() {
 
   const battleInitialPanels = useMemo(() => {
     if (!battleResult) return null;
-    let attacker: BattlePanel = { ...battleResult.attacker_panel };
-    let defender: BattlePanel = { ...battleResult.defender_panel };
+    const attacker: BattlePanel = { ...battleResult.attacker_panel };
+    const defender: BattlePanel = { ...battleResult.defender_panel };
     for (let i = battleRecordsAll.length - 1; i >= 0; i -= 1) {
       const record = battleRecordsAll[i];
       applyPanelDelta(attacker, record.attacker_panel_delta, true);
@@ -610,8 +611,8 @@ export default function BattlePage() {
 
   const battleCurrentPanels = useMemo(() => {
     if (!battleInitialPanels) return null;
-    let attacker: BattlePanel = { ...battleInitialPanels.attacker };
-    let defender: BattlePanel = { ...battleInitialPanels.defender };
+    const attacker: BattlePanel = { ...battleInitialPanels.attacker };
+    const defender: BattlePanel = { ...battleInitialPanels.defender };
     const limit = Math.min(battleApplyLimit, battleRecordsAll.length);
     for (let i = 0; i < limit; i += 1) {
       const record = battleRecordsAll[i];

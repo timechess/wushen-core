@@ -9,6 +9,7 @@ export interface Trait {
 }
 
 export interface Entry {
+  entry_id?: string;
   trigger: Trigger;
   condition?: Condition | null;
   effects: Effect[];

@@ -94,18 +94,16 @@ impl AttributeModifier {
                 can_exceed_limit,
                 is_temporary,
                 ..
-            } => {
-                value.as_fixed().map(|fixed_value| {
-                    Self::new(
-                        *target,
-                        fixed_value,
-                        *operation,
-                        *target_panel,
-                        *can_exceed_limit,
-                        *is_temporary,
-                    )
-                })
-            }
+            } => value.as_fixed().map(|fixed_value| {
+                Self::new(
+                    *target,
+                    fixed_value,
+                    *operation,
+                    *target_panel,
+                    *can_exceed_limit,
+                    *is_temporary,
+                )
+            }),
             _ => None,
         }
     }

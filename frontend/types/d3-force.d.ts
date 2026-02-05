@@ -23,7 +23,7 @@ declare module "d3-force" {
     radius(radius: number): this;
   }
 
-  export interface ForceCenter<TNode> extends Force<TNode> {}
+  export type ForceCenter<TNode> = Force<TNode>;
 
   export function forceSimulation<T>(nodes?: T[]): Simulation<T>;
   export function forceLink<TNode, TLink>(

@@ -63,9 +63,10 @@ export default function EditEnemyPage() {
       }
       await saveEnemy(activePack.id, enemy);
       router.push("/character");
-    } catch (error: any) {
+    } catch (error) {
       console.error("保存敌人失败:", error);
-      alert(error.message || "保存失败");
+      const message = error instanceof Error ? error.message : "保存失败";
+      alert(message);
     } finally {
       setSaving(false);
     }

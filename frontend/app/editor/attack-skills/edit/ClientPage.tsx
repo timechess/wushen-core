@@ -13,6 +13,11 @@ import {
 import RequireActivePack from "@/components/mod/RequireActivePack";
 import { useActivePack } from "@/lib/mods/active-pack";
 import { getAttackSkill, saveAttackSkill } from "@/lib/tauri/commands";
+import {
+  applyRealmEntryChange,
+  ensureEntryIdsInRealms,
+  type RealmEntryChangeOptions,
+} from "@/lib/utils/entryInheritance";
 
 export default function EditAttackSkillPage() {
   const router = useRouter();
@@ -24,6 +29,7 @@ export default function EditAttackSkillPage() {
   const [saving, setSaving] = useState(false);
   const [formulaError, setFormulaError] = useState<string | null>(null);
   const [formulaPreview, setFormulaPreview] = useState<string | null>(null);
+  const [realmNotices, setRealmNotices] = useState<Record<number, string>>({});
   const { activePack } = useActivePack();
 
   useEffect(() => {
@@ -45,7 +51,8 @@ export default function EditAttackSkillPage() {
         router.push("/editor/attack-skills");
         return;
       }
-      setSkill(skillData);
+      const ensured = ensureEntryIdsInRealms(skillData.realms);
+      setSkill({ ...skillData, realms: ensured.realms });
     } catch (error) {
       console.error("加载攻击武技失败:", error);
       alert("加载攻击武技失败");
@@ -316,10 +323,31 @@ export default function EditAttackSkillPage() {
                       previousRealm={
                         index > 0 ? skill.realms[index - 1] : undefined
                       }
-                      onChange={(newRealm) => {
-                        const newRealms = [...skill.realms];
-                        newRealms[index] = newRealm as AttackSkillRealm;
-                        setSkill({ ...skill, realms: newRealms });
+                      notice={realmNotices[index] || null}
+                      onChange={(
+                        newRealm,
+                        options?: RealmEntryChangeOptions,
+                      ) => {
+                        const result = applyRealmEntryChange(
+                          skill.realms,
+                          index,
+                          newRealm as AttackSkillRealm,
+                          options,
+                        );
+                        setSkill({ ...skill, realms: result.realms });
+                        if (result.notice) {
+                          setRealmNotices((prev) => ({
+                            ...prev,
+                            [index]: result.notice as string,
+                          }));
+                          window.setTimeout(() => {
+                            setRealmNotices((prev) => {
+                              const next = { ...prev };
+                              delete next[index];
+                              return next;
+                            });
+                          }, 2500);
+                        }
                       }}
                       onDelete={
                         skill.realms.length > 1
